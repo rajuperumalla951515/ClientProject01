@@ -6,8 +6,19 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     API_V1_STR: str = "/api"
     
-    # Database (PostgreSQL compatible, fallback to local sqlite for development)
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./sri_adithya.db")
+    # Environment Detection
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", os.getenv("NODE_ENV", "development")).lower()
+    
+    @property
+    def IS_RENDER(self) -> bool:
+        return os.getenv("RENDER", "").lower() in ("true", "1")
+    
+    @property
+    def IS_PRODUCTION(self) -> bool:
+        return self.IS_RENDER or self.ENVIRONMENT in ("production", "prod")
+    
+    # Database
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "sri_adithya_super_secure_organic_secret_key_2026_xyz789")
@@ -24,5 +35,3 @@ class Settings(BaseSettings):
         case_sensitive = True
 
 settings = Settings()
-
-
