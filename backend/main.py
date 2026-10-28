@@ -23,8 +23,10 @@ except (ImportError, ModuleNotFoundError):
     sys.modules["backend"] = backend_pkg
     sys.modules["backend.app"] = app
 
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Response, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from backend.app.config import settings
 from backend.app.database import (
     engine, Base, is_db_configured, db_config_error, safe_db_url,
@@ -96,6 +98,7 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5173",
     "http://localhost:3000",
     "http://localhost:4173",
+    "https://sriadithyaorganics.vercel.app",
 ]
 frontend_url = os.getenv("FRONTEND_URL", "").strip()
 if frontend_url:
@@ -117,6 +120,28 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Global database exception handler (attaches proper CORS headers and HTTP 503 status)
+@app.exception_handler(OperationalError)
+@app.exception_handler(SQLAlchemyError)
+async def db_exception_handler(request: Request, exc: Exception):
+    print(f"⚠️ Database error on {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "detail": "Database connection error. In Render Dashboard, please set DATABASE_URL to your real Render PostgreSQL Internal Connection String (copy from Render PostgreSQL -> Connections -> Internal Database URL).",
+            "error_type": exc.__class__.__name__
+        }
+    )
+
+# Global catch-all handler for unhandled errors
+@app.exception_handler(Exception)
+async def generic_exception_handler(request: Request, exc: Exception):
+    print(f"⚠️ Unhandled error on {request.method} {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        content={"detail": f"Server processing error: {str(exc)[:200]}"}
+    )
 
 # Root Endpoint
 @app.get("/", tags=["Root"])

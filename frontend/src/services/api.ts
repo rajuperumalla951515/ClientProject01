@@ -122,10 +122,20 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers,
+    });
+  } catch (fetchErr: any) {
+    if (fetchErr.name === 'TypeError' || fetchErr.message?.includes('fetch')) {
+      throw new Error(
+        'Unable to connect to Sri Adithya Organics backend server. Please verify your internet connection or check that the backend service on Render is online.'
+      );
+    }
+    throw fetchErr;
+  }
 
   if (!response.ok) {
     let errorMsg = 'An error occurred. Please try again.';

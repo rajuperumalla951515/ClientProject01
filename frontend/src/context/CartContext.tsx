@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { CartData } from '../types';
+import { CartData, CartItem } from '../types';
 import { api } from '../services/api';
+import { FALLBACK_PRODUCTS } from '../services/fallbackData';
 
 const defaultCart: CartData = {
   items: [],
@@ -14,6 +15,25 @@ const defaultCart: CartData = {
   free_delivery_progress: 0,
   amount_needed_for_free_delivery: 499,
 };
+
+function calculateCartTotals(items: CartItem[]): CartData {
+  const subtotal = items.reduce((acc, i) => acc + i.variant.price * i.quantity, 0);
+  const totalMrp = items.reduce((acc, i) => acc + (i.variant.mrp || i.variant.price) * i.quantity, 0);
+  const discount = Math.max(0, totalMrp - subtotal);
+  const delivery_fee = subtotal >= 499 || subtotal === 0 ? 0 : 39;
+  return {
+    items,
+    item_count: items.reduce((acc, i) => acc + i.quantity, 0),
+    subtotal: Math.round(subtotal * 100) / 100,
+    discount: Math.round(discount * 100) / 100,
+    delivery_fee,
+    taxes: 0,
+    total_amount: Math.round((subtotal + delivery_fee) * 100) / 100,
+    free_delivery_threshold: 499,
+    free_delivery_progress: subtotal === 0 ? 0 : Math.min(100, Math.round((subtotal / 499) * 100)),
+    amount_needed_for_free_delivery: Math.max(0, Math.round((499 - subtotal) * 100) / 100),
+  };
+}
 
 interface CartContextType {
   cart: CartData;
@@ -40,10 +60,20 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshCart = async () => {
     try {
       const data = await api.getCart();
-      setCart(data);
+      if (data && Array.isArray(data.items)) {
+        setCart(data);
+        return;
+      }
     } catch (err) {
-      console.warn('Error fetching cart:', err);
+      console.warn('Backend cart fetch notice:', err);
     }
+    // Load local cart if present
+    try {
+      const saved = localStorage.getItem('sri_adithya_local_cart');
+      if (saved) {
+        setCart(JSON.parse(saved));
+      }
+    } catch {}
   };
 
   useEffect(() => {
@@ -58,10 +88,42 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await api.addToCart(productId, variantId, quantity);
       setCart(updated);
-      openDrawer(); // Blinkit / Quick-commerce style: open side drawer so user sees instant cart update
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
+      } catch {}
+      openDrawer();
     } catch (err: any) {
-      alert(err.message || 'Could not add product to cart');
-      throw err;
+      console.warn('Remote cart sync offline, updating local cart:', err);
+      setCart((prev) => {
+        const product = FALLBACK_PRODUCTS.find((p) => p.id === productId);
+        if (!product) return prev;
+        const variant = product.variants.find((v) => v.id === variantId) || product.variants[0];
+        const existingIdx = prev.items.findIndex(
+          (i) => i.product_id === productId && i.variant_id === variantId
+        );
+        let newItems = [...prev.items];
+        if (existingIdx >= 0) {
+          newItems[existingIdx] = {
+            ...newItems[existingIdx],
+            quantity: newItems[existingIdx].quantity + quantity,
+          };
+        } else {
+          newItems.push({
+            id: Date.now(),
+            product_id: productId,
+            variant_id: variantId,
+            quantity,
+            product,
+            variant,
+          });
+        }
+        const updatedCart = calculateCartTotals(newItems);
+        try {
+          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
+        } catch {}
+        return updatedCart;
+      });
+      openDrawer();
     } finally {
       setIsLoading(false);
     }
@@ -72,9 +134,24 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await api.updateCartItem(itemId, quantity);
       setCart(updated);
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
+      } catch {}
     } catch (err: any) {
-      alert(err.message || 'Could not update quantity');
-      throw err;
+      console.warn('Remote cart sync offline, updating local cart item:', err);
+      setCart((prev) => {
+        let newItems: CartItem[];
+        if (quantity <= 0) {
+          newItems = prev.items.filter((i) => i.id !== itemId);
+        } else {
+          newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
+        }
+        const updatedCart = calculateCartTotals(newItems);
+        try {
+          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
+        } catch {}
+        return updatedCart;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -85,8 +162,18 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await api.removeCartItem(itemId);
       setCart(updated);
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
+      } catch {}
     } catch (err: any) {
-      console.error(err);
+      setCart((prev) => {
+        const newItems = prev.items.filter((i) => i.id !== itemId);
+        const updatedCart = calculateCartTotals(newItems);
+        try {
+          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
+        } catch {}
+        return updatedCart;
+      });
     } finally {
       setIsLoading(false);
     }
@@ -97,8 +184,14 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const updated = await api.clearCart();
       setCart(updated);
+      try {
+        localStorage.removeItem('sri_adithya_local_cart');
+      } catch {}
     } catch (err: any) {
-      console.error(err);
+      setCart(defaultCart);
+      try {
+        localStorage.removeItem('sri_adithya_local_cart');
+      } catch {}
     } finally {
       setIsLoading(false);
     }

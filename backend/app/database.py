@@ -21,6 +21,21 @@ PLACEHOLDER_HOSTS = {
     "my_host"
 }
 
+def is_placeholder_host(host: Optional[str]) -> bool:
+    """Check if a hostname is an unconfigured placeholder or invalid template."""
+    if host is None:
+        return False  # SQLite has no host
+    h = str(host).lower().strip()
+    if not h:
+        return True
+    if ".." in h:  # catches literal dpg-...-a, ellipses, etc.
+        return True
+    if any(c in h for c in "<>[]{}"):  # catches <host>, [host], etc.
+        return True
+    if h in PLACEHOLDER_HOSTS:
+        return True
+    return False
+
 def resolve_raw_db_url() -> str:
     """Read database connection URL from environment variables safely, prioritizing non-placeholder URLs."""
     # Check all possible Render / standard database environment variables
@@ -36,14 +51,14 @@ def resolve_raw_db_url() -> str:
             try:
                 norm = normalize_db_url(val)
                 parsed = make_url(norm)
-                if parsed.host and parsed.host.lower() not in PLACEHOLDER_HOSTS:
+                if parsed.host and not is_placeholder_host(parsed.host):
                     return val
             except Exception:
                 pass
 
     # Check separate PG* variables
     pghost = os.getenv("PGHOST", "").strip()
-    if pghost and pghost.lower() not in PLACEHOLDER_HOSTS:
+    if pghost and not is_placeholder_host(pghost):
         try:
             return str(URL.create(
                 drivername="postgresql+psycopg",
@@ -103,8 +118,8 @@ def validate_db_url(url_str: str) -> Tuple[bool, str, Optional[str]]:
 
     safe_url = parsed.render_as_string(hide_password=True)
 
-    # 1. Check for dummy placeholder hostnames (e.g., 'host')
-    if parsed.host and parsed.host.lower() in PLACEHOLDER_HOSTS:
+    # 1. Check for dummy placeholder hostnames (e.g., 'host', 'dpg-...-a')
+    if is_placeholder_host(parsed.host):
         return False, safe_url, (
             f"DATABASE_URL contains placeholder host '{parsed.host}'. "
             "Render cloud containers cannot resolve this dummy hostname. "
