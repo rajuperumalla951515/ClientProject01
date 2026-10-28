@@ -22,14 +22,28 @@ PLACEHOLDER_HOSTS = {
 }
 
 def resolve_raw_db_url() -> str:
-    """Read database connection URL from environment variables safely."""
-    raw = os.getenv("DATABASE_URL", "").strip()
-    if raw:
-        return raw
+    """Read database connection URL from environment variables safely, prioritizing non-placeholder URLs."""
+    # Check all possible Render / standard database environment variables
+    candidates = [
+        ("INTERNAL_DATABASE_URL", os.getenv("INTERNAL_DATABASE_URL", "").strip()),
+        ("DATABASE_URL", os.getenv("DATABASE_URL", "").strip()),
+        ("EXTERNAL_DATABASE_URL", os.getenv("EXTERNAL_DATABASE_URL", "").strip()),
+    ]
 
-    # If DATABASE_URL is not set directly, check separate PG* variables
+    # First pass: prefer any candidate that is set and does NOT contain a dummy placeholder host
+    for var_name, val in candidates:
+        if val:
+            try:
+                norm = normalize_db_url(val)
+                parsed = make_url(norm)
+                if parsed.host and parsed.host.lower() not in PLACEHOLDER_HOSTS:
+                    return val
+            except Exception:
+                pass
+
+    # Check separate PG* variables
     pghost = os.getenv("PGHOST", "").strip()
-    if pghost:
+    if pghost and pghost.lower() not in PLACEHOLDER_HOSTS:
         try:
             return str(URL.create(
                 drivername="postgresql+psycopg",
@@ -41,6 +55,11 @@ def resolve_raw_db_url() -> str:
             ))
         except Exception:
             pass
+
+    # Return the first configured value (so validate_db_url can produce clear diagnostics)
+    for var_name, val in candidates:
+        if val:
+            return val
 
     # In local development only, fallback to local SQLite database
     if not settings.IS_PRODUCTION:

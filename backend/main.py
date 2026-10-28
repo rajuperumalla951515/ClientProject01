@@ -90,14 +90,52 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Allowed CORS origins for development and production
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://localhost:4173",
+]
+frontend_url = os.getenv("FRONTEND_URL", "").strip()
+if frontend_url:
+    for o in frontend_url.split(","):
+        if o.strip() and o.strip() not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(o.strip())
+cors_origins = os.getenv("CORS_ORIGINS", "").strip()
+if cors_origins:
+    for o in cors_origins.split(","):
+        if o.strip() and o.strip() not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(o.strip())
+
 # Enable CORS for web and mobile clients
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_origin_regex=r"^https?:\/\/(localhost|127\.0\.0\.1|.*\.onrender\.com|.*\.vercel\.app|.*\.netlify\.app)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Root Endpoint
+@app.get("/", tags=["Root"])
+def root():
+    return {
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION,
+        "status": "online",
+        "description": "Backend API for Sri Adithya Organics — Traditional Wood-Pressed Oils & Certified Organic Grocery Platform",
+        "endpoints": {
+            "docs": "/docs",
+            "openapi": "/openapi.json",
+            "health_summary": "/health",
+            "liveness": "/health/live",
+            "readiness": "/health/ready",
+            "products": "/api/products",
+            "categories": "/api/categories"
+        }
+    }
 
 # Register Core API Routers
 app.include_router(auth.router, prefix="/api")
@@ -109,6 +147,40 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(wishlist.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+
+# Liveness Check (Confirms FastAPI process is alive)
+@app.get("/health/live", tags=["Health"])
+def liveness():
+    return {
+        "status": "alive",
+        "service": settings.PROJECT_NAME,
+        "version": settings.VERSION
+    }
+
+# Readiness Check (Tests active database connection)
+@app.get("/health/ready", tags=["Health"])
+def readiness(response: Response):
+    connected, conn_err = check_db_connection()
+    if not connected:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {
+            "status": "not_ready",
+            "service": settings.PROJECT_NAME,
+            "database": {
+                "connected": False,
+                "target": get_safe_db_target(),
+                "error": conn_err or "Database connection failed",
+                "hint": "Set DATABASE_URL to your Render PostgreSQL Internal Connection String in Render Dashboard"
+            }
+        }
+    return {
+        "status": "ready",
+        "service": settings.PROJECT_NAME,
+        "database": {
+            "connected": True,
+            "target": get_safe_db_target()
+        }
+    }
 
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])

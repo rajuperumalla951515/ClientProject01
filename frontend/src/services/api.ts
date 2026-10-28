@@ -3,8 +3,19 @@ import {
 } from '../types';
 import { FALLBACK_CATEGORIES, FALLBACK_PRODUCTS } from './fallbackData';
 
-const API_HOST = (((import.meta as any).env?.VITE_API_URL as string) || '').replace(/\/$/, '');
-const API_BASE = `${API_HOST}/api`;
+const getApiBase = (): string => {
+  const envUrl = ((import.meta as any).env?.VITE_API_URL as string)?.trim();
+  if (envUrl) {
+    return `${envUrl.replace(/\/$/, '')}/api`;
+  }
+  // In local development in browser, use relative /api (proxied by Vite)
+  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+    return '/api';
+  }
+  // In production, default to deployed Render backend URL
+  return 'https://clientproject01-tc3z.onrender.com/api';
+};
+const API_BASE = getApiBase();
 
 function filterFallbackProducts(params: {
   category_id?: number;
