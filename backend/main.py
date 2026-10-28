@@ -1,11 +1,26 @@
 import sys
+import os
+import types
 from pathlib import Path
 from contextlib import asynccontextmanager
 
-# Add project root directory to sys.path so 'backend.app' is discoverable regardless of working directory
-project_root = Path(__file__).resolve().parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+# Add both repo root and backend dir to sys.path
+backend_dir = Path(__file__).resolve().parent
+repo_root = backend_dir.parent
+
+for p in (str(repo_root), str(backend_dir)):
+    if p not in sys.path:
+        sys.path.insert(0, p)
+
+# Support running directly from inside backend directory without 'backend.' prefix
+try:
+    import backend.app.config
+except (ImportError, ModuleNotFoundError):
+    import app
+    backend_pkg = types.ModuleType("backend")
+    backend_pkg.app = app
+    sys.modules["backend"] = backend_pkg
+    sys.modules["backend.app"] = app
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
