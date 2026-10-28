@@ -11,6 +11,14 @@ router = APIRouter(prefix="/categories", tags=["Categories"])
 
 @router.get("", response_model=List[CategoryOut])
 def list_categories(db: Session = Depends(get_db)):
+    # Auto-seed if database contains zero categories
+    if db.query(Category).count() == 0:
+        try:
+            from backend.app.seed import seed_database
+            seed_database()
+        except Exception as exc:
+            print(f"Auto-seed categories notice: {exc}")
+
     # Query categories with product counts
     categories = db.query(Category).filter(Category.is_active == True).order_by(Category.display_order.asc(), Category.name.asc()).all()
     

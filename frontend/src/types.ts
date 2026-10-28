@@ -2,7 +2,7 @@ export interface User {
   id: number;
   name: string;
   email: string;
-  phone?: string;
+  phone?: string | null;
   role: 'customer' | 'admin';
   is_active: boolean;
   created_at: string;
@@ -10,30 +10,30 @@ export interface User {
 
 export interface Address {
   id: number;
-  user_id?: number;
+  user_id?: number | null;
   label: string; // 'Home' | 'Work' | 'Other'
   recipient_name: string;
   phone: string;
   street: string;
-  apartment?: string;
-  landmark?: string;
+  apartment?: string | null;
+  landmark?: string | null;
   city: string;
   state: string;
   postal_code: string;
   is_default: boolean;
-  created_at?: string;
+  created_at?: string | null;
 }
 
 export interface Category {
   id: number;
   name: string;
   slug: string;
-  description?: string;
-  image_url?: string;
-  icon?: string;
+  description?: string | null;
+  image_url?: string | null;
+  icon?: string | null;
   display_order: number;
   is_active: boolean;
-  product_count?: number;
+  product_count?: number | null;
 }
 
 export interface ProductVariant {
@@ -44,14 +44,14 @@ export interface ProductVariant {
   price: number;
   mrp: number;
   stock: number;
-  sku?: string;
+  sku?: string | null;
   is_default: boolean;
 }
 
 export interface ProductImage {
   id: number;
   image_url: string;
-  alt_text?: string;
+  alt_text?: string | null;
   is_primary: boolean;
   display_order: number;
 }
@@ -62,20 +62,20 @@ export interface Product {
   slug: string;
   category_id: number;
   description: string;
-  short_description?: string;
+  short_description?: string | null;
   brand: string;
-  origin_farm?: string;
-  certifications?: string;
-  storage_instructions?: string;
-  allergens?: string;
-  ingredients?: string;
+  origin_farm?: string | null;
+  certifications?: string | null;
+  storage_instructions?: string | null;
+  allergens?: string | null;
+  ingredients?: string | null;
   is_featured: boolean;
   is_fresh_today: boolean;
   is_deal: boolean;
   is_best_seller: boolean;
   is_active: boolean;
   created_at: string;
-  category?: Category;
+  category?: Category | null;
   variants: ProductVariant[];
   images: ProductImage[];
   primary_image?: string;

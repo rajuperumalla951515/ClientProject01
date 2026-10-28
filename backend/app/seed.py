@@ -12,12 +12,12 @@ def seed_database():
     db: Session = SessionLocal()
 
     try:
-        # Check if already seeded
-        if db.query(User).filter((User.email == "admin@sriadithyaorganics.com") | (User.email == "admin@rootlyorganics.com")).first():
-            print("Database already contains seed data.")
+        # Check if already seeded with products
+        if db.query(Product).count() > 0:
+            print("Database already contains seed products.")
             return
 
-        print("Seeding Sri Adithya Organics database...")
+        print("Seeding Sri Adithya Organics database with authentic catalogue...")
 
         # 1. Delivery & Store Settings
         settings = DeliverySetting(
@@ -36,25 +36,29 @@ def seed_database():
         db.add(settings)
 
         # 2. Users (Admin + Customer)
-        admin = User(
-            name="Sri Adithya Admin",
-            email="admin@sriadithyaorganics.com",
-            hashed_password=get_password_hash("admin123"),
-            phone="+91 98765 43210",
-            role="admin",
-            is_active=True
-        )
-        db.add(admin)
+        admin = db.query(User).filter(User.email == "admin@sriadithyaorganics.com").first()
+        if not admin:
+            admin = User(
+                name="Sri Adithya Admin",
+                email="admin@sriadithyaorganics.com",
+                hashed_password=get_password_hash("admin123"),
+                phone="+91 98765 43210",
+                role="admin",
+                is_active=True
+            )
+            db.add(admin)
 
-        customer = User(
-            name="Arjun Sharma",
-            email="arjun.sharma@example.com",
-            hashed_password=get_password_hash("customer123"),
-            phone="+91 98450 12345",
-            role="customer",
-            is_active=True
-        )
-        db.add(customer)
+        customer = db.query(User).filter(User.email == "arjun.sharma@example.com").first()
+        if not customer:
+            customer = User(
+                name="Arjun Sharma",
+                email="arjun.sharma@example.com",
+                hashed_password=get_password_hash("customer123"),
+                phone="+91 98450 12345",
+                role="customer",
+                is_active=True
+            )
+            db.add(customer)
         db.flush()
 
         # Customer Addresses
@@ -172,10 +176,14 @@ def seed_database():
 
         cat_map = {}
         for cdata in categories_data:
-            cat = Category(**cdata)
-            db.add(cat)
-            db.flush()
-            cat_map[cdata["slug"]] = cat.id
+            existing_cat = db.query(Category).filter(Category.slug == cdata["slug"]).first()
+            if existing_cat:
+                cat_map[cdata["slug"]] = existing_cat.id
+            else:
+                cat = Category(**cdata)
+                db.add(cat)
+                db.flush()
+                cat_map[cdata["slug"]] = cat.id
 
         # 4. Realistic Organic Products Catalogue
         products_data = [

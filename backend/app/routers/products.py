@@ -65,6 +65,14 @@ def list_products(
     offset: int = 0,
     db: Session = Depends(get_db)
 ):
+    # Auto-seed if database contains zero products
+    if db.query(Product).count() == 0:
+        try:
+            from backend.app.seed import seed_database
+            seed_database()
+        except Exception as exc:
+            print(f"Auto-seed catalogue notice: {exc}")
+
     query = db.query(Product).options(
         joinedload(Product.category),
         joinedload(Product.variants),

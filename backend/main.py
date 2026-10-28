@@ -144,3 +144,24 @@ def health_check(response: Response = None):
         "version": settings.VERSION,
         "database": db_info
     }
+
+@app.get("/api/seed", tags=["Admin"])
+@app.post("/api/seed", tags=["Admin"])
+def force_seed():
+    """Explicit endpoint to seed or verify Sri Adithya Organics catalogue."""
+    from backend.app.seed import seed_database
+    from backend.app.database import SessionLocal
+    from backend.app.models import Product, Category
+    seed_database()
+    db = SessionLocal()
+    try:
+        p_count = db.query(Product).count()
+        c_count = db.query(Category).count()
+        return {
+            "status": "seeded",
+            "products_count": p_count,
+            "categories_count": c_count,
+            "message": f"Successfully verified {p_count} products across {c_count} organic categories."
+        }
+    finally:
+        db.close()

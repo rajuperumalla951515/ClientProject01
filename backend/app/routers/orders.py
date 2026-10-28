@@ -17,8 +17,8 @@ router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
 def generate_order_number() -> str:
     now = datetime.datetime.utcnow()
-    rand_suffix = random.randint(1000, 9999)
-    return f"SAO-{now.strftime('%Y%m%d')}-{rand_suffix}"
+    rand_suffix = random.randint(100000, 999999)
+    return f"SAO-{now.strftime('%Y%m%d-%H%M%S')}-{rand_suffix}"
 
 
 @router.post("/checkout", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
