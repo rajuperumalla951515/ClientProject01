@@ -17,7 +17,14 @@ export const Header: React.FC = () => {
   const navigate = useNavigate();
   const { user, isAdmin, logout, openLoginModal } = useAuth();
   const { cart, openDrawer } = useCart();
-  const { locationLabel, openLocationModal } = useLocation();
+  const {
+    locationLabel,
+    openLocationModal,
+    detectedLiveLocation,
+    isPromptingLiveLocation,
+    confirmLiveLocation,
+    rejectLiveLocation
+  } = useLocation();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
@@ -77,6 +84,34 @@ export const Header: React.FC = () => {
     <header className="sticky top-0 z-40 w-full bg-[#FAF8F5]/95 backdrop-blur-md border-b border-stone-200 shadow-sm transition-all">
       {/* 1. Animated Announcement Bar directly above Navbar */}
       <AnnouncementBar />
+
+      {/* 2. Live Location Confirmation Bar if Detected */}
+      {detectedLiveLocation && isPromptingLiveLocation && (
+        <div className="bg-emerald-900 border-b border-emerald-700/60 text-white px-3 sm:px-6 py-2.5 shadow-md flex items-center justify-between gap-3 text-xs z-50 animate-fadeIn">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+            <p className="truncate">
+              We detected your location: <strong className="text-emerald-200">{detectedLiveLocation.locality}, {detectedLiveLocation.city} - {detectedLiveLocation.postal_code}</strong>. Do you want to deliver to this location?
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => confirmLiveLocation(detectedLiveLocation)}
+              className="px-3.5 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold text-xs shadow-sm transition-all"
+            >
+              Yes, Deliver Here
+            </button>
+            <button
+              type="button"
+              onClick={rejectLiveLocation}
+              className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-100 text-xs transition-all"
+            >
+              Change
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Header Bar */}
       <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 sm:py-3">

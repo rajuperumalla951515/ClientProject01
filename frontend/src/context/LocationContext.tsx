@@ -2,6 +2,17 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { Address } from '../types';
 import { api } from '../services/api';
 
+export interface LiveLocationData {
+  locality: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  formatted_address: string;
+  is_serviceable: boolean;
+  service_hub: string;
+  estimated_delivery_minutes: number;
+}
+
 interface LocationContextType {
   selectedAddress: Address | null;
   setSelectedAddress: (addr: Address | null) => void;
@@ -16,9 +27,15 @@ interface LocationContextType {
   isLocationModalOpen: boolean;
   openLocationModal: () => void;
   closeLocationModal: () => void;
-  setCustomLocation: (area: string, pin: string) => void;
+  setCustomLocation: (area: string, pin: string) => Promise<void>;
   detectCurrentLocation: () => Promise<void>;
   clearLocationError: () => void;
+
+  // Live Location Confirmation Prompt
+  detectedLiveLocation: LiveLocationData | null;
+  isPromptingLiveLocation: boolean;
+  confirmLiveLocation: (loc?: LiveLocationData | null) => void;
+  rejectLiveLocation: () => void;
 }
 
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
@@ -28,11 +45,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [pincode, setPincode] = useState<string>('560038');
   const [locationLabel, setLocationLabel] = useState<string>('Indiranagar, Bengaluru - 560038');
   const [isServiceable, setIsServiceable] = useState<boolean>(true);
-  const [serviceHub, setServiceHub] = useState<string>('Indiranagar Fulfillment Hub');
-  const [deliveryMinutes, setDeliveryMinutes] = useState<number>(15);
+  const [serviceHub, setServiceHub] = useState<string>('Sri Adithya Fulfillment Hub');
+  const [deliveryMinutes, setDeliveryMinutes] = useState<number>(25);
   const [isLocationModalOpen, setIsLocationModalOpen] = useState<boolean>(false);
   const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
+
+  // Live location detection state
+  const [detectedLiveLocation, setDetectedLiveLocation] = useState<LiveLocationData | null>(null);
+  const [isPromptingLiveLocation, setIsPromptingLiveLocation] = useState<boolean>(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('sri_adithya_location') || localStorage.getItem('rootly_location');
@@ -42,13 +63,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLocationLabel(parsed.label || 'Indiranagar, Bengaluru - 560038');
         setPincode(parsed.pincode || '560038');
         setIsServiceable(parsed.isServiceable !== undefined ? parsed.isServiceable : true);
-        setServiceHub(parsed.serviceHub || 'Indiranagar Fulfillment Hub');
-        setDeliveryMinutes(parsed.deliveryMinutes || 15);
+        setServiceHub(parsed.serviceHub || 'Sri Adithya Fulfillment Hub');
+        setDeliveryMinutes(parsed.deliveryMinutes || 25);
         if (parsed.address) {
           setSelectedAddress(parsed.address);
         }
       } catch (e) {
         console.error(e);
+      }
+    } else {
+      // If user hasn't chosen a location yet and browser already granted permission, detect live location
+      if (typeof navigator !== 'undefined' && 'permissions' in navigator) {
+        navigator.permissions.query({ name: 'geolocation' }).then((status) => {
+          if (status.state === 'granted') {
+            detectCurrentLocation();
+          }
+        }).catch(() => {});
       }
     }
   }, []);
@@ -57,7 +87,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLocationError(null);
     setIsLocationModalOpen(true);
   };
-  const closeLocationModal = () => setIsLocationModalOpen(false);
+  const closeLocationModal = () => {
+    setIsLocationModalOpen(false);
+  };
   const clearLocationError = () => setLocationError(null);
 
   const handleSelectAddress = (addr: Address | null) => {
@@ -68,15 +100,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setPincode(addr.postal_code);
       const isExpress = addr.postal_code.startsWith('560') || addr.postal_code.startsWith('641') || addr.postal_code.startsWith('600');
       setIsServiceable(true);
+      const hub = isExpress ? 'Local Express Hub' : 'Sri Adithya Organics Central Warehouse';
+      const minutes = isExpress ? 25 : 48 * 60;
+      setServiceHub(hub);
+      setDeliveryMinutes(minutes);
+
       localStorage.setItem('sri_adithya_location', JSON.stringify({
         label,
         pincode: addr.postal_code,
         address: addr,
         isServiceable: true,
-        serviceHub: isExpress ? 'Local Express Hub' : 'Sri Adithya Organics Central Warehouse',
-        deliveryMinutes: isExpress ? 25 : 48 * 60
+        serviceHub: hub,
+        deliveryMinutes: minutes
       }));
     }
+    setIsPromptingLiveLocation(false);
+    setDetectedLiveLocation(null);
     setIsLocationModalOpen(false);
   };
 
@@ -98,6 +137,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         serviceHub: res.service_hub,
         deliveryMinutes: res.estimated_delivery_minutes
       }));
+      setIsPromptingLiveLocation(false);
+      setDetectedLiveLocation(null);
       setIsLocationModalOpen(false);
     } catch {
       const isExpress = pin.startsWith('560') || pin.startsWith('641') || pin.startsWith('600');
@@ -105,18 +146,54 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLocationLabel(label);
       setPincode(pin);
       setIsServiceable(true);
-      setServiceHub(isExpress ? 'Express Fulfillment Hub' : 'Sri Adithya Organics Central Warehouse');
-      setDeliveryMinutes(isExpress ? 25 : 48 * 60);
+      const hub = isExpress ? 'Express Fulfillment Hub' : 'Sri Adithya Organics Central Warehouse';
+      const minutes = isExpress ? 25 : 48 * 60;
+      setServiceHub(hub);
+      setDeliveryMinutes(minutes);
       localStorage.setItem('sri_adithya_location', JSON.stringify({
         label,
         pincode: pin,
         address: null,
         isServiceable: true,
-        serviceHub: isExpress ? 'Express Fulfillment Hub' : 'Sri Adithya Organics Central Warehouse',
-        deliveryMinutes: isExpress ? 25 : 48 * 60
+        serviceHub: hub,
+        deliveryMinutes: minutes
       }));
+      setIsPromptingLiveLocation(false);
+      setDetectedLiveLocation(null);
       setIsLocationModalOpen(false);
     }
+  };
+
+  const confirmLiveLocation = (locToConfirm?: LiveLocationData | null) => {
+    const loc = locToConfirm || detectedLiveLocation;
+    if (!loc) return;
+
+    const label = `${loc.locality}, ${loc.city} - ${loc.postal_code}`;
+    setLocationLabel(label);
+    setPincode(loc.postal_code);
+    setIsServiceable(loc.is_serviceable);
+    setServiceHub(loc.service_hub);
+    setDeliveryMinutes(loc.estimated_delivery_minutes);
+    setSelectedAddress(null);
+
+    localStorage.setItem('sri_adithya_location', JSON.stringify({
+      label,
+      pincode: loc.postal_code,
+      address: null,
+      isServiceable: loc.is_serviceable,
+      serviceHub: loc.service_hub,
+      deliveryMinutes: loc.estimated_delivery_minutes
+    }));
+
+    setDetectedLiveLocation(null);
+    setIsPromptingLiveLocation(false);
+    setIsLocationModalOpen(false);
+  };
+
+  const rejectLiveLocation = () => {
+    setIsPromptingLiveLocation(false);
+    // Keep location modal open so user can optionally enter another location
+    setIsLocationModalOpen(true);
   };
 
   const detectCurrentLocation = async () => {
@@ -132,11 +209,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
-          let result: any = null;
+          let result: LiveLocationData | null = null;
 
           // Attempt 1: Call Sri Adithya Organics backend reverse-geocode service
           try {
-            result = await api.reverseGeocode(latitude, longitude);
+            const apiRes = await api.reverseGeocode(latitude, longitude);
+            result = {
+              locality: apiRes.locality,
+              city: apiRes.city,
+              state: apiRes.state,
+              postal_code: apiRes.postal_code,
+              formatted_address: apiRes.formatted_address,
+              is_serviceable: apiRes.is_serviceable,
+              service_hub: apiRes.service_hub,
+              estimated_delivery_minutes: apiRes.estimated_delivery_minutes
+            };
           } catch (backendErr) {
             console.warn('Backend reverse-geocode offline or delayed, falling back to direct browser geocoding:', backendErr);
             // Attempt 2: Direct client-side reverse geocoding via BigDataCloud public client API
@@ -153,10 +240,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   city,
                   state: bdc.principalSubdivision || '',
                   postal_code: pin,
+                  formatted_address: `${locality}, ${city} - ${pin}`,
                   is_serviceable: true,
                   service_hub: isExpress ? 'Local Express Hub' : 'Sri Adithya Organics Central Warehouse',
-                  estimated_delivery_minutes: isExpress ? 25 : 48 * 60,
-                  message: 'Resolved via client-side GPS'
+                  estimated_delivery_minutes: isExpress ? 25 : 48 * 60
                 };
               }
             } catch (clientErr) {
@@ -168,24 +255,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             throw new Error('Could not resolve your exact address coordinates. Please enter your 6-digit PIN code manually.');
           }
           
-          const label = `${result.locality}, ${result.city} - ${result.postal_code}`;
-          setLocationLabel(label);
-          setPincode(result.postal_code);
-          setIsServiceable(result.is_serviceable);
-          setServiceHub(result.service_hub);
-          setDeliveryMinutes(result.estimated_delivery_minutes);
-          setSelectedAddress(null);
-
-          localStorage.setItem('sri_adithya_location', JSON.stringify({
-            label,
-            pincode: result.postal_code,
-            address: null,
-            isServiceable: result.is_serviceable,
-            serviceHub: result.service_hub,
-            deliveryMinutes: result.estimated_delivery_minutes
-          }));
-
-          setIsLocationModalOpen(false);
+          // DO NOT silently apply without asking! Set as detected and prompt the user to confirm!
+          setDetectedLiveLocation(result);
+          setIsPromptingLiveLocation(true);
+          setIsLocationModalOpen(true);
         } catch (err: any) {
           setLocationError(err.message || 'Could not resolve your exact address. Please enter your PIN code manually.');
         } finally {
@@ -235,6 +308,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setCustomLocation,
         detectCurrentLocation,
         clearLocationError,
+
+        detectedLiveLocation,
+        isPromptingLiveLocation,
+        confirmLiveLocation,
+        rejectLiveLocation,
       }}
     >
       {children}
