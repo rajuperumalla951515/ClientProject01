@@ -20,10 +20,10 @@ export const Header: React.FC = () => {
   const {
     locationLabel,
     openLocationModal,
-    detectedLiveLocation,
-    isPromptingLiveLocation,
-    confirmLiveLocation,
-    rejectLiveLocation
+    detectedLocation,
+    isConfirmingDeliveryLocation,
+    confirmDeliveryToDetectedLocation,
+    chooseAnotherAddress,
   } = useLocation();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -86,28 +86,28 @@ export const Header: React.FC = () => {
       <AnnouncementBar />
 
       {/* 2. Live Location Confirmation Bar if Detected */}
-      {detectedLiveLocation && isPromptingLiveLocation && (
-        <div className="bg-emerald-900 border-b border-emerald-700/60 text-white px-3 sm:px-6 py-2.5 shadow-md flex items-center justify-between gap-3 text-xs z-50 animate-fadeIn">
+      {detectedLocation && isConfirmingDeliveryLocation && (
+        <div className="bg-emerald-900 border-b border-emerald-700/60 text-white px-3 sm:px-6 py-2.5 shadow-md flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 text-xs z-50 animate-fadeIn">
           <div className="flex items-center gap-2 min-w-0">
             <span className="flex h-2 w-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
-            <p className="truncate">
-              We detected your location: <strong className="text-emerald-200">{detectedLiveLocation.locality}, {detectedLiveLocation.city} - {detectedLiveLocation.postal_code}</strong>. Do you want to deliver to this location?
+            <p className="truncate text-center sm:text-left">
+              Is this your delivery location? <strong className="text-emerald-200">{detectedLocation.locality}, {detectedLocation.city} - {detectedLocation.postal_code}</strong>
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={() => confirmLiveLocation(detectedLiveLocation)}
+              onClick={confirmDeliveryToDetectedLocation}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold text-xs shadow-sm transition-all"
             >
-              Yes, Deliver Here
+              Yes, deliver here
             </button>
             <button
               type="button"
-              onClick={rejectLiveLocation}
+              onClick={chooseAnotherAddress}
               className="px-2.5 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-emerald-100 text-xs transition-all"
             >
-              Change
+              Choose another address
             </button>
           </div>
         </div>

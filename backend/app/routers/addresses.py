@@ -195,6 +195,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         city=resolved_city,
         state=resolved_state,
         postal_code=resolved_pin,
+        country="India",
         is_serviceable=is_serviceable,
         estimated_delivery_minutes=minutes,
         service_hub=hub,

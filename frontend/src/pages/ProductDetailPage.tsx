@@ -8,12 +8,14 @@ import { api } from '../services/api';
 import { Product, ProductVariant } from '../types';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from '../context/LocationContext';
 import { ProductCard } from '../components/ProductCard';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { addToCart, updateQuantity, getItemByProductAndVariant } = useCart();
   const { user, openLoginModal } = useAuth();
+  const { locationLabel, deliveryMinutes, openLocationModal } = useLocation();
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -291,14 +293,21 @@ export const ProductDetailPage: React.FC = () => {
           </div>
 
           {/* Quick Perks Strip */}
-          <div className="grid grid-cols-2 gap-3 pt-4 border-t border-stone-200">
-            <div className="flex items-center gap-2.5 text-xs text-stone-700">
-              <Truck className="w-4 h-4 text-rootly-forest shrink-0" />
-              <span>Delivered in <strong>15-30 Mins</strong></span>
-            </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-stone-200">
+            <button
+              type="button"
+              onClick={openLocationModal}
+              className="flex items-center gap-2.5 text-xs text-stone-700 hover:text-rootly-forest text-left transition-colors group"
+            >
+              <Truck className="w-4 h-4 text-rootly-forest shrink-0 group-hover:scale-105 transition-transform" />
+              <span className="truncate">
+                Deliver to <strong className="underline underline-offset-2">{locationLabel.split(',')[0]}</strong>:{' '}
+                <strong>{deliveryMinutes <= 30 ? `Express ${deliveryMinutes} Mins` : '2-3 Days'}</strong>
+              </span>
+            </button>
             <div className="flex items-center gap-2.5 text-xs text-stone-700">
               <ShieldCheck className="w-4 h-4 text-rootly-forest shrink-0" />
-              <span><strong>100% Honest</strong> Lab Verified</span>
+              <span><strong>100% Authentic</strong> Farm Verified</span>
             </div>
           </div>
         </div>

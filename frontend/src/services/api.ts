@@ -459,6 +459,7 @@ export const api = {
     city: string;
     state: string;
     postal_code: string;
+    country: string;
     is_serviceable: boolean;
     estimated_delivery_minutes: number;
     service_hub: string;

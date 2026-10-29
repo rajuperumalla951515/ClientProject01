@@ -14,7 +14,12 @@ export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, refreshCart } = useCart();
   const { user } = useAuth();
-  const { setSelectedAddress: setGlobalLocation, pincode: currentPincode, locationLabel } = useLocation();
+  const {
+    setSelectedAddress: setGlobalLocation,
+    pincode: currentPincode,
+    locationLabel,
+    selectedDeliveryAddress,
+  } = useLocation();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
@@ -22,17 +27,17 @@ export const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod'>('upi');
   const [orderNotes, setOrderNotes] = useState('');
   
-  // New Address form modal
+  // New Address form modal (prefilled from global selected delivery address)
   const [isAddingAddress, setIsAddingAddress] = useState(false);
   const [newLabel, setNewLabel] = useState('Home');
   const [newRecipient, setNewRecipient] = useState(user?.name || '');
   const [newPhone, setNewPhone] = useState(user?.phone || '');
-  const [newStreet, setNewStreet] = useState('');
-  const [newApartment, setNewApartment] = useState('');
-  const [newLandmark, setNewLandmark] = useState('');
-  const [newCity, setNewCity] = useState('Bengaluru');
-  const [newState, setNewState] = useState('Karnataka');
-  const [newPostalCode, setNewPostalCode] = useState(currentPincode || '560038');
+  const [newStreet, setNewStreet] = useState(selectedDeliveryAddress?.street || '');
+  const [newApartment, setNewApartment] = useState(selectedDeliveryAddress?.apartment || '');
+  const [newLandmark, setNewLandmark] = useState(selectedDeliveryAddress?.landmark || '');
+  const [newCity, setNewCity] = useState(selectedDeliveryAddress?.city || 'Bengaluru');
+  const [newState, setNewState] = useState(selectedDeliveryAddress?.state || 'Karnataka');
+  const [newPostalCode, setNewPostalCode] = useState(selectedDeliveryAddress?.postal_code || currentPincode || '560038');
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -48,8 +53,12 @@ export const CheckoutPage: React.FC = () => {
         const addrs = await api.getAddresses();
         setAddresses(addrs);
         if (addrs.length > 0) {
-          const defaultAddr = addrs.find((a) => a.is_default) || addrs[0];
+          const matchingAddr = selectedDeliveryAddress?.id
+            ? addrs.find((a) => a.id === selectedDeliveryAddress.id)
+            : addrs.find((a) => a.postal_code === selectedDeliveryAddress.postal_code);
+          const defaultAddr = matchingAddr || addrs.find((a) => a.is_default) || addrs[0];
           setSelectedAddressId(defaultAddr.id);
+          setGlobalLocation(defaultAddr);
         } else {
           setIsAddingAddress(true);
         }
@@ -58,7 +67,7 @@ export const CheckoutPage: React.FC = () => {
       }
     };
     loadAddresses();
-  }, [user, navigate]);
+  }, [user, navigate, selectedDeliveryAddress, setGlobalLocation]);
 
   const handleCreateAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +86,7 @@ export const CheckoutPage: React.FC = () => {
       });
       setAddresses([...addresses, created]);
       setSelectedAddressId(created.id);
+      setGlobalLocation(created);
       setIsAddingAddress(false);
     } catch (err: any) {
       alert(err.message || 'Failed to save address.');

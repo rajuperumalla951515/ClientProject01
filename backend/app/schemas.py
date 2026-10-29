@@ -366,6 +366,7 @@ class ReverseGeocodeOut(BaseModel):
     city: str
     state: str
     postal_code: str
+    country: str = "India"
     is_serviceable: bool
     estimated_delivery_minutes: int
     service_hub: str

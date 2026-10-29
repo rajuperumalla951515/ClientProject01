@@ -8,6 +8,8 @@ import { Header } from './components/Header';
 import { Footer } from './components/Footer';
 import { CartDrawer } from './components/CartDrawer';
 import { LocationModal } from './components/LocationModal';
+import { DeliveryConfirmationModal } from './components/DeliveryConfirmationModal';
+import { InitialLocationBanner } from './components/InitialLocationBanner';
 import { AuthModal } from './components/AuthModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileFloatingCartBar } from './components/MobileFloatingCartBar';
@@ -34,6 +36,9 @@ export function App() {
           <CartProvider>
             <div className="min-h-[100dvh] w-full flex flex-col bg-[#FAF8F5] text-stone-800 font-sans selection:bg-rootly-sage/20 selection:text-rootly-forest overflow-x-hidden">
               
+              {/* Initial Geolocation Permission Banner */}
+              <InitialLocationBanner />
+
               {/* Sticky Top Header */}
               <Header />
 
@@ -70,6 +75,7 @@ export function App() {
               {/* Global Modals & Slide-overs */}
               <CartDrawer />
               <LocationModal />
+              <DeliveryConfirmationModal />
               <AuthModal />
             </div>
           </CartProvider>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin, Zap } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -9,7 +9,7 @@ export const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel } = useLocation();
+  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes } = useLocation();
 
   const handleCheckout = () => {
     if (!user) {
@@ -157,8 +157,41 @@ export const CartPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Summary Card */}
+        {/* Right Summary Column */}
         <div className="lg:col-span-4 space-y-4">
+          
+          {/* Delivery Destination Card */}
+          <div className="p-4 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
+            <div className="flex items-center justify-between text-xs font-bold text-stone-900 pb-2 border-b border-stone-100">
+              <span className="flex items-center gap-1.5">
+                <MapPin className="w-3.5 h-3.5 text-rootly-forest" />
+                <span>Delivery Destination</span>
+              </span>
+              <button
+                type="button"
+                onClick={openLocationModal}
+                className="text-xs text-rootly-forest hover:underline font-bold"
+              >
+                Change
+              </button>
+            </div>
+            <p className="text-xs font-semibold text-stone-800 leading-snug">
+              {locationLabel}
+            </p>
+            <p className="text-[11px] text-stone-500 flex items-center gap-1">
+              <span>{serviceHub}</span>
+              <span>•</span>
+              {deliveryMinutes <= 30 ? (
+                <span className="text-emerald-700 font-bold flex items-center gap-0.5">
+                  <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                  Express {deliveryMinutes} Mins
+                </span>
+              ) : (
+                <span className="text-stone-600 font-medium">Pan-India Courier</span>
+              )}
+            </p>
+          </div>
+
           <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-card space-y-5">
             <h3 className="font-display font-bold text-base text-stone-900 pb-3 border-b border-stone-100">
               Bill Summary

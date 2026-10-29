@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck, CheckCircle } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -9,7 +9,7 @@ export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
   const { cart, isDrawerOpen, closeDrawer, updateQuantity, removeFromCart } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel } = useLocation();
+  const { locationLabel, openLocationModal } = useLocation();
 
   if (!isDrawerOpen) return null;
 
@@ -207,11 +207,21 @@ export const CartDrawer: React.FC = () => {
                 </div>
               </div>
 
-              {/* Delivery Address Note */}
-              <p className="text-[11px] text-stone-500 truncate flex items-center gap-1">
-                <span>Delivering to:</span>
-                <strong className="text-stone-700 truncate">{locationLabel}</strong>
-              </p>
+              {/* Delivery Address Note with Change Action */}
+              <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1">
+                <p className="truncate flex items-center gap-1 min-w-0">
+                  <MapPin className="w-3 h-3 text-rootly-forest shrink-0" />
+                  <span>Delivering to:</span>
+                  <strong className="text-stone-800 truncate">{locationLabel}</strong>
+                </p>
+                <button
+                  type="button"
+                  onClick={openLocationModal}
+                  className="text-rootly-forest hover:underline font-bold shrink-0 ml-1.5"
+                >
+                  Change
+                </button>
+              </div>
 
               {/* Checkout CTA - Touch Friendly */}
               <button
