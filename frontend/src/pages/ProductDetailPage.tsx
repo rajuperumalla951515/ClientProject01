@@ -307,7 +307,7 @@ export const ProductDetailPage: React.FC = () => {
 
       {/* Sourcing, Storage, and Nutrition Information Tabs */}
       <section className="bg-white rounded-3xl border border-stone-200/90 p-6 sm:p-8 shadow-card">
-        <div className="flex border-b border-stone-200 gap-6 text-sm font-bold pb-4 overflow-x-auto no-scrollbar whitespace-nowrap">
+        <div className="flex border-b border-stone-200 gap-3 sm:gap-6 text-xs sm:text-sm font-bold pb-4 overflow-x-auto no-scrollbar whitespace-nowrap">
           <button
             onClick={() => setActiveTab('origin')}
             className={`pb-2 border-b-2 transition-all ${

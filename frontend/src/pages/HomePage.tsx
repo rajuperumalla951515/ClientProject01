@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
   ArrowRight, Sparkles, ShieldCheck, Truck, Leaf, Clock, ChevronRight,
-  Flame, Award, Heart, CheckCircle2, RefreshCw, Droplet
+  Flame, Award, Heart, CheckCircle2, RefreshCw, Droplet, Zap
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Category, Product } from '../types';
@@ -93,15 +93,24 @@ export const HomePage: React.FC = () => {
               {/* Trust Badges */}
               <div className="pt-3 grid grid-cols-3 gap-2 sm:gap-3 max-w-md mx-auto lg:mx-0 text-left">
                 <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest">⚡ 15-30 Mins</p>
+                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
+                    <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                    <span>15-30 Mins</span>
+                  </p>
                   <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Express delivery</p>
                 </div>
                 <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest">🪵 Marachekku</p>
+                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
+                    <span>Marachekku</span>
+                  </p>
                   <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Wood ghani pressed</p>
                 </div>
                 <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest">🌱 100% Pure</p>
+                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
+                    <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>100% Pure</span>
+                  </p>
                   <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Zero chemical</p>
                 </div>
               </div>

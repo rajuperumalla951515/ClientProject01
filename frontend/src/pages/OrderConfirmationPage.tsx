@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check } from 'lucide-react';
 import { api } from '../services/api';
 import { Order } from '../types';
 
@@ -65,56 +65,68 @@ export const OrderConfirmationPage: React.FC = () => {
       </div>
 
       {/* Live Order Status Stepper */}
-      <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-soft">
-        <h3 className="font-display font-bold text-sm text-stone-900 mb-6">Live Order Tracking</h3>
-        <div className="grid grid-cols-4 gap-2 text-center relative">
+      <div className="p-4 sm:p-6 rounded-3xl bg-white border border-stone-200 shadow-soft overflow-x-auto">
+        <h3 className="font-display font-bold text-sm text-stone-900 mb-5">Live Order Tracking</h3>
+        <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center relative min-w-[280px]">
           
           {/* Step 1: Confirmed */}
           <div className="flex flex-col items-center">
-            <div className="w-8 h-8 rounded-full bg-rootly-forest text-white flex items-center justify-center text-xs font-bold z-10 shadow-sm">
-              ✓
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-rootly-forest text-white flex items-center justify-center text-xs font-bold z-10 shadow-sm">
+              <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
             </div>
-            <p className="text-xs font-bold text-stone-900 mt-2">Order Confirmed</p>
-            <p className="text-[10px] text-stone-400">Inventory reserved</p>
+            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">Order Confirmed</p>
+            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">Inventory reserved</p>
           </div>
 
           {/* Step 2: Packed */}
           <div className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
               ['packed', 'out_for_delivery', 'delivered'].includes(order.status)
                 ? 'bg-rootly-forest text-white'
                 : 'bg-stone-100 text-stone-400 border border-stone-200'
             }`}>
-              2
+              {['packed', 'out_for_delivery', 'delivered'].includes(order.status) ? (
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
+              ) : (
+                '2'
+              )}
             </div>
-            <p className="text-xs font-bold text-stone-900 mt-2">Packing at Hub</p>
-            <p className="text-[10px] text-stone-400">Temperature safe</p>
+            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">Packing at Hub</p>
+            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">Temperature safe</p>
           </div>
 
           {/* Step 3: Out for Delivery */}
           <div className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
               ['out_for_delivery', 'delivered'].includes(order.status)
                 ? 'bg-rootly-forest text-white'
                 : 'bg-stone-100 text-stone-400 border border-stone-200'
             }`}>
-              3
+              {['out_for_delivery', 'delivered'].includes(order.status) ? (
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
+              ) : (
+                '3'
+              )}
             </div>
-            <p className="text-xs font-bold text-stone-900 mt-2">Out for Delivery</p>
-            <p className="text-[10px] text-stone-400">On the way</p>
+            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">Out for Delivery</p>
+            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">On the way</p>
           </div>
 
           {/* Step 4: Delivered */}
           <div className="flex flex-col items-center">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
               order.status === 'delivered'
                 ? 'bg-rootly-forest text-white'
                 : 'bg-stone-100 text-stone-400 border border-stone-200'
             }`}>
-              4
+              {order.status === 'delivered' ? (
+                <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
+              ) : (
+                '4'
+              )}
             </div>
-            <p className="text-xs font-bold text-stone-900 mt-2">Delivered</p>
-            <p className="text-[10px] text-stone-400">To your doorstep</p>
+            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">Delivered</p>
+            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">To your doorstep</p>
           </div>
 
         </div>

@@ -16,8 +16,8 @@ def get_store_settings(db: Session = Depends(get_db)):
             free_delivery_threshold=499.0,
             standard_delivery_fee=39.0,
             express_delivery_fee=59.0,
-            active_slots_json='["⚡ Instant Delivery (15-30 Mins)", "🌅 Morning Slot (7:00 AM - 9:30 AM)", "🌇 Evening Slot (5:30 PM - 8:00 PM)"]',
-            announcement_text="🌱 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today"
+            active_slots_json='["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
+            announcement_text="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today"
         )
         db.add(setting)
         db.commit()

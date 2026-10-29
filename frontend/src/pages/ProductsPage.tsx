@@ -117,15 +117,129 @@ export const ProductsPage: React.FC = () => {
         </div>
       </div>
 
+      {/* Mobile Filters Slide-over Drawer */}
+      {isMobileFilterOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden overflow-y-auto">
+          <div
+            onClick={() => setIsMobileFilterOpen(false)}
+            className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm transition-opacity"
+          />
+          <div className="flex min-h-full items-end justify-center p-0">
+            <div className="relative w-full rounded-t-3xl bg-white p-5 shadow-2xl border-t border-stone-200 max-h-[85vh] flex flex-col animate-fadeIn">
+              {/* Drawer Header */}
+              <div className="flex items-center justify-between pb-3 border-b border-stone-100 shrink-0">
+                <span className="text-sm font-bold uppercase tracking-wider text-stone-900 flex items-center gap-2">
+                  <SlidersHorizontal className="w-4 h-4 text-rootly-forest" />
+                  Filter Products
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={clearAllFilters}
+                    className="text-xs font-bold text-rootly-forest hover:underline"
+                  >
+                    Reset All
+                  </button>
+                  <button
+                    onClick={() => setIsMobileFilterOpen(false)}
+                    className="p-1.5 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Scrollable Filters */}
+              <div className="flex-1 overflow-y-auto py-4 space-y-5">
+                {/* Categories */}
+                <div>
+                  <h4 className="text-xs font-bold text-stone-900 mb-2">Categories</h4>
+                  <div className="space-y-1 max-h-48 overflow-y-auto pr-1">
+                    <Link
+                      to="/products"
+                      onClick={() => setIsMobileFilterOpen(false)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                        !categorySlug ? 'bg-rootly-forest text-white' : 'text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      <span>All Categories</span>
+                    </Link>
+                    {categories.map((cat) => {
+                      const isActive = categorySlug === cat.slug;
+                      return (
+                        <Link
+                          key={cat.id}
+                          to={`/products?category=${cat.slug}`}
+                          onClick={() => setIsMobileFilterOpen(false)}
+                          className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
+                            isActive ? 'bg-rootly-forest text-white' : 'text-stone-700 hover:bg-stone-100'
+                          }`}
+                        >
+                          <span>{cat.name}</span>
+                          {cat.product_count !== undefined && (
+                            <span className={`text-[10px] ${isActive ? 'text-rootly-sagePale' : 'text-stone-400'}`}>
+                              {cat.product_count}
+                            </span>
+                          )}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Price Range Filter */}
+                <div className="pt-4 border-t border-stone-100">
+                  <div className="flex justify-between items-center mb-2">
+                    <h4 className="text-xs font-bold text-stone-900">Max Price</h4>
+                    <span className="text-xs font-bold text-rootly-forest">₹{maxPrice}</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="2000"
+                    step="50"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(Number(e.target.value))}
+                    className="w-full accent-rootly-forest cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-stone-400 mt-1">
+                    <span>₹50</span>
+                    <span>₹2000+</span>
+                  </div>
+                </div>
+
+                {/* In Stock Only Checkbox */}
+                <div className="pt-4 border-t border-stone-100">
+                  <label className="flex items-center gap-2.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={inStockOnly}
+                      onChange={(e) => setInStockOnly(e.target.checked)}
+                      className="w-4 h-4 rounded text-rootly-forest focus:ring-rootly-sage border-stone-300"
+                    />
+                    <span className="text-xs font-bold text-stone-800">In Stock Only</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* Sticky Apply Button */}
+              <div className="pt-3 border-t border-stone-100 shrink-0">
+                <button
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="w-full py-3 rounded-xl bg-rootly-forest text-white font-bold text-xs shadow-md hover:bg-rootly-dark transition-all"
+                >
+                  Apply Filters ({products.length} Products)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Main Content Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         
-        {/* Left Filter Sidebar */}
-        <aside
-          className={`${
-            isMobileFilterOpen ? 'block' : 'hidden lg:block'
-          } lg:col-span-1 space-y-6 bg-white p-5 rounded-2xl border border-stone-200/90 shadow-soft self-start sticky top-28`}
-        >
+        {/* Desktop Filter Sidebar */}
+        <aside className="hidden lg:block lg:col-span-1 space-y-6 bg-white p-5 rounded-2xl border border-stone-200/90 shadow-soft self-start sticky top-28">
           <div className="flex items-center justify-between pb-3 border-b border-stone-100">
             <span className="text-xs font-bold uppercase tracking-wider text-stone-800 flex items-center gap-1.5">
               <SlidersHorizontal className="w-3.5 h-3.5" />
@@ -165,8 +279,7 @@ export const ProductsPage: React.FC = () => {
                         : 'text-stone-600 hover:bg-stone-100'
                     }`}
                   >
-                    <span className="truncate hidden sm:inline">{cat.name}</span>
-                    <span className="truncate sm:hidden">{getShortNavLabel(cat.name)}</span>
+                    <span className="truncate">{cat.name}</span>
                     {cat.product_count !== undefined && (
                       <span className={`text-[10px] ${isActive ? 'text-rootly-sagePale' : 'text-stone-400'}`}>
                         {cat.product_count}

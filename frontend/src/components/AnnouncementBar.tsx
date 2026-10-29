@@ -1,9 +1,20 @@
 import React from 'react';
-
-const ANNOUNCEMENT_TEXT =
-  'Traditional & Pure 🌿 Sri Adithya Organics • 100% Traditional Wood-Pressed Oils & Farm Produce • Free delivery on orders over ₹499';
+import { Leaf, Truck, Sparkles } from 'lucide-react';
 
 export const AnnouncementBar: React.FC = () => {
+  const itemContent = (
+    <span className="px-6 sm:px-10 inline-flex items-center gap-2">
+      <Leaf className="w-3.5 h-3.5 text-rootly-sagePale shrink-0" />
+      <span>Traditional & Pure Sri Adithya Organics</span>
+      <span className="text-rootly-sagePale/60">•</span>
+      <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
+      <span>100% Traditional Wood-Pressed Oils & Farm Produce</span>
+      <span className="text-rootly-sagePale/60">•</span>
+      <Truck className="w-3.5 h-3.5 text-rootly-sagePale shrink-0" />
+      <span>Free delivery on orders over ₹499</span>
+    </span>
+  );
+
   return (
     <div
       role="region"
@@ -13,13 +24,9 @@ export const AnnouncementBar: React.FC = () => {
       <div className="sao-marquee-track">
         {/* Track 1: Base continuous items */}
         <div className="flex items-center shrink-0 whitespace-nowrap">
-          <span className="px-6 sm:px-10 inline-flex items-center gap-1.5">
-            {ANNOUNCEMENT_TEXT}
-          </span>
+          {itemContent}
           <span className="text-rootly-sagePale/60">•</span>
-          <span className="px-6 sm:px-10 inline-flex items-center gap-1.5">
-            {ANNOUNCEMENT_TEXT}
-          </span>
+          {itemContent}
           <span className="text-rootly-sagePale/60">•</span>
         </div>
 
@@ -28,13 +35,9 @@ export const AnnouncementBar: React.FC = () => {
           className="sao-marquee-duplicate flex items-center shrink-0 whitespace-nowrap"
           aria-hidden="true"
         >
-          <span className="px-6 sm:px-10 inline-flex items-center gap-1.5">
-            {ANNOUNCEMENT_TEXT}
-          </span>
+          {itemContent}
           <span className="text-rootly-sagePale/60">•</span>
-          <span className="px-6 sm:px-10 inline-flex items-center gap-1.5">
-            {ANNOUNCEMENT_TEXT}
-          </span>
+          {itemContent}
           <span className="text-rootly-sagePale/60">•</span>
         </div>
       </div>

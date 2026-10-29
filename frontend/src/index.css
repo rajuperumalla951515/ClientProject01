@@ -8,14 +8,52 @@
     -webkit-tap-highlight-color: transparent;
     scroll-behavior: smooth;
     overflow-x: hidden;
+    max-width: 100vw;
   }
 
   body {
     overflow-x: hidden;
+    max-width: 100vw;
     min-height: 100dvh;
     background-color: #FAF8F5;
     color: #1c1917;
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+
+  /* Consistent responsive typography hierarchy using clamp() */
+  .page-title {
+    font-size: clamp(1.5rem, 4.5vw, 2.75rem);
+    line-height: 1.15;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .section-title {
+    font-size: clamp(1.25rem, 3.2vw, 2rem);
+    line-height: 1.25;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+  }
+
+  .card-title {
+    font-size: clamp(0.875rem, 1.5vw, 1.05rem);
+    line-height: 1.35;
+    font-weight: 700;
+  }
+
+  .body-text {
+    font-size: clamp(0.8125rem, 1.1vw, 0.9375rem);
+    line-height: 1.6;
+  }
+
+  /* Accessible visible focus states for keyboard navigation */
+  a:focus-visible,
+  button:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 2px solid #1B3B22;
+    outline-offset: 2px;
   }
 
   /* Prevent automatic mobile safari / chrome zoom on form inputs below 16px */

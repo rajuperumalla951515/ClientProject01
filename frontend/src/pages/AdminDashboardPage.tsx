@@ -202,10 +202,10 @@ export const AdminDashboardPage: React.FC = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex border-b border-stone-200 gap-6 text-xs sm:text-sm font-bold">
+      <div className="flex border-b border-stone-200 gap-4 sm:gap-6 text-xs sm:text-sm font-bold overflow-x-auto no-scrollbar whitespace-nowrap pb-1 sm:pb-0">
         <button
           onClick={() => setActiveTab('overview')}
-          className={`pb-3 border-b-2 transition-all ${
+          className={`pb-3 border-b-2 shrink-0 transition-all ${
             activeTab === 'overview' ? 'border-rootly-forest text-rootly-forest' : 'border-transparent text-stone-400 hover:text-stone-700'
           }`}
         >
@@ -213,7 +213,7 @@ export const AdminDashboardPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('orders')}
-          className={`pb-3 border-b-2 transition-all ${
+          className={`pb-3 border-b-2 shrink-0 transition-all ${
             activeTab === 'orders' ? 'border-rootly-forest text-rootly-forest' : 'border-transparent text-stone-400 hover:text-stone-700'
           }`}
         >
@@ -221,7 +221,7 @@ export const AdminDashboardPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('products')}
-          className={`pb-3 border-b-2 transition-all ${
+          className={`pb-3 border-b-2 shrink-0 transition-all ${
             activeTab === 'products' ? 'border-rootly-forest text-rootly-forest' : 'border-transparent text-stone-400 hover:text-stone-700'
           }`}
         >
@@ -229,7 +229,7 @@ export const AdminDashboardPage: React.FC = () => {
         </button>
         <button
           onClick={() => setActiveTab('settings')}
-          className={`pb-3 border-b-2 transition-all ${
+          className={`pb-3 border-b-2 shrink-0 transition-all ${
             activeTab === 'settings' ? 'border-rootly-forest text-rootly-forest' : 'border-transparent text-stone-400 hover:text-stone-700'
           }`}
         >
@@ -241,26 +241,26 @@ export const AdminDashboardPage: React.FC = () => {
       {activeTab === 'overview' && stats && (
         <div className="space-y-8">
           {/* Metrics 4-grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
+          <div className="grid grid-cols-1 xs:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+            <div className="p-4 sm:p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total Store Revenue</span>
               <p className="font-display font-black text-2xl text-rootly-forest">₹{stats.total_revenue}</p>
               <p className="text-[10px] text-stone-500">From verified fulfilled orders</p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
+            <div className="p-4 sm:p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Total Orders</span>
               <p className="font-display font-black text-2xl text-stone-900">{stats.total_orders}</p>
               <p className="text-[10px] text-emerald-600 font-semibold">{stats.pending_orders} pending fulfillment</p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
+            <div className="p-4 sm:p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Active Products</span>
               <p className="font-display font-black text-2xl text-stone-900">{stats.total_products}</p>
               <p className="text-[10px] text-stone-500">Across 10 organic categories</p>
             </div>
 
-            <div className="p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
+            <div className="p-4 sm:p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Registered Customers</span>
               <p className="font-display font-black text-2xl text-stone-900">{stats.total_customers}</p>
               <p className="text-[10px] text-stone-500">Bengaluru households</p>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   X, MapPin, Check, Plus, Home, Briefcase, Building, Navigation,
-  AlertCircle, Loader2, Sparkles, Shield, ChevronDown, ChevronUp
+  AlertCircle, Loader2, Sparkles, Shield, ChevronDown, ChevronUp, Zap, Truck
 } from 'lucide-react';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
@@ -160,8 +160,20 @@ export const LocationModal: React.FC = () => {
                   <p className="text-sm font-bold text-stone-900 mt-1 truncate">
                     {locationLabel}
                   </p>
-                  <p className="text-xs text-stone-500 mt-0.5 truncate">
-                    {serviceHub} • {deliveryMinutes < 60 ? `⚡ Express ${deliveryMinutes} Mins` : '📦 Pan-India Courier'}
+                  <p className="text-xs text-stone-500 mt-0.5 truncate flex items-center gap-1">
+                    <span>{serviceHub}</span>
+                    <span>•</span>
+                    {deliveryMinutes < 60 ? (
+                      <span className="flex items-center gap-0.5 text-rootly-forest font-semibold">
+                        <Zap className="w-3 h-3 text-amber-500" />
+                        <span>Express {deliveryMinutes} Mins</span>
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-0.5 text-stone-600">
+                        <Truck className="w-3 h-3 text-rootly-forest" />
+                        <span>Pan-India Courier</span>
+                      </span>
+                    )}
                   </p>
                 </div>
               </div>

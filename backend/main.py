@@ -41,12 +41,12 @@ from backend.app.seed import seed_database
 async def lifespan(app: FastAPI):
     # Startup Phase
     print("=" * 70)
-    print(f"🌿 Starting {settings.PROJECT_NAME} (v{settings.VERSION})")
-    print(f"📍 Runtime Mode: {'Production (Render Cloud)' if settings.IS_PRODUCTION else 'Development'}")
+    print(f"[STARTUP] Starting {settings.PROJECT_NAME} (v{settings.VERSION})")
+    print(f"[ENV] Runtime Mode: {'Production (Render Cloud)' if settings.IS_PRODUCTION else 'Development'}")
 
     if not is_db_configured:
         print("=" * 70)
-        print("⚠️  DATABASE CONFIGURATION NOTICE:")
+        print("[WARNING] DATABASE CONFIGURATION NOTICE:")
         print(f"   {db_config_error}")
         print("   TO RESOLVE IN RENDER DASHBOARD:")
         print("   1. Open Render Dashboard -> Go to your PostgreSQL database.")
@@ -58,22 +58,22 @@ async def lifespan(app: FastAPI):
         app.state.db_connected = False
         app.state.db_error = db_config_error
     else:
-        print(f"🔗 Target Database: {safe_db_url}")
+        print(f"[DATABASE] Target Database: {safe_db_url}")
         connected, conn_err = check_db_connection()
         if connected:
-            print("✅ Database connection verified successfully.")
+            print("[OK] Database connection verified successfully.")
             app.state.db_connected = True
             app.state.db_error = None
             # Initialize schema and seed data safely
             try:
                 Base.metadata.create_all(bind=engine)
                 seed_database()
-                print("✅ Database tables and seed catalogue synchronized.")
+                print("[OK] Database tables and seed catalogue synchronized.")
             except Exception as exc:
-                print(f"⚠️  Database table/seed notice: {exc}")
+                print(f"[NOTICE] Database table/seed notice: {exc}")
         else:
             print("=" * 70)
-            print(f"⚠️  DATABASE CONNECTION WARNING: {conn_err}")
+            print(f"[WARNING] DATABASE CONNECTION WARNING: {conn_err}")
             print("   The server will start so health endpoints can report status.")
             print("   Please verify your DATABASE_URL in the Render Dashboard.")
             print("=" * 70)
@@ -83,7 +83,7 @@ async def lifespan(app: FastAPI):
     yield
 
     # Shutdown Phase
-    print(f"🛑 Shutting down {settings.PROJECT_NAME}")
+    print(f"[SHUTDOWN] Shutting down {settings.PROJECT_NAME}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,

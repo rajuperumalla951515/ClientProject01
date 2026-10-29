@@ -145,9 +145,9 @@ export const Header: React.FC = () => {
           {/* Mobile Location Pill (Visible only on mobile row 1) */}
           <button
             onClick={openLocationModal}
-            className="md:hidden flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-stone-100 hover:bg-rootly-sageMist/50 text-left max-w-[130px] xs:max-w-[160px] truncate transition-colors shrink-0"
+            className="md:hidden flex items-center gap-1 px-2 py-1.5 rounded-xl bg-stone-100 hover:bg-rootly-sageMist/50 text-left max-w-[100px] xs:max-w-[130px] truncate transition-colors shrink-0"
           >
-            <MapPin className="w-3 h-3 text-rootly-forest shrink-0" />
+            <MapPin className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
             <span className="text-[11px] font-bold text-stone-800 truncate">
               {locationLabel.split(',')[0]}
             </span>

@@ -226,7 +226,7 @@ class DeliverySetting(Base):
     standard_delivery_fee = Column(Float, default=39.0)
     express_delivery_fee = Column(Float, default=59.0)
     active_slots_json = Column(Text, nullable=True)
-    announcement_text = Column(String(255), default="🌱 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Today")
+    announcement_text = Column(String(255), default="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Today")
 
 
 class Wishlist(Base):

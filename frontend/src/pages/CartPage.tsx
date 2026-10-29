@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -64,7 +64,10 @@ export const CartPage: React.FC = () => {
                     Add <strong className="text-rootly-sagePale">₹{cart.amount_needed_for_free_delivery}</strong> more for <strong>FREE Delivery!</strong>
                   </span>
                 ) : (
-                  <span className="text-emerald-300 font-bold">🎉 FREE Delivery unlocked!</span>
+                  <span className="text-emerald-300 font-bold flex items-center gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-300" />
+                    <span>FREE Delivery unlocked!</span>
+                  </span>
                 )}
               </span>
               <span className="text-stone-300 font-mono text-xs">₹{cart.free_delivery_threshold} goal</span>

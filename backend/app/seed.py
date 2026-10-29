@@ -26,12 +26,12 @@ def seed_database():
             standard_delivery_fee=39.0,
             express_delivery_fee=59.0,
             active_slots_json=json.dumps([
-                "⚡ Express Delivery (15-30 Mins)",
-                "🌅 Morning Harvest Slot (7:00 AM - 9:30 AM)",
-                "🌇 Evening Slot (5:30 PM - 8:00 PM)",
-                "📅 Tomorrow Morning (7:00 AM - 9:30 AM)"
+                "Express Delivery (15-30 Mins)",
+                "Morning Harvest Slot (7:00 AM - 9:30 AM)",
+                "Evening Slot (5:30 PM - 8:00 PM)",
+                "Tomorrow Morning (7:00 AM - 9:30 AM)"
             ]),
-            announcement_text="🌿 Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499"
+            announcement_text="Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499"
         )
         db.add(settings)
 

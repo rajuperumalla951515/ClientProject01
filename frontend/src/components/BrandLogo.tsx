@@ -17,9 +17,21 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   asLink = true,
 }) => {
   const iconSize =
-    size === 'sm' ? 'w-8 h-8' : size === 'lg' ? 'w-12 h-12' : size === 'xl' ? 'w-16 h-16' : 'w-10 h-10';
+    size === 'sm'
+      ? 'w-7 h-7 xs:w-8 xs:h-8'
+      : size === 'lg'
+      ? 'w-11 h-11 sm:w-12 sm:h-12'
+      : size === 'xl'
+      ? 'w-14 h-14 sm:w-16 sm:h-16'
+      : 'w-8 h-8 sm:w-10 sm:h-10';
   const textClass =
-    size === 'sm' ? 'text-sm xs:text-base' : size === 'lg' ? 'text-2xl' : size === 'xl' ? 'text-3xl' : 'text-xl';
+    size === 'sm'
+      ? 'text-xs xs:text-sm sm:text-base'
+      : size === 'lg'
+      ? 'text-xl sm:text-2xl'
+      : size === 'xl'
+      ? 'text-2xl sm:text-3xl'
+      : 'text-sm xs:text-base sm:text-xl';
   const taglineClass =
     size === 'sm' ? 'text-[9px]' : size === 'lg' ? 'text-xs' : size === 'xl' ? 'text-xs' : 'text-[10px]';
 

@@ -183,11 +183,11 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     if is_express:
         minutes = closest_cluster["minutes"]
         hub = closest_cluster["hub"]
-        msg = f"⚡ Express Delivery Active! Dispatched from {hub} in {minutes} mins."
+        msg = f"Express Delivery Active! Dispatched from {hub} in {minutes} mins."
     else:
         minutes = 48 * 60 # 2-3 business days
         hub = "Sri Adithya Organics Central Fulfillment Facility"
-        msg = f"📦 Standard Courier Delivery Active! Dispatched to {resolved_city} via Express Courier."
+        msg = f"Standard Courier Delivery Active! Dispatched to {resolved_city} via Express Courier."
 
     return ReverseGeocodeOut(
         formatted_address=resolved_formatted,
@@ -237,9 +237,9 @@ def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(
         hub = "Central Bengaluru Hub" if is_express else "Sri Adithya Organics Central Warehouse"
 
     if is_express:
-        msg = f"⚡ Express Delivery Available: {minutes} mins from {hub}"
+        msg = f"Express Delivery Available: {minutes} mins from {hub}"
     elif is_serviceable:
-        msg = f"📦 Pan-India Courier Delivery Available to PIN {pin} ({city}) in 2-3 business days"
+        msg = f"Pan-India Courier Delivery Available to PIN {pin} ({city}) in 2-3 business days"
     else:
         msg = f"Please enter a valid 6-digit Indian PIN code."
 

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   MapPin, Clock, CreditCard, ShieldCheck, CheckCircle2, Plus, Home,
-  Briefcase, Building, ArrowRight, AlertCircle, Sparkles, Check
+  Briefcase, Building, ArrowRight, AlertCircle, Sparkles, Check, Zap, Sun, Moon
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Address, Order } from '../types';
@@ -18,7 +18,7 @@ export const CheckoutPage: React.FC = () => {
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<string>('⚡ Express Delivery (15-30 Mins)');
+  const [selectedSlot, setSelectedSlot] = useState<string>('Express Delivery (15-30 Mins)');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod'>('upi');
   const [orderNotes, setOrderNotes] = useState('');
   
@@ -330,33 +330,37 @@ export const CheckoutPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {[
-                { slot: '⚡ Express Delivery (15-30 Mins)', tag: 'Fastest', sub: 'Packed from nearest hub' },
-                { slot: '🌅 Morning Harvest (7:00 AM - 9:30 AM)', tag: 'Fresh Picks', sub: 'Tomorrow morning' },
-                { slot: '🌇 Evening Slot (5:30 PM - 8:00 PM)', tag: 'Convenient', sub: 'Today evening' }
-              ].map((s) => (
-                <div
-                  key={s.slot}
-                  onClick={() => setSelectedSlot(s.slot)}
-                  className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                    selectedSlot === s.slot
-                      ? 'border-rootly-forest bg-rootly-sageMist/30 shadow-sm'
-                      : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-bold text-rootly-forest bg-white px-2 py-0.5 rounded border border-rootly-sage/40">
-                      {s.tag}
-                    </span>
-                    {selectedSlot === s.slot && (
-                      <span className="w-3.5 h-3.5 rounded-full bg-rootly-forest text-white flex items-center justify-center text-[9px]">
-                        <Check className="w-2.5 h-2.5 stroke-[3]" />
+                { slot: 'Express Delivery (15-30 Mins)', tag: 'Fastest', sub: 'Packed from nearest hub', icon: Zap, iconColor: 'text-amber-500' },
+                { slot: 'Morning Harvest (7:00 AM - 9:30 AM)', tag: 'Fresh Picks', sub: 'Tomorrow morning', icon: Sun, iconColor: 'text-amber-500' },
+                { slot: 'Evening Slot (5:30 PM - 8:00 PM)', tag: 'Convenient', sub: 'Today evening', icon: Moon, iconColor: 'text-indigo-500' }
+              ].map((s) => {
+                const IconComponent = s.icon;
+                return (
+                  <div
+                    key={s.slot}
+                    onClick={() => setSelectedSlot(s.slot)}
+                    className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                      selectedSlot === s.slot
+                        ? 'border-rootly-forest bg-rootly-sageMist/30 shadow-sm'
+                        : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className="text-[10px] font-bold text-rootly-forest bg-white px-2 py-0.5 rounded border border-rootly-sage/40 flex items-center gap-1">
+                        <IconComponent className={`w-3 h-3 ${s.iconColor}`} />
+                        <span>{s.tag}</span>
                       </span>
-                    )}
+                      {selectedSlot === s.slot && (
+                        <span className="w-4 h-4 rounded-full bg-rootly-forest text-white flex items-center justify-center text-[9px]">
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs font-bold text-stone-900 mt-1">{s.slot}</p>
+                    <p className="text-[10px] text-stone-500 mt-0.5">{s.sub}</p>
                   </div>
-                  <p className="text-xs font-bold text-stone-900 mt-1">{s.slot}</p>
-                  <p className="text-[10px] text-stone-500 mt-0.5">{s.sub}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 

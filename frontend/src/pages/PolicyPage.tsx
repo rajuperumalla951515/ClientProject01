@@ -27,7 +27,7 @@ export const PolicyPage: React.FC = () => {
           <>
             <section className="space-y-2">
               <h3 className="font-bold text-stone-900 text-base">1. Express Quick-Commerce Delivery</h3>
-              <p>Sri Adithya Organics operates localized micro-fulfillment hubs across Bengaluru and Tamil Nadu. Deliveries selected via ⚡ Express Delivery are dispatched within 5 minutes of order packing and arrive in 15 to 30 minutes, subject to weather and traffic.</p>
+              <p>Sri Adithya Organics operates localized micro-fulfillment hubs across Bengaluru and Tamil Nadu. Deliveries selected via Express Delivery are dispatched within 5 minutes of order packing and arrive in 15 to 30 minutes, subject to weather and traffic.</p>
             </section>
             <section className="space-y-2">
               <h3 className="font-bold text-stone-900 text-base">2. Scheduled Morning & Evening Slots</h3>

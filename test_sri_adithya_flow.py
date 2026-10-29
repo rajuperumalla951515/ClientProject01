@@ -19,7 +19,7 @@ from backend.app.models import User, Product, ProductVariant, Address, Order
 
 def run_tests():
     print("=" * 65)
-    print("🌿 STARTING SRI ADITHYA ORGANICS AUTOMATED TEST SUITE")
+    print("[START] STARTING SRI ADITHYA ORGANICS AUTOMATED TEST SUITE")
     print("=" * 65 + "\n")
 
     db = SessionLocal()
@@ -65,14 +65,14 @@ def run_tests():
         # 4. Geolocation & Serviceability
         print("\n4. Testing Real Geolocation Detection & Reverse-Geocoding...")
         # Coordinates for Indiranagar (12.9784, 77.6408)
-        geo_blr = addresses.reverse_geocode(ReverseGeocodeRequest(latitude=12.9784, longitude=77.6408), db=db)
+        geo_blr = addresses.reverse_geocode(ReverseGeocodeRequest(latitude=12.9784, longitude=77.6408))
         assert geo_blr.is_serviceable == True
         assert geo_blr.postal_code == "560038"
         print(f"   [PASS] Geolocation Bengaluru resolved: {geo_blr.locality}, {geo_blr.city} - {geo_blr.postal_code}")
         print(f"          Serviceable: {geo_blr.is_serviceable} ({geo_blr.estimated_delivery_minutes} mins from {geo_blr.service_hub})")
 
         # Coordinates for Coimbatore extraction mill (11.0069, 76.9490)
-        geo_cbe = addresses.reverse_geocode(ReverseGeocodeRequest(latitude=11.0069, longitude=76.9490), db=db)
+        geo_cbe = addresses.reverse_geocode(ReverseGeocodeRequest(latitude=11.0069, longitude=76.9490))
         assert geo_cbe.is_serviceable == True
         print(f"   [PASS] Geolocation Coimbatore mill resolved: {geo_cbe.locality}, {geo_cbe.city} ({geo_cbe.service_hub})")
 
@@ -179,7 +179,7 @@ def run_tests():
         print(f"          Low Stock Alerts: {stats.low_stock_products}")
 
         print("\n" + "=" * 65)
-        print("🎉 ALL 9 TEST SUITES PASSED! SRI ADITHYA ORGANICS FULLY VERIFIED.")
+        print("[SUCCESS] ALL 9 TEST SUITES PASSED! SRI ADITHYA ORGANICS FULLY VERIFIED.")
         print("=" * 65)
 
     finally:
