@@ -14,7 +14,7 @@ export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, refreshCart } = useCart();
   const { user } = useAuth();
-  const { setSelectedAddress: setGlobalLocation } = useLocation();
+  const { setSelectedAddress: setGlobalLocation, pincode: currentPincode, locationLabel } = useLocation();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
@@ -30,7 +30,9 @@ export const CheckoutPage: React.FC = () => {
   const [newStreet, setNewStreet] = useState('');
   const [newApartment, setNewApartment] = useState('');
   const [newLandmark, setNewLandmark] = useState('');
-  const [newPostalCode, setNewPostalCode] = useState('560038');
+  const [newCity, setNewCity] = useState('Bengaluru');
+  const [newState, setNewState] = useState('Karnataka');
+  const [newPostalCode, setNewPostalCode] = useState(currentPincode || '560038');
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -68,8 +70,8 @@ export const CheckoutPage: React.FC = () => {
         street: newStreet,
         apartment: newApartment,
         landmark: newLandmark,
-        city: 'Bengaluru',
-        state: 'Karnataka',
+        city: newCity || 'Bengaluru',
+        state: newState || 'Karnataka',
         postal_code: newPostalCode,
         is_default: addresses.length === 0,
       });
@@ -248,14 +250,40 @@ export const CheckoutPage: React.FC = () => {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">PIN Code (Bengaluru)</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">PIN Code</label>
                     <input
                       type="text"
                       maxLength={6}
                       required
                       value={newPostalCode}
-                      onChange={(e) => setNewPostalCode(e.target.value)}
+                      onChange={(e) => setNewPostalCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="e.g. 560038 / 500001"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">City / Town</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCity}
+                      onChange={(e) => setNewCity(e.target.value)}
+                      placeholder="e.g. Bengaluru / Hyderabad"
+                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">State</label>
+                    <input
+                      type="text"
+                      required
+                      value={newState}
+                      onChange={(e) => setNewState(e.target.value)}
+                      placeholder="e.g. Karnataka / Telangana"
+                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
                 </div>

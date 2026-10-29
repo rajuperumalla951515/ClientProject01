@@ -66,15 +66,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const label = `${addr.label}: ${addr.street.slice(0, 24)}..., ${addr.city} - ${addr.postal_code}`;
       setLocationLabel(label);
       setPincode(addr.postal_code);
-      const isServ = addr.postal_code.startsWith('560') || addr.postal_code.startsWith('641') || addr.postal_code.startsWith('600');
-      setIsServiceable(isServ);
+      const isExpress = addr.postal_code.startsWith('560') || addr.postal_code.startsWith('641') || addr.postal_code.startsWith('600');
+      setIsServiceable(true);
       localStorage.setItem('sri_adithya_location', JSON.stringify({
         label,
         pincode: addr.postal_code,
         address: addr,
-        isServiceable: isServ,
-        serviceHub: isServ ? 'Local Regional Hub' : 'Outside Express Zone',
-        deliveryMinutes: isServ ? 25 : 0
+        isServiceable: true,
+        serviceHub: isExpress ? 'Local Express Hub' : 'Sri Adithya Organics Central Warehouse',
+        deliveryMinutes: isExpress ? 25 : 48 * 60
       }));
     }
     setIsLocationModalOpen(false);
@@ -100,9 +100,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }));
       setIsLocationModalOpen(false);
     } catch {
-      const label = `${area}, Bengaluru - ${pin}`;
+      const isExpress = pin.startsWith('560') || pin.startsWith('641') || pin.startsWith('600');
+      const label = area.trim() ? `${area.trim()} - ${pin}` : `PIN ${pin}, India`;
       setLocationLabel(label);
       setPincode(pin);
+      setIsServiceable(true);
+      setServiceHub(isExpress ? 'Express Fulfillment Hub' : 'Sri Adithya Organics Central Warehouse');
+      setDeliveryMinutes(isExpress ? 25 : 48 * 60);
+      localStorage.setItem('sri_adithya_location', JSON.stringify({
+        label,
+        pincode: pin,
+        address: null,
+        isServiceable: true,
+        serviceHub: isExpress ? 'Express Fulfillment Hub' : 'Sri Adithya Organics Central Warehouse',
+        deliveryMinutes: isExpress ? 25 : 48 * 60
+      }));
       setIsLocationModalOpen(false);
     }
   };
@@ -120,7 +132,41 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       async (pos) => {
         try {
           const { latitude, longitude } = pos.coords;
-          const result = await api.reverseGeocode(latitude, longitude);
+          let result: any = null;
+
+          // Attempt 1: Call Sri Adithya Organics backend reverse-geocode service
+          try {
+            result = await api.reverseGeocode(latitude, longitude);
+          } catch (backendErr) {
+            console.warn('Backend reverse-geocode offline or delayed, falling back to direct browser geocoding:', backendErr);
+            // Attempt 2: Direct client-side reverse geocoding via BigDataCloud public client API
+            try {
+              const res = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=en`);
+              if (res.ok) {
+                const bdc = await res.json();
+                const pin = bdc.postcode || '560038';
+                const locality = bdc.locality || bdc.city || bdc.principalSubdivision || 'Detected Location';
+                const city = bdc.city || bdc.principalSubdivision || 'India';
+                const isExpress = pin.startsWith('560') || pin.startsWith('641') || pin.startsWith('600');
+                result = {
+                  locality,
+                  city,
+                  state: bdc.principalSubdivision || '',
+                  postal_code: pin,
+                  is_serviceable: true,
+                  service_hub: isExpress ? 'Local Express Hub' : 'Sri Adithya Organics Central Warehouse',
+                  estimated_delivery_minutes: isExpress ? 25 : 48 * 60,
+                  message: 'Resolved via client-side GPS'
+                };
+              }
+            } catch (clientErr) {
+              console.error('Client-side reverse geocoding also failed:', clientErr);
+            }
+          }
+
+          if (!result) {
+            throw new Error('Could not resolve your exact address coordinates. Please enter your 6-digit PIN code manually.');
+          }
           
           const label = `${result.locality}, ${result.city} - ${result.postal_code}`;
           setLocationLabel(label);
@@ -150,22 +196,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setIsDetectingLocation(false);
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            setLocationError('Location permission was denied. You can enter your Bangalore / Tamil Nadu PIN code manually below.');
+            setLocationError('Location permission was denied. Please allow location access in your browser or enter your PIN code manually below.');
             break;
           case error.POSITION_UNAVAILABLE:
-            setLocationError('Location information is currently unavailable. Please enter your PIN code manually.');
+            setLocationError('GPS/Location hardware is unavailable on this device. Please enter your PIN code manually.');
             break;
           case error.TIMEOUT:
             setLocationError('Location request timed out. Please enter your PIN code manually.');
             break;
           default:
-            setLocationError('An error occurred while detecting location. Please enter manually.');
+            setLocationError('An error occurred while detecting location. Please enter your PIN code manually.');
         }
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 60000
+        maximumAge: 0 // Always acquire fresh real-time coordinates, do not use stale cache
       }
     );
   };

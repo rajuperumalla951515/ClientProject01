@@ -11,12 +11,12 @@ import { Address } from '../types';
 const POPULAR_LOCALITIES = [
   { name: 'Indiranagar', city: 'Bengaluru', pin: '560038' },
   { name: 'Koramangala', city: 'Bengaluru', pin: '560034' },
-  { name: 'HSR Layout', city: 'Bengaluru', pin: '560102' },
   { name: 'Whitefield', city: 'Bengaluru', pin: '560066' },
-  { name: 'Jayanagar', city: 'Bengaluru', pin: '560011' },
+  { name: 'HSR Layout', city: 'Bengaluru', pin: '560102' },
   { name: 'RS Puram', city: 'Coimbatore', pin: '641002' },
-  { name: 'Peelamedu', city: 'Coimbatore', pin: '641004' },
   { name: 'Adyar', city: 'Chennai', pin: '600020' },
+  { name: 'Banjara Hills', city: 'Hyderabad', pin: '500034' },
+  { name: 'Bandra West', city: 'Mumbai', pin: '400050' },
 ];
 
 export const LocationModal: React.FC = () => {
