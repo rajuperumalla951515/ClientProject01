@@ -173,6 +173,8 @@ Base = declarative_base()
 
 def check_db_connection() -> Tuple[bool, Optional[str]]:
     """Test active database connectivity with a lightweight SELECT 1 query."""
+    if settings.STORAGE_BACKEND == "sheets":
+        return True, None
     if not is_db_configured:
         return False, db_config_error
     try:
@@ -198,12 +200,11 @@ def get_safe_db_target() -> str:
         return "unknown"
 
 def get_db():
-    """FastAPI database session dependency with automatic transaction safety."""
-    if not is_db_configured:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail=f"Database is unavailable: {db_config_error}"
-        )
+    """FastAPI database session dependency with automatic transaction safety and sheets fallback."""
+    if settings.STORAGE_BACKEND == "sheets" or not is_db_configured:
+        # In Google Sheets storage mode or unconfigured DB, yield None to allow sheets routing
+        yield None
+        return
     db = SessionLocal()
     try:
         yield db

@@ -20,6 +20,9 @@ import urllib.parse
 from datetime import datetime, date
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+os.environ["STORAGE_BACKEND"] = "database"
+from backend.app.config import settings
+settings.STORAGE_BACKEND = "database"
 
 from backend.app.database import SessionLocal
 from backend.app.routers import orders, cart, auth, settings

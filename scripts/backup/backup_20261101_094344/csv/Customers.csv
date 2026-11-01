@@ -1,0 +1,7 @@
+customer_id,name,phone,email,password_hash,role,created_at
+1,Sri Adithya Admin,+91 98765 43210,admin@sriadithyaorganics.com,$2b$12$T9rZBFuVMh3MXYOrEg.P...05R6/Tqz6O0GamsZxYqra6teInGNYO,admin,2026-10-28T14:53:47.061074
+2,Arjun Sharma,+91 98450 12345,arjun.sharma@example.com,$2b$12$G6OhqV60L.bQ9gsEU5YC4.6K8mB2hghmQ3nY0FzAZPdTpnMJfAq2q,customer,2026-10-28T14:53:47.061074
+3,Raju Perumalla,9515159006,rajuperumallar@gmail.com,$2b$12$DHBW/O7lVSCrpOsW2lnO/ONx2F5Jb.sj9iZ9OhVTVaL0emKxKBgzq,customer,2026-10-28T16:10:02.618943
+4,Sunil Rao,9876543210,guest_9876543210_1793501122@sriadithyaorganics.in,,customer,2026-11-01T08:15:22.927717
+5,Deepa Raman,9845012345,customer@sriadithyaorganics.com,test,customer,2026-11-01T08:16:37.860719
+6,Test Customer,9988776655,guest_9988776655_1793501312@sriadithyaorganics.in,,customer,2026-11-01T08:18:32.263618

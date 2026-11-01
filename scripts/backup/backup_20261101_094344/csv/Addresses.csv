@@ -1,0 +1,4 @@
+address_id,customer_id,house_number,building_name,street,locality,landmark,city,district,state,pincode,latitude,longitude,gps_accuracy_meters,is_confirmed,created_at
+1,2,Tower B,Tower B,"Flat 402, Green Glen Orchards, 100ft Road",Bengaluru,"Near Sony World Signal, 12th Main",Bengaluru,,Karnataka,560038,,,,True,2026-10-28T14:53:47.063076
+2,2,Block 3B,Block 3B,"Floor 5, Innovate Workspaces, Embassy GolfLinks",Bengaluru,Off Intermediate Ring Road,Bengaluru,,Karnataka,560071,,,,True,2026-10-28T14:53:47.063076
+3,3,,,"Medhar Basti, Kothagudem,Bhadradri",Bengaluru,,Bengaluru,,Karnataka,560038,,,,True,2026-10-28T16:11:55.251062

@@ -158,8 +158,8 @@ class ProductImageOut(BaseModel):
     id: int
     image_url: str
     alt_text: Optional[str] = None
-    is_primary: bool
-    display_order: int
+    is_primary: bool = True
+    display_order: int = 0
 
     class Config:
         from_attributes = True

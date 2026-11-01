@@ -3,11 +3,11 @@ import random
 import datetime
 import urllib.parse
 import re
-from typing import List, Optional
+from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Header
 from sqlalchemy.orm import Session, joinedload
 from backend.app.config import settings
-from backend.app.database import get_db
+from backend.app.database import get_db, check_db_connection
 from backend.app.models import (
     Order, OrderItem, Payment, Cart, CartItem, Product, ProductVariant,
     Address, DeliverySetting, User
@@ -18,8 +18,12 @@ from backend.app.schemas import (
 )
 from backend.app.deps import get_current_user, get_current_admin, get_optional_user
 from backend.app.routers.products import enrich_product_out
+from backend.app.sheets.service import sheets_service
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
+
+def is_sheets_storage() -> bool:
+    return settings.STORAGE_BACKEND == "sheets" or not check_db_connection()[0]
 
 def generate_order_number() -> str:
     now = datetime.datetime.utcnow()
@@ -116,8 +120,31 @@ def format_whatsapp_order_message(
 def checkout(
     order_in: OrderCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Any = Depends(get_current_user)
 ):
+    if is_sheets_storage():
+        addr_dict = {}
+        if order_in.address_id:
+            addrs = sheets_service.get_customer_addresses(current_user.id)
+            matching = next((a for a in addrs if a["id"] == order_in.address_id), None)
+            if matching:
+                addr_dict = matching
+        if not addr_dict:
+            raise HTTPException(status_code=400, detail="Please select a valid delivery address.")
+
+        items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
+        order = sheets_service.create_order(
+            customer_id=current_user.id,
+            customer_name=current_user.name,
+            customer_phone=getattr(current_user, "phone", "") or "",
+            items_requested=items_req,
+            delivery_address=addr_dict,
+            delivery_slot=order_in.delivery_slot,
+            payment_method=order_in.payment_method,
+            customer_notes=order_in.notes
+        )
+        return OrderOut.model_validate(order)
+
     # 1. Validate Address
     address = db.query(Address).filter(
         Address.id == order_in.address_id,
@@ -272,11 +299,11 @@ def create_whatsapp_order(
     order_in: WhatsAppOrderCreate,
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     db: Session = Depends(get_db),
-    optional_user: Optional[User] = Depends(get_optional_user)
+    optional_user: Optional[Any] = Depends(get_optional_user)
 ):
     """
-    Creates an order record in PostgreSQL with initial status 'pending_whatsapp',
-    validates stock & prices against the live database, and generates the pre-filled
+    Creates an order record with initial status 'pending_whatsapp',
+    validates stock & prices, and generates the pre-filled
     WhatsApp click-to-chat URL for customer confirmation.
     """
     # 1. Validate Customer Details
@@ -288,6 +315,44 @@ def create_whatsapp_order(
     clean_digits = re.sub(r"\D", "", customer_phone)
     if len(clean_digits) < 10:
         raise HTTPException(status_code=400, detail="Please enter a valid 10-digit mobile number.")
+
+    if is_sheets_storage():
+        user_id = getattr(optional_user, "id", None)
+        address_snapshot = {}
+        if order_in.delivery_address:
+            address_snapshot = dict(order_in.delivery_address)
+        elif order_in.address_id and user_id:
+            addrs = sheets_service.get_customer_addresses(user_id)
+            matching = next((a for a in addrs if a["id"] == order_in.address_id), None)
+            if matching:
+                address_snapshot = matching
+
+        if not address_snapshot:
+            raise HTTPException(status_code=400, detail="Delivery address is required to proceed.")
+
+        items_req = []
+        if order_in.items and len(order_in.items) > 0:
+            for it in order_in.items:
+                items_req.append({
+                    "product_id": it.product_id,
+                    "variant_id": it.variant_id,
+                    "quantity": it.quantity
+                })
+        else:
+            items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
+
+        res = sheets_service.create_whatsapp_order(
+            customer_name=customer_name,
+            customer_phone=customer_phone,
+            items_requested=items_req,
+            delivery_address=address_snapshot,
+            delivery_slot=order_in.delivery_slot,
+            payment_method=order_in.payment_method,
+            customer_notes=order_in.notes,
+            idempotency_key=order_in.idempotency_key,
+            optional_user_id=user_id
+        )
+        return WhatsAppOrderResponse(**res)
 
     # 2. Prevent Duplicate Order Creation via Idempotency Token
     if order_in.idempotency_key:
@@ -585,8 +650,12 @@ def create_whatsapp_order(
 @router.get("", response_model=List[OrderOut])
 def get_user_orders(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Any = Depends(get_current_user)
 ):
+    if is_sheets_storage():
+        ords = sheets_service.get_all_orders(search=str(current_user.id))
+        return [OrderOut.model_validate(o) for o in ords]
+
     orders = db.query(Order).options(
         joinedload(Order.items)
     ).filter(
@@ -604,6 +673,10 @@ def get_all_orders_admin(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
+    if is_sheets_storage():
+        ords = sheets_service.get_all_orders(status_filter=status_filter)
+        return [OrderOut.model_validate(o) for o in ords]
+
     query = db.query(Order).options(joinedload(Order.items))
     if status_filter and status_filter.strip():
         query = query.filter(Order.status == status_filter.strip())
@@ -624,19 +697,25 @@ def get_all_orders_admin(
 
 @router.get("/{order_id}", response_model=OrderOut)
 def get_order_details(
-    order_id: int,
+    order_id: Any,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: Any = Depends(get_current_user)
 ):
+    if is_sheets_storage():
+        order = sheets_service.get_order_by_id(str(order_id))
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        return OrderOut.model_validate(order)
+
     order = db.query(Order).options(
         joinedload(Order.items)
-    ).filter(Order.id == order_id).first()
+    ).filter((Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))).first()
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
     # Authorization: only order owner or admin can view
-    if order.user_id != current_user.id and current_user.role != "admin":
+    if order.user_id != current_user.id and getattr(current_user, "role", "") != "admin":
         raise HTTPException(status_code=403, detail="Access denied.")
 
     return order
@@ -644,12 +723,21 @@ def get_order_details(
 
 @router.put("/{order_id}/status", response_model=OrderOut)
 def update_order_status(
-    order_id: int,
+    order_id: Any,
     status_in: OrderStatusUpdate,
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    order = db.query(Order).options(joinedload(Order.items)).filter(Order.id == order_id).first()
+    if is_sheets_storage():
+        sheets_service.update_order_status(str(order_id), status_in.status or "confirmed", status_in.admin_notes)
+        order = sheets_service.get_order_by_id(str(order_id))
+        if not order:
+            raise HTTPException(status_code=404, detail="Order not found.")
+        return OrderOut.model_validate(order)
+
+    order = db.query(Order).options(joinedload(Order.items)).filter(
+        (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
+    ).first()
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 

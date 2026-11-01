@@ -17,8 +17,16 @@ class Settings(BaseSettings):
     def IS_PRODUCTION(self) -> bool:
         return self.IS_RENDER or self.ENVIRONMENT in ("production", "prod")
     
-    # Database
+    # Database & Storage Provider
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "sheets").lower()
+    
+    # Google Sheets API Storage Configuration
+    GOOGLE_SHEETS_SPREADSHEET_ID: str = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID", "")
+    GOOGLE_SERVICE_ACCOUNT_EMAIL: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_EMAIL", "")
+    GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY", "")
+    GOOGLE_SERVICE_ACCOUNT_JSON: str = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    GOOGLE_SHEETS_CACHE_TTL: int = int(os.getenv("GOOGLE_SHEETS_CACHE_TTL", "120"))  # Seconds (default: 2 mins)
     
     # Security
     SECRET_KEY: str = os.getenv("SECRET_KEY", "sri_adithya_super_secure_organic_secret_key_2026_xyz789")

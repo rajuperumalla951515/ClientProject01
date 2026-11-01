@@ -1,13 +1,96 @@
-from typing import Optional
+from typing import Optional, Dict, Any, List
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session, joinedload
-from backend.app.database import get_db
+from backend.app.config import settings
+from backend.app.database import get_db, check_db_connection
 from backend.app.models import Cart, CartItem, Product, ProductVariant, DeliverySetting, User
 from backend.app.schemas import CartOut, CartItemAdd, CartItemUpdate, CartItemOut, ProductOut, VariantOut
 from backend.app.routers.products import enrich_product_out
 from backend.app.deps import get_optional_user
+from backend.app.sheets.service import sheets_service
 
 router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
+
+def is_sheets_storage() -> bool:
+    return settings.STORAGE_BACKEND == "sheets" or not check_db_connection()[0]
+
+# High-Performance In-Memory Session Carts for Google Sheets Storage Mode
+# (Ensures 30,000 monthly visitors never exceed Google Sheets API write rate limits)
+_IN_MEMORY_CARTS: Dict[str, List[Dict[str, Any]]] = {}
+_cart_item_id_counter = 1000
+
+def get_cart_key(user: Optional[Any], session_id: Optional[str]) -> str:
+    if user and getattr(user, "id", None):
+        return f"user_{user.id}"
+    return f"session_{session_id or 'guest_default'}"
+
+def compute_sheets_cart(cart_key: str) -> CartOut:
+    global _cart_item_id_counter
+    raw_items = _IN_MEMORY_CARTS.get(cart_key, [])
+    settings_data = sheets_service.get_settings()
+    free_threshold = settings_data.get("free_delivery_threshold", 499.0)
+    standard_delivery = settings_data.get("standard_delivery_fee", 39.0)
+
+    items_out = []
+    subtotal = 0.0
+    total_mrp = 0.0
+    total_qty = 0
+
+    for it in raw_items:
+        prod = sheets_service.get_product_by_id_or_slug(str(it["product_id"]))
+        if not prod or not prod.get("is_active", True):
+            continue
+
+        p_out = ProductOut.model_validate(prod)
+        variant = prod["variants"][0] if prod.get("variants") else None
+        if not variant:
+            continue
+
+        v_out = VariantOut.model_validate(variant)
+        qty = it["quantity"]
+        item_sub = variant["price"] * qty
+        item_mrp = variant["mrp"] * qty
+        subtotal += item_sub
+        total_mrp += item_mrp
+        total_qty += qty
+
+        items_out.append(CartItemOut(
+            id=it["item_id"],
+            product_id=it["product_id"],
+            variant_id=it["variant_id"],
+            quantity=qty,
+            product=p_out,
+            variant=v_out
+        ))
+
+    discount = max(0.0, total_mrp - subtotal)
+    if subtotal == 0:
+        delivery_fee = 0.0
+        free_progress = 0.0
+        needed_for_free = free_threshold
+    elif subtotal >= free_threshold:
+        delivery_fee = 0.0
+        free_progress = 100.0
+        needed_for_free = 0.0
+    else:
+        delivery_fee = standard_delivery
+        free_progress = min(100.0, round((subtotal / free_threshold) * 100, 1))
+        needed_for_free = round(free_threshold - subtotal, 2)
+
+    total_amount = round(subtotal + delivery_fee, 2)
+    return CartOut(
+        id=1,
+        items=items_out,
+        item_count=total_qty,
+        subtotal=round(subtotal, 2),
+        discount=round(discount, 2),
+        delivery_fee=round(delivery_fee, 2),
+        taxes=0.0,
+        total_amount=total_amount,
+        free_delivery_threshold=free_threshold,
+        free_delivery_progress=free_progress,
+        amount_needed_for_free_delivery=needed_for_free
+    )
 
 def get_or_create_cart(db: Session, user: Optional[User], session_id: Optional[str]) -> Cart:
     cart = None
@@ -112,6 +195,9 @@ def get_cart(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user)
 ):
+    if is_sheets_storage():
+        cart_key = get_cart_key(user, x_session_id)
+        return compute_sheets_cart(cart_key)
     cart = get_or_create_cart(db, user, x_session_id)
     return compute_cart_details(cart, db)
 
@@ -123,6 +209,49 @@ def add_to_cart(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user)
 ):
+    if is_sheets_storage():
+        cart_key = get_cart_key(user, x_session_id)
+        prod = sheets_service.get_product_by_id_or_slug(str(item_in.product_id))
+        if not prod or not prod.get("is_active", True):
+            raise HTTPException(status_code=404, detail="Product not found or unavailable.")
+
+        variant = None
+        for v in prod.get("variants", []):
+            if v["id"] == item_in.variant_id:
+                variant = v
+                break
+        if not variant and prod.get("variants"):
+            variant = prod["variants"][0]
+        if not variant:
+            raise HTTPException(status_code=404, detail="Product variant not found.")
+
+        stock = variant.get("stock", 0)
+        if stock < 1:
+            raise HTTPException(status_code=400, detail=f"Sorry, {prod['name']} ({variant['unit']}) is out of stock.")
+
+        items = _IN_MEMORY_CARTS.setdefault(cart_key, [])
+        existing = next((it for it in items if it["product_id"] == item_in.product_id and it["variant_id"] == item_in.variant_id), None)
+
+        requested_qty = item_in.quantity if not existing else existing["quantity"] + item_in.quantity
+        if requested_qty > stock:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only {stock} units available in stock."
+            )
+
+        global _cart_item_id_counter
+        if existing:
+            existing["quantity"] = requested_qty
+        else:
+            _cart_item_id_counter += 1
+            items.append({
+                "item_id": _cart_item_id_counter,
+                "product_id": item_in.product_id,
+                "variant_id": item_in.variant_id,
+                "quantity": item_in.quantity
+            })
+        return compute_sheets_cart(cart_key)
+
     # Verify product and variant
     product = db.query(Product).filter(Product.id == item_in.product_id, Product.is_active == True).first()
     if not product:
@@ -178,6 +307,29 @@ def update_cart_item(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user)
 ):
+    if is_sheets_storage():
+        cart_key = get_cart_key(user, x_session_id)
+        items = _IN_MEMORY_CARTS.get(cart_key, [])
+        item = next((it for it in items if it["item_id"] == item_id), None)
+        if not item:
+            raise HTTPException(status_code=404, detail="Cart item not found.")
+
+        if item_in.quantity <= 0:
+            _IN_MEMORY_CARTS[cart_key] = [it for it in items if it["item_id"] != item_id]
+            return compute_sheets_cart(cart_key)
+
+        prod = sheets_service.get_product_by_id_or_slug(str(item["product_id"]))
+        if prod:
+            variant = next((v for v in prod.get("variants", []) if v["id"] == item["variant_id"]), None)
+            if variant and item_in.quantity > variant.get("stock", 0):
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Cannot order more than available stock ({variant['stock']} units)."
+                )
+
+        item["quantity"] = item_in.quantity
+        return compute_sheets_cart(cart_key)
+
     cart = get_or_create_cart(db, user, x_session_id)
     cart_item = db.query(CartItem).filter(
         CartItem.id == item_id,
@@ -211,6 +363,12 @@ def remove_cart_item(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user)
 ):
+    if is_sheets_storage():
+        cart_key = get_cart_key(user, x_session_id)
+        items = _IN_MEMORY_CARTS.get(cart_key, [])
+        _IN_MEMORY_CARTS[cart_key] = [it for it in items if it["item_id"] != item_id]
+        return compute_sheets_cart(cart_key)
+
     cart = get_or_create_cart(db, user, x_session_id)
     cart_item = db.query(CartItem).filter(
         CartItem.id == item_id,
@@ -230,6 +388,11 @@ def clear_cart(
     db: Session = Depends(get_db),
     user: Optional[User] = Depends(get_optional_user)
 ):
+    if is_sheets_storage():
+        cart_key = get_cart_key(user, x_session_id)
+        _IN_MEMORY_CARTS[cart_key] = []
+        return compute_sheets_cart(cart_key)
+
     cart = get_or_create_cart(db, user, x_session_id)
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
     db.commit()
