@@ -6,6 +6,7 @@ and automatic worksheet schema initialization.
 """
 
 import os
+import sys
 import json
 import time
 import random
@@ -78,6 +79,13 @@ class GoogleSheetsClient:
         """Initialize Google Sheets API v4 service or fallback to resilient local offline engine."""
         creds = None
         SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+
+        # Always initialize resilient offline/local store first so data is immediately available
+        self._is_live_connected = False
+        self._init_offline_store()
+
+        if os.getenv("OFFLINE_MODE") or "pytest" in sys.modules:
+            return
 
         try:
             from google.oauth2 import service_account
@@ -296,6 +304,8 @@ class GoogleSheetsClient:
 
         except Exception as e:
             logger.warning(f"Worksheet verification notice: {e}")
+            self._is_live_connected = False
+            raise
 
     # --- Core Data Operations: Read ---
 
@@ -335,6 +345,7 @@ class GoogleSheetsClient:
             return records
         except Exception as e:
             logger.warning(f"Live Google Sheets read for '{sheet_name}' notice ({e}). Serving from resilient local store.")
+            self._is_live_connected = False
             return self._read_offline_sheet(sheet_name, headers)
 
     def _read_offline_sheet(self, sheet_name: str, headers: List[str]) -> List[Dict[str, Any]]:

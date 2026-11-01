@@ -22,11 +22,11 @@
       1,
       "Organic Desi Tomatoes",
       "organic-desi-tomatoes",
-      "Hand-picked country tomatoes grown in living soil without chemical pesticides. Rich in lycopene and vitamin C, these tart and flavorful tomatoes make rich gravies, rasam, and fresh salads.",
+      "Updated via Admin Dashboard verification",
       1,
       42.0,
       55.0,
-      39,
+      53,
       "https://images.unsplash.com/photo-1592924357228-91a4daadcfea?auto=format&fit=crop&q=80&w=800",
       "",
       "500g",
@@ -34,7 +34,7 @@
       "True",
       "True",
       "2026-10-28T14:53:47.066075",
-      "2026-11-01T11:43:57.374255Z"
+      "2026-11-01T12:54:32.326038Z"
     ],
     [
       2,
@@ -622,6 +622,15 @@
       "",
       "customer",
       "2026-11-01T08:18:32.263618"
+    ],
+    [
+      7,
+      "Lakshmi Narayanan",
+      "9876501234",
+      "test.sheets.customer.1793535731@sriadithyaorganics.in",
+      "$2b$12$CPOr4Yu.7w0/yVlTXGiRzeIvvDzbr4v2LGR474DiQZstkV4mrDcX.",
+      "customer",
+      "2026-11-01T12:22:11.732531Z"
     ]
   ],
   "Orders": [
@@ -1745,6 +1754,158 @@
       "{\"id\": 1, \"user_id\": 2, \"customer_id\": 2, \"label\": \"Home\", \"recipient_name\": \"Tower B\", \"phone\": \"\", \"house_number\": \"Tower B\", \"apartment\": \"Tower B\", \"street\": \"Flat 402, Green Glen Orchards, 100ft Road\", \"locality\": \"Bengaluru\", \"landmark\": \"Near Sony World Signal, 12th Main\", \"city\": \"Bengaluru\", \"district\": \"\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": null, \"longitude\": null, \"accuracy_meters\": null, \"formatted_address\": \"Flat 402, Green Glen Orchards, 100ft Road, Bengaluru - 560038\", \"is_confirmed\": true, \"is_default\": true, \"created_at\": \"2026-10-28T14:53:47.063076\"}",
       "2026-11-01T11:43:57.453129Z",
       "2026-11-01T11:43:57.453129Z"
+    ],
+    [
+      "SAO-20261101-122212-356323",
+      7,
+      "Concurrent Buyer 0",
+      "9000000000",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      4,
+      "IDEM:CONCURRENT-TEST-0-1793535732 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 4, \"user_id\": 7, \"customer_id\": 7, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T12:22:12.116451Z\"}",
+      "2026-11-01T12:22:12.126454Z",
+      "2026-11-01T12:22:12.126454Z"
+    ],
+    [
+      "SAO-20261101-122212-806714",
+      7,
+      "Concurrent Buyer 1",
+      "9000000001",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      4,
+      "IDEM:CONCURRENT-TEST-1-1793535732 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 4, \"user_id\": 7, \"customer_id\": 7, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T12:22:12.116451Z\"}",
+      "2026-11-01T12:22:12.136453Z",
+      "2026-11-01T12:22:12.136453Z"
+    ],
+    [
+      "SAO-20261101-122212-222882",
+      7,
+      "Concurrent Buyer 2",
+      "9000000002",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      4,
+      "IDEM:CONCURRENT-TEST-2-1793535732 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 4, \"user_id\": 7, \"customer_id\": 7, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T12:22:12.116451Z\"}",
+      "2026-11-01T12:22:12.146453Z",
+      "2026-11-01T12:22:12.146453Z"
+    ],
+    [
+      "SAO-20261101-122212-861556",
+      7,
+      "Concurrent Buyer 3",
+      "9000000003",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      4,
+      "IDEM:CONCURRENT-TEST-3-1793535732 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 4, \"user_id\": 7, \"customer_id\": 7, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T12:22:12.116451Z\"}",
+      "2026-11-01T12:22:12.156453Z",
+      "2026-11-01T12:22:12.156453Z"
+    ],
+    [
+      "SAO-20261101-122212-894337",
+      7,
+      "Concurrent Buyer 4",
+      "9000000004",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      4,
+      "IDEM:CONCURRENT-TEST-4-1793535732 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 4, \"user_id\": 7, \"customer_id\": 7, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T12:22:12.116451Z\"}",
+      "2026-11-01T12:22:12.166453Z",
+      "2026-11-01T12:22:12.166453Z"
+    ],
+    [
+      "SAO-20261101-122212-408469",
+      "",
+      "Raju Perumalla",
+      "9515159006",
+      42.0,
+      39.0,
+      81.0,
+      "whatsapp_cod",
+      "pending",
+      "confirmed",
+      "",
+      "Confirmed via WhatsApp dispatch desk",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"Flat 302\", \"city\": \"Bengaluru\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 15.0}",
+      "2026-11-01T12:22:12.176457Z",
+      "2026-11-01T12:22:12.182525Z"
+    ],
+    [
+      "SAO-20261101-122329-894939",
+      2,
+      "Arjun Sharma",
+      "+91 98450 12345",
+      84.0,
+      39.0,
+      123.0,
+      "cod",
+      "pending",
+      "cancelled",
+      "",
+      "Cancelled: Customer requested exchange",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"street\": \"Admin Test Road\", \"city\": \"Bengaluru\", \"postal_code\": \"560038\"}",
+      "2026-11-01T12:23:29.640336Z",
+      "2026-11-01T12:23:29.645340Z"
+    ],
+    [
+      "SAO-20261101-125432-190848",
+      2,
+      "Arjun Sharma",
+      "+91 98450 12345",
+      84.0,
+      39.0,
+      123.0,
+      "cod",
+      "pending",
+      "cancelled",
+      "",
+      "Cancelled: Customer requested exchange",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"street\": \"Admin Test Road\", \"city\": \"Bengaluru\", \"postal_code\": \"560038\"}",
+      "2026-11-01T12:54:32.314182Z",
+      "2026-11-01T12:54:32.322039Z"
     ]
   ],
   "Order_Items": [
@@ -2575,6 +2736,78 @@
       1,
       42.0,
       42.0
+    ],
+    [
+      92,
+      "SAO-20261101-122212-356323",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      93,
+      "SAO-20261101-122212-806714",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      94,
+      "SAO-20261101-122212-222882",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      95,
+      "SAO-20261101-122212-861556",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      96,
+      "SAO-20261101-122212-894337",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      97,
+      "SAO-20261101-122212-408469",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      98,
+      "SAO-20261101-122329-894939",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      2,
+      42.0,
+      84.0
+    ],
+    [
+      99,
+      "SAO-20261101-125432-190848",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      2,
+      42.0,
+      84.0
     ]
   ],
   "Addresses": [
@@ -2649,6 +2882,24 @@
       "",
       "True",
       "2026-10-28T16:11:55.251062"
+    ],
+    [
+      4,
+      7,
+      "Flat 302, Sai Residency",
+      "",
+      "100 Feet Road, Indiranagar",
+      "",
+      "",
+      "Bengaluru",
+      "",
+      "Karnataka",
+      "560038",
+      12.9784,
+      77.6408,
+      12.0,
+      "True",
+      "2026-11-01T12:22:12.116451Z"
     ]
   ],
   "Inventory_Logs": [
@@ -2966,6 +3217,114 @@
       39,
       "Customer Order #SAO-20261101-114357-576926",
       "2026-11-01T11:43:57.412741Z"
+    ],
+    [
+      35,
+      1,
+      39,
+      -1,
+      38,
+      "Customer Order #SAO-20261101-122212-356323",
+      "2026-11-01T12:22:12.123454Z"
+    ],
+    [
+      36,
+      1,
+      38,
+      -1,
+      37,
+      "Customer Order #SAO-20261101-122212-806714",
+      "2026-11-01T12:22:12.133452Z"
+    ],
+    [
+      37,
+      1,
+      37,
+      -1,
+      36,
+      "Customer Order #SAO-20261101-122212-222882",
+      "2026-11-01T12:22:12.144453Z"
+    ],
+    [
+      38,
+      1,
+      36,
+      -1,
+      35,
+      "Customer Order #SAO-20261101-122212-861556",
+      "2026-11-01T12:22:12.153452Z"
+    ],
+    [
+      39,
+      1,
+      35,
+      -1,
+      34,
+      "Customer Order #SAO-20261101-122212-894337",
+      "2026-11-01T12:22:12.163453Z"
+    ],
+    [
+      40,
+      1,
+      34,
+      -1,
+      33,
+      "Customer Order #SAO-20261101-122212-408469",
+      "2026-11-01T12:22:12.174457Z"
+    ],
+    [
+      41,
+      1,
+      33,
+      10,
+      43,
+      "Verified Restock Shipment - Batch #8872",
+      "2026-11-01T12:23:29.622751Z"
+    ],
+    [
+      42,
+      1,
+      43,
+      -2,
+      41,
+      "Customer Order #SAO-20261101-122329-894939",
+      "2026-11-01T12:23:29.637185Z"
+    ],
+    [
+      43,
+      1,
+      41,
+      2,
+      43,
+      "Order Restock #SAO-20261101-122329-894939 (Customer requested exchange)",
+      "2026-11-01T12:23:29.650341Z"
+    ],
+    [
+      44,
+      1,
+      43,
+      10,
+      53,
+      "Verified Restock Shipment - Batch #8872",
+      "2026-11-01T12:54:32.291426Z"
+    ],
+    [
+      45,
+      1,
+      53,
+      -2,
+      51,
+      "Customer Order #SAO-20261101-125432-190848",
+      "2026-11-01T12:54:32.311181Z"
+    ],
+    [
+      46,
+      1,
+      51,
+      2,
+      53,
+      "Order Restock #SAO-20261101-125432-190848 (Customer requested exchange)",
+      "2026-11-01T12:54:32.329045Z"
     ]
   ],
   "Store_Settings": [

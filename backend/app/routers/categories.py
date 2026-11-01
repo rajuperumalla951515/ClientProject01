@@ -120,6 +120,25 @@ def create_category(cat_in: CategoryCreate, db: Session = Depends(get_db), admin
 
 @router.put("/{category_id}", response_model=CategoryOut)
 def update_category(category_id: int, cat_in: CategoryUpdate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    if is_sheets_storage():
+        update_data = cat_in.model_dump(exclude_unset=True)
+        updated = sheets_service.update_category(category_id, update_data)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Category not found.")
+        products = sheets_service.get_all_products()
+        count = sum(1 for p in products if p.get("category_id") == category_id)
+        return CategoryOut(
+            id=updated["id"],
+            name=updated["name"],
+            slug=updated["slug"],
+            description=updated.get("description"),
+            image_url=updated.get("image_url"),
+            icon=updated.get("icon"),
+            display_order=updated.get("display_order", 0),
+            is_active=updated.get("is_active", True),
+            product_count=count
+        )
+
     cat = db.query(Category).filter(Category.id == category_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found.")
@@ -138,6 +157,10 @@ def update_category(category_id: int, cat_in: CategoryUpdate, db: Session = Depe
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_category(category_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    if is_sheets_storage():
+        sheets_service.delete_category(category_id)
+        return None
+
     cat = db.query(Category).filter(Category.id == category_id).first()
     if not cat:
         raise HTTPException(status_code=404, detail="Category not found.")

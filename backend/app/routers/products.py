@@ -300,6 +300,13 @@ def update_product(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
+    if is_sheets_storage():
+        update_data = product_in.model_dump(exclude_unset=True)
+        updated = sheets_service.update_product(product_id, update_data)
+        if not updated:
+            raise HTTPException(status_code=404, detail="Product not found.")
+        return ProductOut.model_validate(updated)
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found.")
@@ -315,6 +322,10 @@ def update_product(
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_product(product_id: int, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+    if is_sheets_storage():
+        sheets_service.delete_product(product_id)
+        return None
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found.")

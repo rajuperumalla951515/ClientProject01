@@ -384,7 +384,14 @@ class DeliverySettingUpdate(BaseModel):
     whatsapp_number: Optional[str] = None
 
 
-# --- Admin Dashboard Stats ---
+# --- Admin Dashboard Stats & Operations ---
+class TopProductStat(BaseModel):
+    id: int
+    name: str
+    units_sold: int
+    revenue: float
+    image_url: Optional[str] = None
+
 class DashboardStatsOut(BaseModel):
     total_revenue: float
     total_orders: int
@@ -393,6 +400,56 @@ class DashboardStatsOut(BaseModel):
     pending_orders: int
     low_stock_products: int
     recent_orders: List[OrderOut] = []
+
+class EnhancedDashboardStatsOut(BaseModel):
+    total_revenue: float
+    today_revenue: float
+    total_orders: int
+    today_orders: int
+    total_products: int
+    total_customers: int
+    pending_orders: int
+    delivered_orders: int
+    cancelled_orders: int
+    low_stock_products: int
+    order_status_counts: Dict[str, int] = {}
+    top_products: List[TopProductStat] = []
+    recent_orders: List[OrderOut] = []
+
+class InventoryAdjustRequest(BaseModel):
+    product_id: int
+    delta: Optional[int] = None
+    new_stock: Optional[int] = None
+    reason: str = "Manual Admin Adjustment"
+    notes: Optional[str] = None
+
+class InventoryLogOut(BaseModel):
+    log_id: int
+    product_id: int
+    product_name: Optional[str] = None
+    previous_stock: int
+    changed_stock: int
+    new_stock: int
+    reason: str
+    created_at: str
+
+class CustomerMetricOut(BaseModel):
+    id: int
+    name: str
+    email: str
+    phone: Optional[str] = None
+    total_orders: int = 0
+    total_spend: float = 0.0
+    created_at: str
+    last_order_date: Optional[str] = None
+
+class CustomerDetailOut(CustomerMetricOut):
+    addresses: List[AddressOut] = []
+    orders: List[OrderOut] = []
+
+class OrderCancelRequest(BaseModel):
+    reason: str = "Customer requested cancellation"
+
 
 
 # --- Geolocation & Serviceability Schemas ---
