@@ -106,6 +106,54 @@ class GoogleSheetsClient:
             if not creds and default_creds_path.exists():
                 creds = service_account.Credentials.from_service_account_file(str(default_creds_path), scopes=SCOPES)
 
+            # Method D: Embedded base64 service account credentials (provided for Sri Adithya Organics production deployment)
+            if not creds:
+                try:
+                    import base64
+                    default_b64 = (
+                        "ewogICJ0eXBlIjogInNlcnZpY2VfYWNjb3VudCIsCiAgInByb2plY3RfaWQiOiAidG91Z2gtaG9sb2dyYW0tNTEw"
+                        "NTA5LW44IiwKICAicHJpdmF0ZV9rZXlfaWQiOiAiYjgxYzc2NmZlYTExNjE0MDc0ODI2YTM1YmU1NDRkZjkxYWIx"
+                        "OWY2YyIsCiAgInByaXZhdGVfa2V5IjogIi0tLS0tQkVHSU4gUFJJVkFURSBLRVktLS0tLVxuTUlJRXZRSUJBREFO"
+                        "QmdrcWhraUc5dzBCQVFFRkFBU0NCS2N3Z2dTakFnRUFBb0lCQVFEbFFyc0thV1pGbTVMOFxuTG5KVWdPeEloVEFw"
+                        "ODdMTDd0MDdvakJwSmJPM3NLSUlVSjJRNmphOWErTHBjYTBoQWc0V3cwZC91djdWNW1lVVxuenhzMlZLQjQ4Zmln"
+                        "enFtMkkwb2NiOCtmbFNPdXp0MEZDVWxWVGl3WE9jUjJvb0g3RVRvY3pzbGJ5ZE93UVdDSlxuUTZENjI1bzhCbXJk"
+                        "cjZ6MjZ4SmwzNklmMWRHZldKalh6VnI1dmx3dEttVW01bTMwdHI3ZnkyMjZZRENwRWN4L1xuclludyt3a3ZVTWQw"
+                        "bTFkcXhFS2wxZHoraG83NEF1eVNVeW1wU2hGODFFSjQwakVnK0pWckNlSksweFdoaFZDTVxudnFXWUZYSnh0d1lI"
+                        "MTMyMXMzSXA2R01ueUhUcHhxb1p1bnVtTm5RZE9BbnNjM3cyLytFejRyRTJiaGo4YVJmdFxuQU90VHBnbGpBZ01C"
+                        "QUFFQ2dnRUFSblQ4b0pXRnpjeWpIb2R6c1k2eGp4UUhta3ovM1BhNjNQSGFhT1lpVmtpZFxuYzJxN0VlYzVEWHZU"
+                        "ajZUVTdUa0JkWE5zVE0vK00yU00zc25MZGlZSjcwR0dCSDJlNEkvMTNjbHJDSU5BSlNBRVxuQXVFNHZWTzU3eVZj"
+                        "d0l6dTMyY0s4Z0dIRm9OdllGS25SV2dZV0NBWFJXMC9lSVBkNTBDVk5lUEZvbjBHNEM0NFxuVXJhbFhRbVJwV1Bj"
+                        "eGlINlNrTnV6MThRU3RHaDlDSkdDZVVMZzJmTVFId2Z6Y1Q5VVJHTHRMZ1hLVnp0VmYvalxuSFlkc3E0VXc1M1lK"
+                        "a0tkSEJPNzhTOHB1Ui9yWmNRTjVtbjBoQk9RNWp5Yyt3azBocG1KMk93STlzYVB0alZLZ1xubVJNTkZJSW4zNzJl"
+                        "WTdRempaQ0lmMHpOVXYyaDBmcGF2amVSTnVFMjZRS0JnUUQzT254Z0hWMGlqSEFUWmc2blxuSWV1OFZUM2FCS0VQ"
+                        "L2trODZrUlo4am1Ldnlxd0hDR2RnVmhaLzl4WHpVbzNTdVlGTDE5blNSNHQ1bjRqNHRNdFxuUlRyd3NPUEVvS0Zu"
+                        "blVsZDZiR0kxVVNBdkpPZGhKMW1EbW8yMW03ci8yV0YzcVdvZ1VUcG5MTGhaRW5qdW9VV1xuQ0E4d25NN2FEcmQ1"
+                        "OTNDb21aWlhNS1VhWHdLQmdRRHRaUXc5dS9nWityL0IzeWtLb1ZwbEdaOXdlbTJiSmIycVxuZHNjY3NlNG1YVHNm"
+                        "aTQrcHkxWjRIckFZQjV1cFdxaGk0QnJEMDBxTnhXZFhlMFNvMHVneDU0REhOMXFnbFZtS1xuM3FkVmN2ZG1iQnRk"
+                        "R3J4MnFEWm1XNE9mOWFvQ0FSS2VlOVBENUpaWGJnSkxJOXAwQ21qUW4xa2hLNTJ5MEgvdVxuWW1YZXpmcDNmUUtC"
+                        "Z0JpRU9UOUN5akNaNHFkWjBJd3NaZmNvTU5rRTZuL3VoSTdBNElSVzYvUGhYemRWb3RPK1xudHVjOTR6amx4NzFS"
+                        "OVJ1QWhpSjA4c1EwZmovS3g0eE91RGlVSWhJbXA3cmhzeHZZQjkzODRDMHdCaWR4dGpZZlxucWRMRVV2MmVOeEFl"
+                        "Y3lrUm9LYlYvanN4dWM0V2Vnb2tSSFZhcDN5aVJ2bVdXeHF0R0dhUEVXQmJBb0dCQU5ncFxuS2FOUTlGSGJwQjRK"
+                        "Y05xUUg3cHRRV1B1NXJ6ZCtiMHRXSkxGWmIrakp3SExWNjVaUzh3bXpWdWtHZFowaVYwM1xuQ01nRkxoNjNnQ2tG"
+                        "UW5palN2Q2VCd0hmWW5OVWF1dHJZRjBMU1VFRzhVZXUzNnIvOGtEejFYK2k5d0hLTGtVSFxuSmNWNjhIWjk0aksv"
+                        "Vzl4TDJqTVUxZGpCV1dBSVFHVTFUZU02RlhZVkFvR0FUM2REVlVmc2EvZGhkSCtGZ3hkU1xuS09NQjNUbUI2M1dD"
+                        "cTVDVGovRDVuMElHZGxTYi9HSDJSTkRmWFBDWFZWOVFhUngya0F3YTVXNUVOYnZ1UFJMbVxuY0tncytrMGhwd1B4"
+                        "QzYvb21NQTJjQ3lROEtlMXFIamV5NVNYWU5PcG05ZkVBUitUTVMveWdWK3NtWGJZT0ErWlxucUpiL2djRTlNRGxO"
+                        "U1BiWFRmU09DUk09XG4tLS0tLUVORCBQUklWQVRFIEtFWS0tLS0tXG4iLAogICJjbGllbnRfZW1haWwiOiAic3Jp"
+                        "LWFkaXRoeWEtc2hlZXRzLXNlcnZpY2VAdG91Z2gtaG9sb2dyYW0tNTEwNTA5LW44LmlhbS5nc2VydmljZWFjY291"
+                        "bnQuY29tIiwKICAiY2xpZW50X2lkIjogIjEwMzk1MDEwNTEyMzQ4MzA2NjYzMCIsCiAgImF1dGhfdXJpIjogImh0"
+                        "dHBzOi8vYWNjb3VudHMuZ29vZ2xlLmNvbS9vL29hdXRoMi9hdXRoIiwKICAidG9rZW5fdXJpIjogImh0dHBzOi8v"
+                        "b2F1dGgyLmdvb2dsZWFwaXMuY29tL3Rva2VuIiwKICAiYXV0aF9wcm92aWRlcl94NTA5X2NlcnRfdXJsIjogImh0"
+                        "dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL29hdXRoMi92MS9jZXJ0cyIsCiAgImNsaWVudF94NTA5X2NlcnRfdXJs"
+                        "IjogImh0dHBzOi8vd3d3Lmdvb2dsZWFwaXMuY29tL3JvYm90L3YxL21ldGFkYXRhL3g1MDkvc3JpLWFkaXRoeWEt"
+                        "c2hlZXRzLXNlcnZpY2UlNDB0b3VnaC1ob2xvZ3JhbS01MTA1MDktbjguaWFtLmdzZXJ2aWNlYWNjb3VudC5jb20i"
+                        "LAogICJ1bml2ZXJzZV9kb21haW4iOiAiZ29vZ2xlYXBpcy5jb20iCn0KCg=="
+                    )
+                    decoded_info = json.loads(base64.b64decode(default_b64.encode("utf-8")).decode("utf-8"))
+                    creds = service_account.Credentials.from_service_account_info(decoded_info, scopes=SCOPES)
+                except Exception as b64_err:
+                    logger.debug(f"Default base64 credentials notice: {b64_err}")
+
             if creds and self.spreadsheet_id:
                 self._service = build("sheets", "v4", credentials=creds, cache_discovery=False)
                 self._is_live_connected = True

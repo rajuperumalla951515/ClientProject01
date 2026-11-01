@@ -133,17 +133,20 @@ def checkout(
             raise HTTPException(status_code=400, detail="Please select a valid delivery address.")
 
         items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
-        order = sheets_service.create_order(
-            customer_id=current_user.id,
-            customer_name=current_user.name,
-            customer_phone=getattr(current_user, "phone", "") or "",
-            items_requested=items_req,
-            delivery_address=addr_dict,
-            delivery_slot=order_in.delivery_slot,
-            payment_method=order_in.payment_method,
-            customer_notes=order_in.notes
-        )
-        return OrderOut.model_validate(order)
+        try:
+            order = sheets_service.create_order(
+                customer_id=current_user.id,
+                customer_name=current_user.name,
+                customer_phone=getattr(current_user, "phone", "") or "",
+                items_requested=items_req,
+                delivery_address=addr_dict,
+                delivery_slot=order_in.delivery_slot,
+                payment_method=order_in.payment_method,
+                customer_notes=order_in.notes
+            )
+            return OrderOut.model_validate(order)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
 
     # 1. Validate Address
     address = db.query(Address).filter(
@@ -341,18 +344,21 @@ def create_whatsapp_order(
         else:
             items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
 
-        res = sheets_service.create_whatsapp_order(
-            customer_name=customer_name,
-            customer_phone=customer_phone,
-            items_requested=items_req,
-            delivery_address=address_snapshot,
-            delivery_slot=order_in.delivery_slot,
-            payment_method=order_in.payment_method,
-            customer_notes=order_in.notes,
-            idempotency_key=order_in.idempotency_key,
-            optional_user_id=user_id
-        )
-        return WhatsAppOrderResponse(**res)
+        try:
+            res = sheets_service.create_whatsapp_order(
+                customer_name=customer_name,
+                customer_phone=customer_phone,
+                items_requested=items_req,
+                delivery_address=address_snapshot,
+                delivery_slot=order_in.delivery_slot,
+                payment_method=order_in.payment_method,
+                customer_notes=order_in.notes,
+                idempotency_key=order_in.idempotency_key,
+                optional_user_id=user_id
+            )
+            return WhatsAppOrderResponse(**res)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve))
 
     # 2. Prevent Duplicate Order Creation via Idempotency Token
     if order_in.idempotency_key:
