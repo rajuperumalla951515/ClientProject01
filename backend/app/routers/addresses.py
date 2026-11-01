@@ -1,21 +1,25 @@
-from typing import List
+from typing import List, Optional
 import urllib.request
+import urllib.parse
 import json
 import math
-from fastapi import APIRouter, Depends, HTTPException, status
+import os
+import datetime
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import Address, User, DeliverySetting
 from backend.app.schemas import (
     AddressOut, AddressCreate, AddressUpdate,
     ReverseGeocodeRequest, ReverseGeocodeOut,
-    ServiceabilityCheckRequest, ServiceabilityCheckOut
+    ServiceabilityCheckRequest, ServiceabilityCheckOut,
+    AddressSearchResultItem
 )
 from backend.app.deps import get_current_user
 
 router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
 
-# Known Indian Metropolitan Location Clusters for Instant Accurate Offline Fallback & Logistics Routing
+# Known Indian Metropolitan Fulfillment Clusters for Logistics Routing & Delivery ETA
 KNOWN_LOCALITY_CLUSTERS = [
     # Bengaluru Hubs
     {"name": "Indiranagar", "city": "Bengaluru", "state": "Karnataka", "pin": "560038", "lat": 12.9784, "lon": 77.6408, "hub": "Indiranagar Hub", "minutes": 15},
@@ -26,6 +30,8 @@ KNOWN_LOCALITY_CLUSTERS = [
     {"name": "Malleshwaram", "city": "Bengaluru", "state": "Karnataka", "pin": "560003", "lat": 13.0031, "lon": 77.5643, "hub": "North Bengaluru Hub", "minutes": 25},
     {"name": "Bellandur", "city": "Bengaluru", "state": "Karnataka", "pin": "560103", "lat": 12.9260, "lon": 77.6762, "hub": "ORR Tech Corridor Hub", "minutes": 20},
     {"name": "MG Road / CBD", "city": "Bengaluru", "state": "Karnataka", "pin": "560001", "lat": 12.9756, "lon": 77.6066, "hub": "Central Bengaluru Hub", "minutes": 15},
+    {"name": "Hebbal", "city": "Bengaluru", "state": "Karnataka", "pin": "560024", "lat": 13.0358, "lon": 77.5970, "hub": "North Bengaluru Hub", "minutes": 25},
+    {"name": "Electronic City", "city": "Bengaluru", "state": "Karnataka", "pin": "560100", "lat": 12.8452, "lon": 77.6602, "hub": "South Bengaluru Tech Hub", "minutes": 25},
     
     # Telangana Hubs
     {"name": "Banjara Hills", "city": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 25},
@@ -96,51 +102,108 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 @router.post("/reverse-geocode", response_model=ReverseGeocodeOut)
 def reverse_geocode(geo: ReverseGeocodeRequest):
-    """Convert browser coordinates into exact readable address and check live delivery availability."""
+    """
+    High-precision reverse-geocoding for real coordinates.
+    Retrieves building, street, neighbourhood, locality, city, district, state, and postal code.
+    Evaluates Google Maps if configured, falling back to OpenStreetMap Nominatim and BigDataCloud.
+    Never fabricates missing house details or distorts coordinates.
+    """
     lat, lon = geo.latitude, geo.longitude
-    
+    accuracy = geo.accuracy
+
+    house_number = None
+    building = None
+    road = None
+    neighbourhood = None
     resolved_locality = None
     resolved_city = None
+    resolved_district = None
     resolved_state = None
     resolved_pin = None
     resolved_formatted = None
+    landmark = None
 
-    # Step 1: OpenStreetMap Nominatim with strict 3.5s timeout
-    try:
-        url = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}&addressdetails=1"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact: info@sriadithyaorganics.com)",
-                "Accept-Language": "en"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
-            if resp.status == 200:
-                data = json.loads(resp.read().decode("utf-8"))
-                addr = data.get("address", {})
-                resolved_locality = (
-                    addr.get("suburb") or addr.get("neighbourhood") or 
-                    addr.get("residential") or addr.get("road") or 
-                    addr.get("village") or addr.get("county")
-                )
-                resolved_city = (
-                    addr.get("city") or addr.get("town") or 
-                    addr.get("city_district") or addr.get("district") or 
-                    addr.get("state_district")
-                )
-                resolved_state = addr.get("state")
-                resolved_pin = addr.get("postcode")
-                resolved_formatted = data.get("display_name")
-    except Exception:
-        pass
+    # Method 1: Google Maps Geocoding API if key is present
+    google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
+    if google_key:
+        try:
+            g_url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lon}&key={google_key}&language=en"
+            req = urllib.request.Request(g_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                if resp.status == 200:
+                    g_data = json.loads(resp.read().decode("utf-8"))
+                    if g_data.get("results"):
+                        first_res = g_data["results"][0]
+                        resolved_formatted = first_res.get("formatted_address")
+                        for comp in first_res.get("address_components", []):
+                            types = comp.get("types", [])
+                            name = comp.get("long_name", "")
+                            if "street_number" in types or "premise" in types:
+                                house_number = name
+                            elif "subpremise" in types:
+                                building = name
+                            elif "route" in types:
+                                road = name
+                            elif "sublocality_level_1" in types or "sublocality" in types:
+                                resolved_locality = name
+                            elif "sublocality_level_2" in types or "neighborhood" in types:
+                                neighbourhood = name
+                            elif "locality" in types:
+                                resolved_city = name
+                            elif "administrative_area_level_2" in types:
+                                resolved_district = name
+                            elif "administrative_area_level_1" in types:
+                                resolved_state = name
+                            elif "postal_code" in types:
+                                resolved_pin = name
+        except Exception as e:
+            print(f"[REVERSE_GEOCODE] Google Maps lookup note: {e}")
 
-    # Step 2: Fallback to BigDataCloud client API if Nominatim failed or was throttled
+    # Method 2: OpenStreetMap Nominatim Reverse Geocoding with zoom=18 for building/house level precision
+    if not (resolved_locality and resolved_pin):
+        try:
+            url = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}&addressdetails=1&zoom=18"
+            req = urllib.request.Request(
+                url,
+                headers={
+                    "User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact: info@sriadithyaorganics.com)",
+                    "Accept-Language": "en"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=4.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    addr = data.get("address", {})
+                    
+                    house_number = house_number or addr.get("house_number") or addr.get("housename")
+                    building = building or addr.get("building") or addr.get("residential") or addr.get("apartment")
+                    road = road or addr.get("road") or addr.get("street") or addr.get("pedestrian") or addr.get("footway")
+                    neighbourhood = neighbourhood or addr.get("neighbourhood") or addr.get("suburb") or addr.get("residential")
+                    landmark = landmark or addr.get("amenity") or addr.get("landmark") or addr.get("shop")
+                    
+                    resolved_locality = resolved_locality or (
+                        addr.get("suburb") or addr.get("neighbourhood") or 
+                        addr.get("residential") or addr.get("city_district") or 
+                        addr.get("village") or addr.get("town") or addr.get("road")
+                    )
+                    resolved_city = resolved_city or (
+                        addr.get("city") or addr.get("town") or 
+                        addr.get("city_district") or addr.get("district") or 
+                        addr.get("municipality")
+                    )
+                    resolved_district = resolved_district or addr.get("state_district") or addr.get("county") or addr.get("district")
+                    resolved_state = resolved_state or addr.get("state")
+                    resolved_pin = resolved_pin or addr.get("postcode")
+                    resolved_formatted = resolved_formatted or data.get("display_name")
+        except Exception as e:
+            print(f"[REVERSE_GEOCODE] Nominatim lookup note: {e}")
+
+    # Method 3: Fallback to BigDataCloud client API if Nominatim failed or was throttled
     if not (resolved_locality and resolved_pin):
         try:
             bdc_url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
-            req = urllib.request.Request(bdc_url, headers={"User-Agent": "SriAdithyaOrganics/2.0"})
-            with urllib.request.urlopen(req, timeout=3.0) as resp:
+            req = urllib.request.Request(bdc_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
                 if resp.status == 200:
                     bdc_data = json.loads(resp.read().decode("utf-8"))
                     if not resolved_locality:
@@ -153,17 +216,17 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
                         resolved_pin = bdc_data.get("postcode")
                     if not resolved_formatted:
                         resolved_formatted = f"{resolved_locality or ''}, {resolved_city or ''}, {resolved_state or ''} {resolved_pin or ''}".strip(", ")
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[REVERSE_GEOCODE] BigDataCloud lookup note: {e}")
 
-    # Step 3: Find closest logistics cluster for fulfillment routing
+    # Method 4: Find closest logistics hub for delivery ETA calculation
     closest_cluster = min(
         KNOWN_LOCALITY_CLUSTERS,
         key=lambda c: calculate_distance(lat, lon, c["lat"], c["lon"])
     )
     dist = calculate_distance(lat, lon, closest_cluster["lat"], closest_cluster["lon"])
 
-    # Fallback to cluster ONLY if geocoding completely failed
+    # Fallback default locality ONLY if geocoding services returned empty
     if not resolved_locality:
         resolved_locality = closest_cluster["name"]
     if not resolved_city:
@@ -175,32 +238,138 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     if not resolved_formatted:
         resolved_formatted = f"{resolved_locality}, {resolved_city}, {resolved_state} - {resolved_pin}"
 
-    # Determine serviceability:
-    # Express delivery (15-30 mins) if within 25 km of known cluster or express PIN
-    is_express = resolved_pin.startswith(("560", "641", "600")) or (dist < 25.0)
-    is_serviceable = True # Pan-India organic grocery delivery is supported!
+    # Construct clean human-readable formatted address
+    components = []
+    if house_number:
+        components.append(house_number)
+    if building:
+        components.append(building)
+    if road:
+        components.append(road)
+    if neighbourhood and neighbourhood != resolved_locality:
+        components.append(neighbourhood)
+    if resolved_locality:
+        components.append(resolved_locality)
+    if resolved_city:
+        components.append(resolved_city)
+    if resolved_state:
+        components.append(f"{resolved_state} - {resolved_pin}")
+
+    if components:
+        clean_formatted = ", ".join(dict.fromkeys(components))
+    else:
+        clean_formatted = resolved_formatted
+
+    # Delivery serviceability calculation
+    is_express = (
+        (resolved_pin and resolved_pin.startswith(("560", "641", "600"))) or
+        (dist <= 25.0)
+    )
+    is_serviceable = True
 
     if is_express:
-        minutes = closest_cluster["minutes"]
+        minutes = closest_cluster["minutes"] if dist <= 15.0 else 30
         hub = closest_cluster["hub"]
         msg = f"Express Delivery Active! Dispatched from {hub} in {minutes} mins."
     else:
-        minutes = 48 * 60 # 2-3 business days
+        minutes = 48 * 60
         hub = "Sri Adithya Organics Central Fulfillment Facility"
-        msg = f"Standard Courier Delivery Active! Dispatched to {resolved_city} via Express Courier."
+        msg = f"Standard Courier Delivery Active to {resolved_city}."
+
+    # Mark as incomplete if house number or building is missing (prompt customer to enter door/flat)
+    is_incomplete = not bool(house_number or building)
 
     return ReverseGeocodeOut(
-        formatted_address=resolved_formatted,
+        formatted_address=clean_formatted,
+        house_number=house_number,
+        building=building,
+        road=road,
         locality=resolved_locality,
+        neighbourhood=neighbourhood,
+        landmark=landmark,
         city=resolved_city,
+        district=resolved_district,
         state=resolved_state,
         postal_code=resolved_pin,
         country="India",
+        latitude=lat,
+        longitude=lon,
+        accuracy_meters=accuracy,
         is_serviceable=is_serviceable,
         estimated_delivery_minutes=minutes,
         service_hub=hub,
-        message=msg
+        message=msg,
+        is_incomplete=is_incomplete,
+        source="gps_detected" if not accuracy or accuracy <= 100 else "gps_approximate"
     )
+
+@router.get("/search", response_model=List[AddressSearchResultItem])
+def search_address_locations(q: str = Query(..., min_length=2, description="Address, area, building or PIN query")):
+    """
+    Search address locations across India with autocomplete.
+    Uses OpenStreetMap Nominatim Search API to return structured results.
+    """
+    query = q.strip()
+    if not query:
+        return []
+
+    results: List[AddressSearchResultItem] = []
+    try:
+        encoded_q = urllib.parse.quote(query)
+        url = f"https://nominatim.openstreetmap.org/search?format=jsonv2&q={encoded_q}&countrycodes=in&limit=6&addressdetails=1"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact: info@sriadithyaorganics.com)",
+                "Accept-Language": "en"
+            }
+        )
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            if resp.status == 200:
+                items = json.loads(resp.read().decode("utf-8"))
+                for it in items:
+                    addr = it.get("address", {})
+                    loc = (
+                        addr.get("suburb") or addr.get("neighbourhood") or 
+                        addr.get("residential") or addr.get("road") or 
+                        addr.get("city_district") or addr.get("village") or "Area"
+                    )
+                    cty = (
+                        addr.get("city") or addr.get("town") or 
+                        addr.get("district") or addr.get("county") or "Bengaluru"
+                    )
+                    st = addr.get("state") or "Karnataka"
+                    pin = addr.get("postcode") or ""
+                    
+                    results.append(AddressSearchResultItem(
+                        place_id=str(it.get("place_id")),
+                        formatted_address=it.get("display_name", ""),
+                        locality=loc,
+                        city=cty,
+                        state=st,
+                        postal_code=pin,
+                        latitude=float(it["lat"]),
+                        longitude=float(it["lon"])
+                    ))
+    except Exception as e:
+        print(f"[SEARCH_ADDRESS] Search note: {e}")
+
+    # Fallback to known locality clusters if external search is throttled
+    if not results:
+        q_lower = query.lower()
+        for c in KNOWN_LOCALITY_CLUSTERS:
+            if q_lower in c["name"].lower() or q_lower in c["city"].lower() or q_lower == c["pin"]:
+                results.append(AddressSearchResultItem(
+                    place_id=f"cluster_{c['pin']}",
+                    formatted_address=f"{c['name']}, {c['city']}, {c['state']} - {c['pin']}",
+                    locality=c["name"],
+                    city=c["city"],
+                    state=c["state"],
+                    postal_code=c["pin"],
+                    latitude=c["lat"],
+                    longitude=c["lon"]
+                ))
+    return results
 
 @router.post("/check-serviceability", response_model=ServiceabilityCheckOut)
 def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(get_db)):
@@ -239,10 +408,11 @@ def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(
 
     if is_express:
         msg = f"Express Delivery Available: {minutes} mins from {hub}"
-    elif is_serviceable:
-        msg = f"Pan-India Courier Delivery Available to PIN {pin} ({city}) in 2-3 business days"
     else:
-        msg = f"Please enter a valid 6-digit Indian PIN code."
+        msg = f"Standard Organic Delivery Active (Dispatched to {city})"
+
+    if not is_serviceable:
+        msg = "Please enter a valid 6-digit Indian PIN code."
 
     return ServiceabilityCheckOut(
         is_serviceable=is_serviceable,
@@ -285,10 +455,17 @@ def create_address(
         phone=address_in.phone,
         street=address_in.street,
         apartment=address_in.apartment,
+        house_number=address_in.house_number,
+        locality=address_in.locality,
         landmark=address_in.landmark,
         city=address_in.city,
         state=address_in.state,
         postal_code=address_in.postal_code,
+        latitude=address_in.latitude,
+        longitude=address_in.longitude,
+        accuracy_meters=address_in.accuracy_meters,
+        formatted_address=address_in.formatted_address,
+        confirmed_at=address_in.confirmed_at or datetime.datetime.utcnow(),
         is_default=is_default
     )
     db.add(new_address)
@@ -371,4 +548,3 @@ def delete_address(
             db.commit()
 
     return None
-

@@ -16,10 +16,17 @@ export interface Address {
   phone: string;
   street: string;
   apartment?: string | null;
+  house_number?: string | null;
+  locality?: string | null;
   landmark?: string | null;
   city: string;
   state: string;
   postal_code: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  accuracy_meters?: number | null;
+  formatted_address?: string | null;
+  confirmed_at?: string | null;
   is_default: boolean;
   created_at?: string | null;
 }
@@ -196,5 +203,40 @@ export interface DashboardStats {
   pending_orders: number;
   low_stock_products: number;
   recent_orders: Order[];
+}
+
+export interface ReverseGeocodeResult {
+  formatted_address: string;
+  house_number?: string | null;
+  building?: string | null;
+  road?: string | null;
+  locality: string;
+  neighbourhood?: string | null;
+  landmark?: string | null;
+  city: string;
+  district?: string | null;
+  state: string;
+  postal_code: string;
+  country: string;
+  latitude: number;
+  longitude: number;
+  accuracy_meters?: number | null;
+  is_serviceable: boolean;
+  estimated_delivery_minutes: number;
+  service_hub: string;
+  message: string;
+  is_incomplete?: boolean;
+  source?: string;
+}
+
+export interface AddressSearchResult {
+  place_id?: string;
+  formatted_address: string;
+  locality: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  latitude: number;
+  longitude: number;
 }
 

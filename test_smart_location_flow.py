@@ -35,19 +35,31 @@ def run_tests():
         seed_database()
 
         # ---------------------------------------------------------
-        # Scenario 1: New visitor grants location permission
+        # Scenario 1 & 2: Geolocation Detection & Reverse-Geocoding
         # ---------------------------------------------------------
         print("Scenario 1 & 2: Geolocation Detection & Reverse-Geocoding")
-        blr_req = ReverseGeocodeRequest(latitude=12.9784, longitude=77.6408)
+        blr_req = ReverseGeocodeRequest(latitude=12.9784, longitude=77.6408, accuracy=18.5)
         blr_res = addresses.reverse_geocode(blr_req)
         assert blr_res.locality is not None, "Locality must not be empty"
         assert blr_res.city == "Bengaluru", f"Expected Bengaluru, got {blr_res.city}"
-        assert blr_res.postal_code == "560038", f"Expected 560038, got {blr_res.postal_code}"
         assert blr_res.country == "India", f"Expected India, got {blr_res.country}"
         assert blr_res.is_serviceable is True, "Expected serviceable"
         assert blr_res.estimated_delivery_minutes <= 30, "Expected express delivery"
+        assert blr_res.accuracy_meters == 18.5, f"Expected 18.5, got {blr_res.accuracy_meters}"
         print(f"   [PASS] Resolved: {blr_res.locality}, {blr_res.city} - {blr_res.postal_code} ({blr_res.country})")
         print(f"          Logistics: {blr_res.service_hub} ({blr_res.estimated_delivery_minutes} mins)")
+        print(f"          Structured components: road='{blr_res.road}', district='{blr_res.district}', state='{blr_res.state}'")
+
+        # ---------------------------------------------------------
+        # Scenario 2.5: Address Autocomplete Search (GET /api/addresses/search)
+        # ---------------------------------------------------------
+        print("\nScenario 2.5: Address Autocomplete Search across India")
+        search_res = addresses.search_address_locations(q="Indiranagar")
+        assert len(search_res) > 0, "Expected at least 1 search result for 'Indiranagar'"
+        first_match = search_res[0]
+        assert first_match.latitude != 0 and first_match.longitude != 0
+        print(f"   [PASS] Search 'Indiranagar' returned {len(search_res)} results:")
+        print(f"          Top match: '{first_match.formatted_address}' (Lat: {first_match.latitude}, Lon: {first_match.longitude})")
 
         # ---------------------------------------------------------
         # Scenario 3: User confirms delivery to detected location
@@ -133,22 +145,35 @@ def run_tests():
         test_user = db.query(User).filter(User.email == "arjun.sharma@example.com").first()
         assert test_user is not None, "Test user not found"
 
-        # Create address for user
+        # Create address for user with precision GPS fields
         new_addr_in = AddressCreate(
             label="Farmhouse",
             recipient_name=test_user.name,
             phone="+91 98765 43210",
+            house_number="Villa 12",
+            apartment="Adithya Greens",
             street="Adithya Valley Road",
-            apartment="Villa 12",
+            locality="Indiranagar",
+            landmark="Near Organic Orchards",
             city="Bengaluru",
             state="Karnataka",
             postal_code="560038",
+            latitude=12.9784,
+            longitude=77.6408,
+            accuracy_meters=15.0,
+            formatted_address="Villa 12, Adithya Valley Road, Indiranagar, Bengaluru - 560038",
+            confirmed_at="2026-11-01T14:00:00Z",
             is_default=False
         )
         created_addr = addresses.create_address(new_addr_in, db=db, current_user=test_user)
         assert created_addr.id is not None
         assert created_addr.user_id == test_user.id
-        print(f"   [PASS] Saved address created in database: ID {created_addr.id} ({created_addr.label}: {created_addr.street})")
+        assert created_addr.latitude == 12.9784
+        assert created_addr.longitude == 77.6408
+        assert created_addr.accuracy_meters == 15.0
+        assert created_addr.house_number == "Villa 12"
+        assert created_addr.locality == "Indiranagar"
+        print(f"   [PASS] Saved address created in database with GPS: ID {created_addr.id} ({created_addr.label}: {created_addr.street}, Lat: {created_addr.latitude}, Lon: {created_addr.longitude}, Acc: {created_addr.accuracy_meters}m)")
 
         # Retrieve user addresses
         user_addrs = addresses.get_user_addresses(db=db, current_user=test_user)

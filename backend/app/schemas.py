@@ -51,10 +51,17 @@ class AddressBase(BaseModel):
     phone: str
     street: str
     apartment: Optional[str] = None
+    house_number: Optional[str] = None
+    locality: Optional[str] = None
     landmark: Optional[str] = None
     city: str = "Bengaluru"
     state: str = "Karnataka"
     postal_code: str
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    accuracy_meters: Optional[float] = None
+    formatted_address: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
     is_default: bool = False
 
 class AddressCreate(AddressBase):
@@ -66,10 +73,17 @@ class AddressUpdate(BaseModel):
     phone: Optional[str] = None
     street: Optional[str] = None
     apartment: Optional[str] = None
+    house_number: Optional[str] = None
+    locality: Optional[str] = None
     landmark: Optional[str] = None
     city: Optional[str] = None
     state: Optional[str] = None
     postal_code: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    accuracy_meters: Optional[float] = None
+    formatted_address: Optional[str] = None
+    confirmed_at: Optional[datetime] = None
     is_default: Optional[bool] = None
 
 class AddressOut(AddressBase):
@@ -385,18 +399,40 @@ class DashboardStatsOut(BaseModel):
 class ReverseGeocodeRequest(BaseModel):
     latitude: float
     longitude: float
+    accuracy: Optional[float] = None
 
 class ReverseGeocodeOut(BaseModel):
+    formatted_address: str
+    house_number: Optional[str] = None
+    building: Optional[str] = None
+    road: Optional[str] = None
+    locality: str
+    neighbourhood: Optional[str] = None
+    landmark: Optional[str] = None
+    city: str
+    district: Optional[str] = None
+    state: str
+    postal_code: str
+    country: str = "India"
+    latitude: float
+    longitude: float
+    accuracy_meters: Optional[float] = None
+    is_serviceable: bool
+    estimated_delivery_minutes: int
+    service_hub: str
+    message: str
+    is_incomplete: bool = False
+    source: str = "gps_detected"
+
+class AddressSearchResultItem(BaseModel):
+    place_id: Optional[str] = None
     formatted_address: str
     locality: str
     city: str
     state: str
     postal_code: str
-    country: str = "India"
-    is_serviceable: bool
-    estimated_delivery_minutes: int
-    service_hub: str
-    message: str
+    latitude: float
+    longitude: float
 
 class ServiceabilityCheckRequest(BaseModel):
     postal_code: Optional[str] = None

@@ -221,6 +221,23 @@ def run_migrations(target_engine):
         tables = inspector.get_table_names()
 
         with target_engine.begin() as conn:
+            if "addresses" in tables:
+                addr_cols = [c["name"] for c in inspector.get_columns("addresses")]
+                if "latitude" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN latitude FLOAT;"))
+                if "longitude" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN longitude FLOAT;"))
+                if "accuracy_meters" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN accuracy_meters FLOAT;"))
+                if "house_number" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN house_number VARCHAR(100);"))
+                if "locality" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN locality VARCHAR(150);"))
+                if "formatted_address" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN formatted_address TEXT;"))
+                if "confirmed_at" not in addr_cols:
+                    conn.execute(text("ALTER TABLE addresses ADD COLUMN confirmed_at TIMESTAMP;"))
+
             if "orders" in tables:
                 order_cols = [c["name"] for c in inspector.get_columns("orders")]
                 if "admin_notes" not in order_cols:

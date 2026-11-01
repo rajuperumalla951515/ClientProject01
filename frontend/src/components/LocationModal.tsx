@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
   X, MapPin, Check, Plus, Home, Briefcase, Building, Navigation,
-  AlertCircle, Loader2, Shield, ChevronDown, ChevronUp, Zap, Truck, Phone, User as UserIcon
+  AlertCircle, Loader2, Shield, ChevronDown, ChevronUp, Zap, Truck, Phone, User as UserIcon,
+  Search, Building2, Compass, ChevronRight
 } from 'lucide-react';
 import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
-import { Address } from '../types';
+import { Address, AddressSearchResult } from '../types';
 
 const POPULAR_LOCALITIES = [
   { name: 'Indiranagar', city: 'Bengaluru', pin: '560038' },
@@ -34,12 +35,49 @@ export const LocationModal: React.FC = () => {
     locationLabel,
     deliveryMinutes,
     serviceHub,
+    searchAddresses,
+    selectSearchResult,
   } = useLocation();
 
   const { user } = useAuth();
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([]);
   const [quickPin, setQuickPin] = useState('');
   const [quickArea, setQuickArea] = useState('');
+  
+  // Autocomplete Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<AddressSearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+
+  // Debounced address search
+  useEffect(() => {
+    if (!searchQuery || searchQuery.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await searchAddresses(searchQuery.trim());
+        setSearchResults(results);
+      } catch (err) {
+        console.warn('Address search error:', err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 350);
+
+    return () => clearTimeout(timer);
+  }, [searchQuery, searchAddresses]);
+
+  const handleSelectSearchResult = async (item: AddressSearchResult) => {
+    setSearchQuery('');
+    setSearchResults([]);
+    await selectSearchResult(item);
+  };
   
   // Alternative address state
   const [activeTab, setActiveTab] = useState<'quick' | 'full_address'>('quick');
@@ -223,20 +261,76 @@ export const LocationModal: React.FC = () => {
               type="button"
               onClick={() => detectCurrentLocation(true)}
               disabled={isDetectingLocation}
-              className="w-full py-3 px-4 rounded-xl border border-rootly-forest/30 bg-rootly-sageMist/30 hover:bg-rootly-sageMist/60 text-rootly-forest text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-60"
+              className="w-full py-3.5 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-2.5 disabled:opacity-60 active:scale-[0.99]"
             >
               {isDetectingLocation ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin text-rootly-forest" />
-                  <span>Detecting exact coordinates via GPS...</span>
+                  <Loader2 className="w-4 h-4 animate-spin text-emerald-300" />
+                  <span>Pinpointing High-Accuracy GPS Coordinates...</span>
                 </>
               ) : (
                 <>
-                  <Navigation className="w-4 h-4 text-rootly-forest" />
-                  <span>Detect My Current Location (GPS)</span>
+                  <Navigation className="w-4 h-4 text-emerald-300" />
+                  <span>Use My Current Live Location (GPS)</span>
                 </>
               )}
             </button>
+
+            {/* 2.5 Live Autocomplete Address Search */}
+            <div className="relative">
+              <div className="relative flex items-center">
+                <Search className="w-4 h-4 text-stone-400 absolute left-3.5 pointer-events-none" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search apartment, street, or locality in India..."
+                  className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-xs sm:text-sm font-medium focus:outline-none focus:border-rootly-forest focus:ring-1 focus:ring-rootly-forest transition-all placeholder:text-stone-400"
+                />
+                {isSearching ? (
+                  <Loader2 className="w-4 h-4 text-rootly-forest animate-spin absolute right-3" />
+                ) : searchQuery ? (
+                  <button
+                    type="button"
+                    onClick={() => { setSearchQuery(''); setSearchResults([]); }}
+                    className="p-1 rounded-full text-stone-400 hover:text-stone-600 absolute right-2.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* Autocomplete Search Dropdown */}
+              {searchResults.length > 0 && (
+                <div className="mt-1.5 p-1.5 rounded-2xl bg-white border border-stone-200 shadow-xl max-h-56 overflow-y-auto space-y-1 z-10 animate-fadeIn">
+                  <div className="px-2.5 py-1 text-[10px] font-bold text-stone-400 uppercase tracking-wider">
+                    Search Results ({searchResults.length}) — Click to Pinpoint on Map
+                  </div>
+                  {searchResults.map((item, idx) => (
+                    <button
+                      key={`${item.latitude}-${item.longitude}-${idx}`}
+                      type="button"
+                      onClick={() => handleSelectSearchResult(item)}
+                      className="w-full p-2.5 rounded-xl hover:bg-rootly-sageMist/40 flex items-start gap-2.5 text-left transition-colors group"
+                    >
+                      <MapPin className="w-4 h-4 text-rootly-forest shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-stone-800 group-hover:text-rootly-forest truncate">
+                          {item.locality || item.city}
+                        </p>
+                        <p className="text-[11px] text-stone-500 truncate mt-0.5">
+                          {item.formatted_address}
+                        </p>
+                        <span className="text-[10px] font-mono font-semibold text-stone-400">
+                          {item.postal_code || item.state}
+                        </span>
+                      </div>
+                      <ChevronRight className="w-4 h-4 text-stone-300 group-hover:text-rootly-forest shrink-0 self-center" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
 
             {/* 3. Saved Addresses Section (if logged in) */}
             {user && savedAddresses.length > 0 && (

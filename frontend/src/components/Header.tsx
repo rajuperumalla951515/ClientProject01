@@ -97,7 +97,7 @@ export const Header: React.FC = () => {
           <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
-              onClick={confirmDeliveryToDetectedLocation}
+              onClick={() => confirmDeliveryToDetectedLocation()}
               className="px-3.5 py-1.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-emerald-950 font-bold text-xs shadow-sm transition-all"
             >
               Yes, deliver here

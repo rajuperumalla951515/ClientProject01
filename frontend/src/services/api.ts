@@ -475,22 +475,16 @@ export const api = {
   },
 
   // Geolocation & Serviceability
-  async reverseGeocode(latitude: number, longitude: number): Promise<{
-    formatted_address: string;
-    locality: string;
-    city: string;
-    state: string;
-    postal_code: string;
-    country: string;
-    is_serviceable: boolean;
-    estimated_delivery_minutes: number;
-    service_hub: string;
-    message: string;
-  }> {
+  async reverseGeocode(latitude: number, longitude: number, accuracy?: number): Promise<import('../types').ReverseGeocodeResult> {
     return request('/addresses/reverse-geocode', {
       method: 'POST',
-      body: JSON.stringify({ latitude, longitude }),
+      body: JSON.stringify({ latitude, longitude, accuracy }),
     });
+  },
+
+  async searchAddresses(query: string): Promise<import('../types').AddressSearchResult[]> {
+    const encoded = encodeURIComponent(query.trim());
+    return request(`/addresses/search?q=${encoded}`);
   },
 
   async checkServiceability(postalCode?: string, latitude?: number, longitude?: number): Promise<{
