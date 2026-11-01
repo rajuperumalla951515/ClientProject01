@@ -24,12 +24,14 @@ dist-ssr/
 *.sqlite
 *.sqlite3
 
-# Environment variables
+# Environment variables & Service Accounts
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
+credentials/
+*service_account*.json
 
 # Logs
 logs

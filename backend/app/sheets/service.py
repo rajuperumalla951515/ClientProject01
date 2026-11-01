@@ -917,23 +917,71 @@ class SheetsService:
 
     def get_all_orders(self, status_filter: Optional[str] = None, search: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
         orders = self.client.read_sheet("Orders")
+        # Load order items in a single read call to prevent N+1 API exhaustion
+        items_rows = self.client.read_sheet("Order_Items")
+        items_by_order = {}
+        for ir in items_rows:
+            o_id = str(ir.get("order_id", "")).strip()
+            items_by_order.setdefault(o_id, []).append({
+                "id": int(ir.get("order_item_id", 1)),
+                "product_id": int(ir.get("product_id", 1)),
+                "variant_id": int(ir.get("product_id", 1)),
+                "product_name": str(ir.get("product_name", "")),
+                "variant_name": "Standard Pack",
+                "unit_price": float(ir.get("unit_price", 0.0)),
+                "mrp": float(ir.get("unit_price", 0.0)),
+                "quantity": int(ir.get("quantity", 1)),
+                "total_price": float(ir.get("line_total", 0.0)),
+                "image_url": None
+            })
+
         filtered = []
-        for o in reversed(orders):
-            st = str(o.get("order_status", "")).strip().lower()
+        for target_row in reversed(orders):
+            st = str(target_row.get("order_status", "")).strip().lower()
             if status_filter and status_filter.lower() != "all" and st != status_filter.lower():
                 continue
             if search and search.strip():
                 q = search.strip().lower()
-                o_num = str(o.get("order_id", "")).lower()
-                c_name = str(o.get("customer_name", "")).lower()
-                phone = str(o.get("phone", "")).lower()
-                c_id = str(o.get("customer_id", "")).lower()
+                o_num = str(target_row.get("order_id", "")).lower()
+                c_name = str(target_row.get("customer_name", "")).lower()
+                phone = str(target_row.get("phone", "")).lower()
+                c_id = str(target_row.get("customer_id", "")).lower()
                 if q not in o_num and q not in c_name and q not in phone and q != c_id:
                     continue
-            
-            full = self.get_order_by_id(str(o.get("order_id")))
-            if full:
-                filtered.append(full)
+
+            order_id = str(target_row.get("order_id"))
+            try:
+                cust_id = int(target_row.get("customer_id")) if target_row.get("customer_id") else None
+            except (ValueError, TypeError):
+                cust_id = None
+
+            raw_num = str(order_id).replace("SAO-", "").replace("-", "")[:9]
+            numeric_id = int(raw_num) if raw_num.isdigit() else 1
+
+            filtered.append({
+                "id": numeric_id,
+                "order_number": target_row.get("order_id"),
+                "customer_id": cust_id,
+                "user_id": cust_id,
+                "customer_name": target_row.get("customer_name"),
+                "phone": target_row.get("phone"),
+                "status": target_row.get("order_status", "confirmed"),
+                "subtotal": float(target_row.get("subtotal", 0.0)),
+                "discount": 0.0,
+                "delivery_fee": float(target_row.get("delivery_charge", 0.0)),
+                "tax": 0.0,
+                "total_amount": float(target_row.get("final_total", 0.0)),
+                "delivery_slot": target_row.get("delivery_slot", "Instant 15-30 Mins"),
+                "delivery_address_json": target_row.get("delivery_address_json", "{}"),
+                "notes": target_row.get("customer_notes"),
+                "admin_notes": None,
+                "payment_method": target_row.get("payment_method", "cod"),
+                "payment_status": target_row.get("payment_status", "pending"),
+                "payment_id": f"PAY-{order_id}",
+                "created_at": target_row.get("created_at"),
+                "updated_at": target_row.get("updated_at"),
+                "items": items_by_order.get(order_id.strip(), [])
+            })
 
         return filtered[offset: offset + limit]
 
@@ -999,10 +1047,10 @@ class SheetsService:
         return curr
 
     def get_dashboard_stats(self) -> Dict[str, Any]:
-        all_orders = self.get_all_orders()
-        total_rev = sum(o.get("total_amount", 0.0) for o in all_orders if o.get("status") != "cancelled")
+        all_orders = self.client.read_sheet("Orders")
+        total_rev = sum(float(o.get("final_total", 0.0) or 0.0) for o in all_orders if str(o.get("order_status", "")).lower() != "cancelled")
         total_orders = len(all_orders)
-        pending_orders = sum(1 for o in all_orders if o.get("status") in ("pending", "confirmed", "pending_whatsapp"))
+        pending_orders = sum(1 for o in all_orders if str(o.get("order_status", "")).lower() in ("pending", "confirmed", "pending_whatsapp"))
         all_prods = self.get_all_products()
         total_products = len(all_prods)
         low_stock_count = sum(1 for p in all_prods if p.get("variants") and p["variants"][0].get("stock", 0) < 10)

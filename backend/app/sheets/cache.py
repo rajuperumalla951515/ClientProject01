@@ -109,3 +109,4 @@ class SheetsCacheManager:
 
 # Singleton instance
 sheets_cache = SheetsCacheManager(default_ttl=settings.GOOGLE_SHEETS_CACHE_TTL)
+

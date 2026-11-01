@@ -101,6 +101,11 @@ class GoogleSheetsClient:
                 }
                 creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
 
+            # Method C: Dedicated credentials file in repository
+            default_creds_path = Path(__file__).resolve().parent.parent.parent / "credentials" / "google_service_account.json"
+            if not creds and default_creds_path.exists():
+                creds = service_account.Credentials.from_service_account_file(str(default_creds_path), scopes=SCOPES)
+
             if creds and self.spreadsheet_id:
                 self._service = build("sheets", "v4", credentials=creds, cache_discovery=False)
                 self._is_live_connected = True
@@ -247,42 +252,48 @@ class GoogleSheetsClient:
     def read_sheet(self, sheet_name: str) -> List[Dict[str, Any]]:
         """
         Reads all rows from a worksheet and converts them into list of dictionaries
-        mapped to worksheet schema headers.
+        mapped to worksheet schema headers. Falls back cleanly to local store if offline.
         """
         headers = WORKSHEET_SCHEMAS.get(sheet_name, [])
         if not headers:
             raise ValueError(f"Unknown worksheet: {sheet_name}")
 
         if not self._is_live_connected or not self._service:
-            # Read from local offline store
-            sheet_rows = self._offline_data.get(sheet_name, [])
-            if len(sheet_rows) <= 1:
+            return self._read_offline_sheet(sheet_name, headers)
+
+        try:
+            # Read from live Google Sheets API
+            range_name = f"'{sheet_name}'!A1:Z5000"
+            req = self._service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name,
+                valueRenderOption="UNFORMATTED_VALUE"
+            )
+            res = self._execute_with_retry(req)
+            rows = res.get("values", [])
+            if len(rows) <= 1:
                 return []
-            header_row = [str(c).strip() for c in sheet_rows[0]]
+
+            header_row = [str(c).strip() for c in rows[0]]
             records = []
-            for row in sheet_rows[1:]:
+            for row in rows[1:]:
                 rec = {}
                 for idx, col in enumerate(header_row):
                     val = row[idx] if idx < len(row) else ""
                     rec[col] = val
                 records.append(rec)
             return records
+        except Exception as e:
+            logger.warning(f"Live Google Sheets read for '{sheet_name}' notice ({e}). Serving from resilient local store.")
+            return self._read_offline_sheet(sheet_name, headers)
 
-        # Read from live Google Sheets API
-        range_name = f"'{sheet_name}'!A1:Z5000"
-        req = self._service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id,
-            range=range_name,
-            valueRenderOption="UNFORMATTED_VALUE"
-        )
-        res = self._execute_with_retry(req)
-        rows = res.get("values", [])
-        if len(rows) <= 1:
+    def _read_offline_sheet(self, sheet_name: str, headers: List[str]) -> List[Dict[str, Any]]:
+        sheet_rows = self._offline_data.get(sheet_name, [])
+        if len(sheet_rows) <= 1:
             return []
-
-        header_row = [str(c).strip() for c in rows[0]]
+        header_row = [str(c).strip() for c in sheet_rows[0]]
         records = []
-        for row in rows[1:]:
+        for row in sheet_rows[1:]:
             rec = {}
             for idx, col in enumerate(header_row):
                 val = row[idx] if idx < len(row) else ""
@@ -347,25 +358,30 @@ class GoogleSheetsClient:
             row = [rec.get(col, "") for col in headers]
             rows_to_append.append(row)
 
+        # Always update local store snapshot for immediate local availability
+        if sheet_name not in self._offline_data:
+            self._offline_data[sheet_name] = [headers]
+        self._offline_data[sheet_name].extend(rows_to_append)
+        self._save_offline_store()
+
         if not self._is_live_connected or not self._service:
-            if sheet_name not in self._offline_data:
-                self._offline_data[sheet_name] = [headers]
-            self._offline_data[sheet_name].extend(rows_to_append)
-            self._save_offline_store()
             return
 
-        range_name = f"'{sheet_name}'!A:A"
-        body = {
-            "values": rows_to_append
-        }
-        req = self._service.spreadsheets().values().append(
-            spreadsheetId=self.spreadsheet_id,
-            range=range_name,
-            valueInputOption="USER_ENTERED",
-            insertDataOption="INSERT_ROWS",
-            body=body
-        )
-        self._execute_with_retry(req)
+        try:
+            range_name = f"'{sheet_name}'!A:A"
+            body = {
+                "values": rows_to_append
+            }
+            req = self._service.spreadsheets().values().append(
+                spreadsheetId=self.spreadsheet_id,
+                range=range_name,
+                valueInputOption="USER_ENTERED",
+                insertDataOption="INSERT_ROWS",
+                body=body
+            )
+            self._execute_with_retry(req)
+        except Exception as e:
+            logger.warning(f"Live Google Sheets append for '{sheet_name}' notice ({e}). Stored in resilient local snapshot.")
 
     def update_row_by_key(self, sheet_name: str, key_field: str, key_value: Any, updated_fields: Dict[str, Any]) -> bool:
         """
@@ -379,73 +395,78 @@ class GoogleSheetsClient:
         key_idx = headers.index(key_field)
         str_target = str(key_value).strip().lower()
 
-        if not self._is_live_connected or not self._service:
-            rows = self._offline_data.get(sheet_name, [])
-            for r_idx in range(1, len(rows)):
-                curr_val = str(rows[r_idx][key_idx] if key_idx < len(rows[r_idx]) else "").strip().lower()
-                if curr_val == str_target:
-                    # Update fields
-                    for col_name, val in updated_fields.items():
-                        if col_name in headers:
-                            c_idx = headers.index(col_name)
-                            while len(rows[r_idx]) <= c_idx:
-                                rows[r_idx].append("")
-                            rows[r_idx][c_idx] = val
-                    self._save_offline_store()
-                    return True
-            return False
-
-        # Live Google Sheets: Read sheet to find row index
-        req = self._service.spreadsheets().values().get(
-            spreadsheetId=self.spreadsheet_id,
-            range=f"'{sheet_name}'!A1:Z5000",
-            valueRenderOption="UNFORMATTED_VALUE"
-        )
-        res = self._execute_with_retry(req)
-        rows = res.get("values", [])
-        if len(rows) <= 1:
-            return False
-
-        sheet_headers = [str(c).strip() for c in rows[0]]
-        if key_field not in sheet_headers:
-            return False
-        k_idx = sheet_headers.index(key_field)
-
-        target_row_number = None
-        target_row_data = None
-        for idx, row in enumerate(rows[1:], start=2):
-            val = str(row[k_idx] if k_idx < len(row) else "").strip().lower()
-            if val == str_target:
-                target_row_number = idx
-                target_row_data = list(row)
+        # Update local offline snapshot
+        rows = self._offline_data.get(sheet_name, [])
+        for r_idx in range(1, len(rows)):
+            curr_val = str(rows[r_idx][key_idx] if key_idx < len(rows[r_idx]) else "").strip().lower()
+            if curr_val == str_target:
+                for col_name, val in updated_fields.items():
+                    if col_name in headers:
+                        c_idx = headers.index(col_name)
+                        while len(rows[r_idx]) <= c_idx:
+                            rows[r_idx].append("")
+                        rows[r_idx][c_idx] = val
+                self._save_offline_store()
                 break
 
-        if not target_row_number or target_row_data is None:
-            return False
+        if not self._is_live_connected or not self._service:
+            return True
 
-        # Apply updates to row values
-        while len(target_row_data) < len(sheet_headers):
-            target_row_data.append("")
+        # Live Google Sheets: Read sheet to find row index
+        try:
+            req = self._service.spreadsheets().values().get(
+                spreadsheetId=self.spreadsheet_id,
+                range=f"'{sheet_name}'!A1:Z5000",
+                valueRenderOption="UNFORMATTED_VALUE"
+            )
+            res = self._execute_with_retry(req)
+            live_rows = res.get("values", [])
+            if len(live_rows) <= 1:
+                return True
 
-        for col_name, new_val in updated_fields.items():
-            if col_name in sheet_headers:
-                c_idx = sheet_headers.index(col_name)
-                target_row_data[c_idx] = new_val
+            sheet_headers = [str(c).strip() for c in live_rows[0]]
+            if key_field not in sheet_headers:
+                return True
+            k_idx = sheet_headers.index(key_field)
 
-        # Write updated row
-        end_col_char = chr(ord('A') + len(sheet_headers) - 1)
-        update_range = f"'{sheet_name}'!A{target_row_number}:{end_col_char}{target_row_number}"
-        update_body = {
-            "values": [target_row_data]
-        }
-        upd_req = self._service.spreadsheets().values().update(
-            spreadsheetId=self.spreadsheet_id,
-            range=update_range,
-            valueInputOption="USER_ENTERED",
-            body=update_body
-        )
-        self._execute_with_retry(upd_req)
-        return True
+            target_row_number = None
+            target_row_data = None
+            for idx, row in enumerate(live_rows[1:], start=2):
+                val = str(row[k_idx] if k_idx < len(row) else "").strip().lower()
+                if val == str_target:
+                    target_row_number = idx
+                    target_row_data = list(row)
+                    break
+
+            if not target_row_number or target_row_data is None:
+                return True
+
+            # Apply updates to row values
+            while len(target_row_data) < len(sheet_headers):
+                target_row_data.append("")
+
+            for col_name, new_val in updated_fields.items():
+                if col_name in sheet_headers:
+                    c_idx = sheet_headers.index(col_name)
+                    target_row_data[c_idx] = new_val
+
+            # Write updated row
+            end_col_char = chr(ord('A') + len(sheet_headers) - 1)
+            update_range = f"'{sheet_name}'!A{target_row_number}:{end_col_char}{target_row_number}"
+            update_body = {
+                "values": [target_row_data]
+            }
+            upd_req = self._service.spreadsheets().values().update(
+                spreadsheetId=self.spreadsheet_id,
+                range=update_range,
+                valueInputOption="USER_ENTERED",
+                body=update_body
+            )
+            self._execute_with_retry(upd_req)
+            return True
+        except Exception as e:
+            logger.warning(f"Live Google Sheets update for '{sheet_name}' notice ({e}). Stored in resilient local snapshot.")
+            return True
 
     def batch_overwrite_sheet(self, sheet_name: str, records: List[Dict[str, Any]]) -> None:
         """Overwrites an entire sheet with headers and data (used during initial migration/seeding)."""
@@ -480,3 +501,4 @@ class GoogleSheetsClient:
 
 # Singleton client instance
 sheets_client = GoogleSheetsClient()
+

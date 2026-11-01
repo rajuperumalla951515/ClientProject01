@@ -160,6 +160,12 @@ def run_sheets_migration_tests():
     # TEST 5: CART OPERATIONS (IN-MEMORY SESSION CART)
     # -------------------------------------------------------------------------
     print("\n[TEST 5] Testing High-Performance In-Memory Session Shopping Cart...")
+    # Ensure Product 1 has ample stock for repeated test runs
+    p1_check = sheets_service.get_product_by_id_or_slug(1)
+    if p1_check and p1_check.get("variants") and p1_check["variants"][0]["stock"] < 25:
+        sheets_service.client.update_row_by_key("Products", "product_id", 1, {"stock_quantity": 60})
+        sheets_cache.invalidate_products()
+
     session_id = f"sess_{int(time.time() * 1000)}"
     cart.clear_cart(x_session_id=session_id)
 
