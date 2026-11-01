@@ -79,7 +79,10 @@ def run_tests():
                 "landmark": "Near BDA Complex",
                 "city": "Bengaluru",
                 "state": "Karnataka",
-                "postal_code": "560038"
+                "postal_code": "560038",
+                "latitude": 12.9784,
+                "longitude": 77.6408,
+                "accuracy_meters": 14.0,
             },
             delivery_slot="Express Delivery (15-30 Mins)",
             payment_method="UPI / GPay / PhonePe on Delivery",
@@ -136,8 +139,10 @@ def run_tests():
         assert "Express Delivery" in msg, "Must contain delivery slot"
         assert "UPI" in msg or "Online" in msg, "Must contain payment method"
         assert "Please leave with apartment security" in msg, "Must contain special instructions"
+        assert "Live GPS Location" in msg, "Must contain Live GPS Location"
+        assert "maps.google.com" in msg, "Must contain Google Maps live location link"
 
-        print("   [PASS] All 12 dynamic components verified in WhatsApp message:")
+        print("   [PASS] All 13 dynamic components (including Live GPS Location) verified in WhatsApp message:")
         print("          1. Business name (Sri Adithya Organics)")
         print("          2. Unique order reference (#" + order1.order_number + ")")
         print(f"          3. Product name ({product1.name})")
@@ -148,8 +153,9 @@ def run_tests():
         print("          8. Customer name (Sunil Rao)")
         print("          9. Customer phone (9876543210)")
         print("          10. Confirmed delivery address")
-        print("          11. Delivery slot (Express Delivery)")
-        print("          12. Special instructions")
+        print("          11. Customer Live GPS Location link (maps.google.com/?q=...)")
+        print("          12. Delivery slot (Express Delivery)")
+        print("          13. Special instructions")
 
         # ----------------------------------------------------------------------
         # Test 3: Idempotency (Prevent Duplicate Orders on Double Clicks)

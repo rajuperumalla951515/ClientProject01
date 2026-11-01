@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X, MapPin, Truck, Zap, AlertCircle, Loader2, CheckCircle2,
-  Clock, ShieldCheck, ArrowRight, User as UserIcon, Phone, FileText
+  Clock, ShieldCheck, ArrowRight, User as UserIcon, Phone, FileText, Navigation
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { useCart } from '../context/CartContext';
@@ -125,12 +125,18 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
           label: selectedDeliveryAddress.label || 'Home',
           recipient_name: name,
           phone: phone,
+          house_number: selectedDeliveryAddress.house_number,
           street: selectedDeliveryAddress.street,
           apartment: selectedDeliveryAddress.apartment,
+          locality: selectedDeliveryAddress.locality,
           landmark: selectedDeliveryAddress.landmark,
           city: selectedDeliveryAddress.city,
           state: selectedDeliveryAddress.state,
           postal_code: selectedDeliveryAddress.postal_code,
+          latitude: selectedDeliveryAddress.latitude,
+          longitude: selectedDeliveryAddress.longitude,
+          accuracy_meters: selectedDeliveryAddress.accuracy_meters,
+          formatted_address: selectedDeliveryAddress.formatted_address,
         },
         idempotency_key: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       };
@@ -250,6 +256,15 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span className="text-stone-500">Delivery Destination:</span>
                   <span className="text-stone-900 truncate max-w-[200px]">{locationLabel}</span>
                 </div>
+                {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude && (
+                  <div className="flex justify-between font-semibold text-emerald-800">
+                    <span className="text-stone-500">Live GPS Location:</span>
+                    <span className="font-mono text-[11px] flex items-center gap-1 text-emerald-700">
+                      <Navigation className="w-3 h-3 text-rootly-forest" />
+                      <span>{selectedDeliveryAddress.latitude.toFixed(4)}, {selectedDeliveryAddress.longitude.toFixed(4)}</span>
+                    </span>
+                  </div>
+                )}
                 <div className="flex justify-between font-semibold">
                   <span className="text-stone-500">Payment:</span>
                   <span className="text-stone-900 capitalize">{orderResult.order.payment_method.replace('_', ' ')}</span>
@@ -375,8 +390,19 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   </button>
                 </div>
 
-                <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1">
+                <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
                   <p className="font-bold text-stone-900 leading-snug">{locationLabel}</p>
+                  
+                  {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude && (
+                    <div className="inline-flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70">
+                      <Navigation className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
+                      <span>Live GPS Coordinates Attached to Order</span>
+                      {selectedDeliveryAddress.accuracy_meters && (
+                        <span className="text-stone-400 font-mono text-[10px]"> (±{Math.round(selectedDeliveryAddress.accuracy_meters)}m)</span>
+                      )}
+                    </div>
+                  )}
+
                   <p className="text-[11px] text-stone-500 flex items-center gap-1">
                     <span>{serviceHub}</span>
                     <span>•</span>

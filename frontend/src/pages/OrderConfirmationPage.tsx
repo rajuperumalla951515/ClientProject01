@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle, Navigation } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { api } from '../services/api';
 import { Order } from '../types';
@@ -183,6 +183,19 @@ export const OrderConfirmationPage: React.FC = () => {
             <p className="font-bold text-stone-900">{addressData.recipient_name} ({addressData.phone})</p>
             <p>{addressData.street}, {addressData.apartment || ''}</p>
             <p>{addressData.city} - {addressData.postal_code}</p>
+            {addressData.latitude && addressData.longitude && (
+              <div className="pt-1.5">
+                <a
+                  href={`https://maps.google.com/?q=${addressData.latitude},${addressData.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-rootly-forest hover:underline"
+                >
+                  <Navigation className="w-3.5 h-3.5 text-rootly-forest" />
+                  <span>View Delivery Location on Google Maps</span>
+                </a>
+              </div>
+            )}
           </div>
 
           <div className="pt-2 border-t border-stone-100">

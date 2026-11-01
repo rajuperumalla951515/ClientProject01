@@ -65,11 +65,28 @@ def format_whatsapp_order_message(
         f"• Name: {customer_name}",
         f"• Phone: {customer_phone}",
         "",
-        "*Delivery Address:*",
+        "*Delivery Address & Live Location:*",
         f"{address_snapshot.get('street', '')}, {address_snapshot.get('apartment', '') or ''}".strip(", "),
         f"{address_snapshot.get('city', '')} - {address_snapshot.get('postal_code', '')}",
-        f"• Delivery Slot: {order.delivery_slot}",
     ]
+    if address_snapshot.get('landmark'):
+        lines.append(f"• Landmark: {address_snapshot.get('landmark')}")
+
+    # Customer Live GPS Location
+    lat = address_snapshot.get("latitude")
+    lon = address_snapshot.get("longitude")
+    acc = address_snapshot.get("accuracy_meters")
+    if lat is not None and lon is not None:
+        try:
+            lat_f = float(lat)
+            lon_f = float(lon)
+            maps_link = f"https://maps.google.com/?q={lat_f:.6f},{lon_f:.6f}"
+            acc_text = f" (GPS Precision: ±{round(float(acc))}m)" if acc else ""
+            lines.append(f"• Live GPS Location: {maps_link}{acc_text}")
+        except (ValueError, TypeError):
+            lines.append(f"• Live GPS Location: https://maps.google.com/?q={lat},{lon}")
+
+    lines.append(f"• Delivery Slot: {order.delivery_slot}")
     if order.notes and order.notes.strip():
         lines.append(f"• Special Instructions: {order.notes.strip()}")
 
@@ -113,12 +130,18 @@ def checkout(
         "label": address.label,
         "recipient_name": address.recipient_name,
         "phone": address.phone,
+        "house_number": getattr(address, "house_number", None),
         "street": address.street,
         "apartment": address.apartment,
+        "locality": getattr(address, "locality", None),
         "landmark": address.landmark,
         "city": address.city,
         "state": address.state,
         "postal_code": address.postal_code,
+        "latitude": getattr(address, "latitude", None),
+        "longitude": getattr(address, "longitude", None),
+        "accuracy_meters": getattr(address, "accuracy_meters", None),
+        "formatted_address": getattr(address, "formatted_address", None),
     }
 
     # 2. Get User Cart
@@ -295,12 +318,18 @@ def create_whatsapp_order(
                 "label": addr.label,
                 "recipient_name": addr.recipient_name,
                 "phone": addr.phone,
+                "house_number": getattr(addr, "house_number", None),
                 "street": addr.street,
                 "apartment": addr.apartment,
+                "locality": getattr(addr, "locality", None),
                 "landmark": addr.landmark,
                 "city": addr.city,
                 "state": addr.state,
                 "postal_code": addr.postal_code,
+                "latitude": getattr(addr, "latitude", None),
+                "longitude": getattr(addr, "longitude", None),
+                "accuracy_meters": getattr(addr, "accuracy_meters", None),
+                "formatted_address": getattr(addr, "formatted_address", None),
             }
 
     if not address_snapshot and order_in.delivery_address:
@@ -311,6 +340,12 @@ def create_whatsapp_order(
         state = str(da.get("state", "Karnataka")).strip()
         apartment = str(da.get("apartment", "")).strip() or None
         landmark = str(da.get("landmark", "")).strip() or None
+        house_number = str(da.get("house_number", "")).strip() or None
+        locality = str(da.get("locality", "")).strip() or None
+        lat = da.get("latitude")
+        lon = da.get("longitude")
+        acc = da.get("accuracy_meters")
+        formatted = da.get("formatted_address")
 
         if not street:
             raise HTTPException(status_code=400, detail="Delivery street or locality is required.")
@@ -321,13 +356,31 @@ def create_whatsapp_order(
             "label": da.get("label", "Home"),
             "recipient_name": customer_name,
             "phone": customer_phone,
+            "house_number": house_number,
             "street": street,
             "apartment": apartment,
+            "locality": locality,
             "landmark": landmark,
             "city": city,
             "state": state,
             "postal_code": pin,
+            "latitude": float(lat) if lat is not None else None,
+            "longitude": float(lon) if lon is not None else None,
+            "accuracy_meters": float(acc) if acc is not None else None,
+            "formatted_address": formatted,
         }
+
+    # If address_snapshot was populated from address_id, but order_in.delivery_address provided live GPS coords:
+    if address_snapshot and order_in.delivery_address:
+        da = order_in.delivery_address
+        if address_snapshot.get("latitude") is None and da.get("latitude") is not None:
+            try:
+                address_snapshot["latitude"] = float(da["latitude"])
+                address_snapshot["longitude"] = float(da["longitude"])
+                if da.get("accuracy_meters") is not None:
+                    address_snapshot["accuracy_meters"] = float(da["accuracy_meters"])
+            except (ValueError, TypeError):
+                pass
 
     if not address_snapshot:
         raise HTTPException(status_code=400, detail="Delivery address is required to proceed.")

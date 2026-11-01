@@ -170,12 +170,18 @@ export interface WhatsAppOrderPayload {
     label?: string;
     recipient_name?: string;
     phone?: string;
+    house_number?: string;
     street: string;
     apartment?: string;
+    locality?: string;
     landmark?: string;
     city: string;
     state: string;
     postal_code: string;
+    latitude?: number;
+    longitude?: number;
+    accuracy_meters?: number | null;
+    formatted_address?: string;
   };
   delivery_slot?: string;
   payment_method?: string;

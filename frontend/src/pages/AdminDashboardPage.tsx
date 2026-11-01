@@ -4,7 +4,7 @@ import {
   Package, DollarSign, Users, AlertTriangle, Settings, Plus, Search,
   Edit2, Check, RefreshCw, ChevronRight, ShieldAlert, ArrowUpRight,
   Calendar, Filter, X, Phone, MessageSquare, ExternalLink, FileText,
-  Clock, CheckCircle, Truck, MapPin
+  Clock, CheckCircle, Truck, MapPin, Navigation
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { useAuth } from '../context/AuthContext';
@@ -1007,6 +1007,25 @@ export const AdminDashboardPage: React.FC = () => {
                         <span>Slot: </span>
                         <span className="text-stone-900 font-bold">{selectedOrderForModal.delivery_slot}</span>
                       </div>
+                      {addr.latitude && addr.longitude && (
+                        <div className="pt-2">
+                          <a
+                            href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rootly-forest text-white hover:bg-rootly-dark font-bold text-[11px] transition-colors shadow-sm"
+                          >
+                            <Navigation className="w-3.5 h-3.5 text-emerald-300" />
+                            <span>Open Live GPS on Google Maps</span>
+                            <ExternalLink className="w-3 h-3 text-white/80" />
+                          </a>
+                          {addr.accuracy_meters && (
+                            <span className="text-[10px] text-stone-400 font-mono ml-2">
+                              (±{Math.round(addr.accuracy_meters)}m)
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
