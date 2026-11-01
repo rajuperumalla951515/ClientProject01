@@ -1,7 +1,7 @@
 import json
 import datetime
 from sqlalchemy.orm import Session
-from backend.app.database import engine, Base, SessionLocal
+from backend.app.database import engine, Base, SessionLocal, run_migrations
 from backend.app.models import (
     User, Address, Category, Product, ProductVariant, ProductImage, DeliverySetting, Order, OrderItem
 )
@@ -9,6 +9,7 @@ from backend.app.security import get_password_hash
 
 def seed_database():
     Base.metadata.create_all(bind=engine)
+    run_migrations(engine)
     db: Session = SessionLocal()
 
     try:

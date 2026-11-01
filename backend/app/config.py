@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     DEFAULT_FREE_DELIVERY_THRESHOLD: float = 499.0
     DEFAULT_STANDARD_DELIVERY_FEE: float = 39.0
     DEFAULT_EXPRESS_DELIVERY_FEE: float = 59.0
+
+    # WhatsApp Business Configuration (International format without '+' or spaces, e.g. 919876543210)
+    WHATSAPP_NUMBER: str = os.getenv("WHATSAPP_NUMBER", "919876543210")
     
     class Config:
         case_sensitive = True

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin, Zap } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -10,6 +12,7 @@ export const CartPage: React.FC = () => {
   const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, openLocationModal, serviceHub, deliveryMinutes } = useLocation();
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const handleCheckout = () => {
     if (!user) {
@@ -222,17 +225,41 @@ export const CartPage: React.FC = () => {
               </div>
             </div>
 
-            <button
-              onClick={handleCheckout}
-              className="w-full py-4 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-95"
-            >
-              <span>Proceed to Checkout</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
+            <div className="space-y-2.5 pt-1">
+              {/* 1. Prominent WhatsApp Ordering CTA */}
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppModalOpen(true)}
+                className="w-full py-4 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <WhatsAppIcon className="w-5 h-5 text-white" />
+                <span>Order via WhatsApp</span>
+              </button>
+
+              {/* 2. Standard Web Checkout */}
+              <button
+                type="button"
+                onClick={handleCheckout}
+                className="w-full py-3.5 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95"
+              >
+                <span>Proceed to Online Checkout</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+
+              <p className="text-[11px] text-center text-stone-500 pt-1">
+                WhatsApp orders are confirmed instantly by our local store team.
+              </p>
+            </div>
           </div>
         </div>
 
       </div>
+
+      {/* WhatsApp Checkout Modal */}
+      <WhatsAppCheckoutModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+      />
     </div>
   );
 };

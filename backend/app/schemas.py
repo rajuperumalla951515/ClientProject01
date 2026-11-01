@@ -283,7 +283,7 @@ class OrderItemOut(BaseModel):
 class OrderOut(BaseModel):
     id: int
     order_number: str
-    user_id: int
+    user_id: Optional[int] = None
     status: str
     subtotal: float
     discount: float
@@ -293,6 +293,7 @@ class OrderOut(BaseModel):
     delivery_slot: str
     delivery_address_json: str
     notes: Optional[str] = None
+    admin_notes: Optional[str] = None
     payment_method: str
     payment_status: str
     payment_id: Optional[str] = None
@@ -304,8 +305,31 @@ class OrderOut(BaseModel):
         from_attributes = True
 
 class OrderStatusUpdate(BaseModel):
-    status: str
+    status: Optional[str] = None
     payment_status: Optional[str] = None
+    admin_notes: Optional[str] = None
+
+class WhatsAppOrderItemInput(BaseModel):
+    product_id: int
+    variant_id: int
+    quantity: int
+
+class WhatsAppOrderCreate(BaseModel):
+    customer_name: str
+    customer_phone: str
+    address_id: Optional[int] = None
+    delivery_address: Optional[Dict[str, Any]] = None
+    delivery_slot: str = "Instant 15-30 Mins"
+    payment_method: str = "cod"  # "cod" or "online"
+    notes: Optional[str] = None
+    items: Optional[List[WhatsAppOrderItemInput]] = None
+    idempotency_key: Optional[str] = None
+
+class WhatsAppOrderResponse(BaseModel):
+    order: OrderOut
+    whatsapp_url: str
+    whatsapp_message: str
+    whatsapp_number: str
 
 
 # --- Wishlist Schemas ---
@@ -331,6 +355,7 @@ class DeliverySettingOut(BaseModel):
     express_delivery_fee: float
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
+    whatsapp_number: Optional[str] = "919876543210"
 
     class Config:
         from_attributes = True
@@ -342,6 +367,7 @@ class DeliverySettingUpdate(BaseModel):
     express_delivery_fee: Optional[float] = None
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
+    whatsapp_number: Optional[str] = None
 
 
 # --- Admin Dashboard Stats ---

@@ -2,8 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   Package, DollarSign, Users, AlertTriangle, Settings, Plus, Search,
-  Edit2, Check, RefreshCw, ChevronRight, ShieldAlert, ArrowUpRight
+  Edit2, Check, RefreshCw, ChevronRight, ShieldAlert, ArrowUpRight,
+  Calendar, Filter, X, Phone, MessageSquare, ExternalLink, FileText,
+  Clock, CheckCircle, Truck, MapPin
 } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Order, Product, Category, DeliverySetting, DashboardStats } from '../types';
@@ -33,22 +36,30 @@ export const AdminDashboardPage: React.FC = () => {
   const [newProdStock, setNewProdStock] = useState<number>(40);
   const [newProdImage, setNewProdImage] = useState('https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&q=80&w=800');
 
-  // Order status filter
+  // Order filters
   const [orderStatusFilter, setOrderStatusFilter] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
+
+  // Order Details & Tracking Notes Modal
+  const [selectedOrderForModal, setSelectedOrderForModal] = useState<Order | null>(null);
+  const [modalAdminNotes, setModalAdminNotes] = useState<string>('');
+  const [isSavingNotes, setIsSavingNotes] = useState<boolean>(false);
+  const [notesSaveStatus, setNotesSaveStatus] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isAdmin) {
       return;
     }
     loadAdminData();
-  }, [isAdmin, orderStatusFilter]);
+  }, [isAdmin, orderStatusFilter, dateFrom, dateTo]);
 
   const loadAdminData = async () => {
     setIsLoading(true);
     try {
       const [st, ords, prods, cats, sett] = await Promise.all([
         api.getDashboardStats(),
-        api.getAllOrdersAdmin(orderStatusFilter || undefined),
+        api.getAllOrdersAdmin(orderStatusFilter || undefined, dateFrom || undefined, dateTo || undefined),
         api.getProducts({ limit: 100 }),
         api.getCategories(),
         api.getSettings(),
@@ -68,16 +79,58 @@ export const AdminDashboardPage: React.FC = () => {
     }
   };
 
+  const handleOpenOrderModal = (order: Order) => {
+    setSelectedOrderForModal(order);
+    setModalAdminNotes(order.admin_notes || '');
+    setNotesSaveStatus(null);
+  };
+
+  const handleCloseOrderModal = () => {
+    setSelectedOrderForModal(null);
+    setNotesSaveStatus(null);
+  };
+
   const handleUpdateOrderStatus = async (orderId: number, newStatus: string) => {
     try {
-      await api.updateOrderStatus(orderId, newStatus);
+      const updated = await api.updateOrderStatus(orderId, newStatus);
       setOrders(orders.map((o) => (o.id === orderId ? { ...o, status: newStatus as any } : o)));
+      if (selectedOrderForModal?.id === orderId) {
+        setSelectedOrderForModal((prev) => prev ? { ...prev, status: newStatus as any } : null);
+      }
       if (stats) {
         api.getDashboardStats().then(setStats);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update order status.');
     }
+  };
+
+  const handleSaveAdminNotes = async () => {
+    if (!selectedOrderForModal) return;
+    setIsSavingNotes(true);
+    setNotesSaveStatus(null);
+    try {
+      const updated = await api.updateOrderStatus(
+        selectedOrderForModal.id,
+        undefined,
+        undefined,
+        modalAdminNotes
+      );
+      setOrders(orders.map((o) => (o.id === selectedOrderForModal.id ? { ...o, admin_notes: modalAdminNotes } : o)));
+      setSelectedOrderForModal((prev) => prev ? { ...prev, admin_notes: modalAdminNotes } : null);
+      setNotesSaveStatus('Notes saved successfully!');
+      setTimeout(() => setNotesSaveStatus(null), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save admin notes.');
+    } finally {
+      setIsSavingNotes(false);
+    }
+  };
+
+  const handleClearFilters = () => {
+    setOrderStatusFilter('');
+    setDateFrom('');
+    setDateTo('');
   };
 
   const handleUpdateStock = async (productId: number, variantId: number, currentStock: number) => {
@@ -153,7 +206,9 @@ export const AdminDashboardPage: React.FC = () => {
         min_order_amount: settings.min_order_amount,
         free_delivery_threshold: settings.free_delivery_threshold,
         standard_delivery_fee: settings.standard_delivery_fee,
+        express_delivery_fee: settings.express_delivery_fee,
         announcement_text: settings.announcement_text,
+        whatsapp_number: settings.whatsapp_number,
       });
       setSettings(updated);
       alert('Store settings saved successfully!');
@@ -294,33 +349,51 @@ export const AdminDashboardPage: React.FC = () => {
                 <tbody className="divide-y divide-stone-100">
                   {stats.recent_orders.map((ord) => (
                     <tr key={ord.id} className="hover:bg-stone-50/50">
-                      <td className="py-3 font-mono font-bold text-stone-900">#{ord.order_number}</td>
+                      <td className="py-3 font-mono font-bold text-stone-900">
+                        <button
+                          onClick={() => handleOpenOrderModal(ord)}
+                          className="hover:underline text-rootly-forest text-left"
+                        >
+                          #{ord.order_number}
+                        </button>
+                      </td>
                       <td className="py-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
                           ord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
                           ord.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                          ord.status === 'processing' ? 'bg-indigo-100 text-indigo-800' :
+                          ord.status === 'pending_whatsapp' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
                           ord.status === 'out_for_delivery' ? 'bg-purple-100 text-purple-800' :
+                          ord.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
                           'bg-stone-100 text-stone-700'
                         }`}>
-                          {ord.status.replace('_', ' ')}
+                          {ord.status === 'pending_whatsapp' ? 'WhatsApp Pending' : ord.status.replace(/_/g, ' ')}
                         </span>
                       </td>
                       <td className="py-3 text-stone-500 max-w-[140px] truncate">{ord.delivery_slot}</td>
                       <td className="py-3 text-stone-600">{ord.items?.length || 0} items</td>
                       <td className="py-3 font-black text-stone-900">₹{ord.total_amount}</td>
-                      <td className="py-3">
+                      <td className="py-3 flex items-center gap-2">
                         <select
                           value={ord.status}
                           onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
                           className="p-1 rounded-lg border border-stone-200 text-[11px] font-semibold bg-white"
                         >
-                          <option value="pending">Pending</option>
+                          <option value="pending_whatsapp">Pending WhatsApp</option>
+                          <option value="pending">Pending Online</option>
                           <option value="confirmed">Confirmed</option>
+                          <option value="processing">Processing</option>
                           <option value="packed">Packed</option>
                           <option value="out_for_delivery">Out for Delivery</option>
                           <option value="delivered">Delivered</option>
                           <option value="cancelled">Cancelled</option>
                         </select>
+                        <button
+                          onClick={() => handleOpenOrderModal(ord)}
+                          className="px-2 py-1 rounded bg-stone-100 hover:bg-stone-200 text-stone-700 text-[11px] font-bold transition-all"
+                        >
+                          Details
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -334,83 +407,175 @@ export const AdminDashboardPage: React.FC = () => {
       {/* TAB 2: ORDERS MANAGEMENT */}
       {activeTab === 'orders' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h3 className="font-display font-bold text-lg text-stone-900">All Customer Orders</h3>
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-stone-200 shadow-soft">
+            <div>
+              <h3 className="font-display font-bold text-lg text-stone-900">All Customer Orders</h3>
+              <p className="text-xs text-stone-500">Filter orders by status or fulfillment date</p>
+            </div>
             
-            {/* Filter by status */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-stone-500 font-semibold">Filter:</span>
-              <select
-                value={orderStatusFilter}
-                onChange={(e) => setOrderStatusFilter(e.target.value)}
-                className="p-2 rounded-xl border border-stone-200 text-xs font-semibold bg-white"
-              >
-                <option value="">All Statuses</option>
-                <option value="pending">Pending</option>
-                <option value="confirmed">Confirmed</option>
-                <option value="packed">Packed</option>
-                <option value="out_for_delivery">Out for Delivery</option>
-                <option value="delivered">Delivered</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
+            {/* Filter controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-stone-500 font-semibold">Status:</span>
+                <select
+                  value={orderStatusFilter}
+                  onChange={(e) => setOrderStatusFilter(e.target.value)}
+                  className="p-2 rounded-xl border border-stone-200 text-xs font-semibold bg-stone-50 focus:bg-white"
+                >
+                  <option value="">All Statuses</option>
+                  <option value="pending_whatsapp">Pending WhatsApp Confirmation</option>
+                  <option value="pending">Pending Online</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="processing">Processing</option>
+                  <option value="packed">Packed</option>
+                  <option value="out_for_delivery">Out for Delivery</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-stone-500 font-semibold">From:</span>
+                <input
+                  type="date"
+                  value={dateFrom}
+                  onChange={(e) => setDateFrom(e.target.value)}
+                  className="p-2 rounded-xl border border-stone-200 text-xs font-semibold bg-stone-50 focus:bg-white"
+                />
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-stone-500 font-semibold">To:</span>
+                <input
+                  type="date"
+                  value={dateTo}
+                  onChange={(e) => setDateTo(e.target.value)}
+                  className="p-2 rounded-xl border border-stone-200 text-xs font-semibold bg-stone-50 focus:bg-white"
+                />
+              </div>
+
+              {(orderStatusFilter || dateFrom || dateTo) && (
+                <button
+                  onClick={handleClearFilters}
+                  className="px-3 py-2 rounded-xl text-xs font-bold text-stone-600 hover:text-red-600 hover:bg-red-50 flex items-center gap-1 transition-all"
+                >
+                  <X className="w-3.5 h-3.5" />
+                  <span>Clear</span>
+                </button>
+              )}
             </div>
           </div>
 
           <div className="p-6 rounded-3xl bg-white border border-stone-200 shadow-soft overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-stone-200 text-stone-400 uppercase text-[10px] font-bold">
-                  <th className="py-3">Order Number</th>
-                  <th className="py-3">Date</th>
-                  <th className="py-3">Slot & Address</th>
-                  <th className="py-3">Status</th>
-                  <th className="py-3">Total Amount</th>
-                  <th className="py-3">Update Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-100">
-                {orders.map((ord) => (
-                  <tr key={ord.id} className="hover:bg-stone-50/50">
-                    <td className="py-3 font-mono font-bold text-stone-900">
-                      <Link to={`/order-confirmation/${ord.id}`} className="hover:underline text-rootly-forest">
-                        #{ord.order_number}
-                      </Link>
-                    </td>
-                    <td className="py-3 text-stone-500">
-                      {new Date(ord.created_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                    </td>
-                    <td className="py-3 text-stone-600 max-w-[200px] truncate">
-                      <span className="font-semibold block truncate">{ord.delivery_slot}</span>
-                    </td>
-                    <td className="py-3">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
-                        ord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
-                        ord.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
-                        ord.status === 'out_for_delivery' ? 'bg-purple-100 text-purple-800' :
-                        'bg-stone-100 text-stone-700'
-                      }`}>
-                        {ord.status.replace('_', ' ')}
-                      </span>
-                    </td>
-                    <td className="py-3 font-black text-stone-900">₹{ord.total_amount}</td>
-                    <td className="py-3">
-                      <select
-                        value={ord.status}
-                        onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
-                        className="p-1.5 rounded-lg border border-stone-200 text-xs font-semibold bg-white"
-                      >
-                        <option value="pending">Pending</option>
-                        <option value="confirmed">Confirmed</option>
-                        <option value="packed">Packed</option>
-                        <option value="out_for_delivery">Out for Delivery</option>
-                        <option value="delivered">Delivered</option>
-                        <option value="cancelled">Cancelled</option>
-                      </select>
-                    </td>
+            {orders.length === 0 ? (
+              <div className="py-12 text-center text-stone-400">
+                <Package className="w-10 h-10 mx-auto mb-2 opacity-50" />
+                <p className="font-semibold text-sm">No orders match the selected filters.</p>
+                <button
+                  onClick={handleClearFilters}
+                  className="mt-2 text-xs font-bold text-rootly-forest hover:underline"
+                >
+                  Reset filters
+                </button>
+              </div>
+            ) : (
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-stone-200 text-stone-400 uppercase text-[10px] font-bold">
+                    <th className="py-3">Order Number</th>
+                    <th className="py-3">Date</th>
+                    <th className="py-3">Customer & Slot</th>
+                    <th className="py-3">Status</th>
+                    <th className="py-3">Total Amount</th>
+                    <th className="py-3">Tracking Notes</th>
+                    <th className="py-3">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-stone-100">
+                  {orders.map((ord) => (
+                    <tr key={ord.id} className="hover:bg-stone-50/50">
+                      <td className="py-3 font-mono font-bold text-stone-900">
+                        <button
+                          onClick={() => handleOpenOrderModal(ord)}
+                          className="hover:underline text-rootly-forest font-bold text-left"
+                        >
+                          #{ord.order_number}
+                        </button>
+                      </td>
+                      <td className="py-3 text-stone-500 whitespace-nowrap">
+                        {new Date(ord.created_at).toLocaleDateString('en-IN', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </td>
+                      <td className="py-3 text-stone-600 max-w-[200px]">
+                        <span className="font-semibold block truncate">{ord.delivery_slot}</span>
+                        <span className="text-[10px] text-stone-400 truncate block">
+                          {(() => {
+                            try {
+                              const parsed = JSON.parse(ord.delivery_address_json);
+                              return parsed.recipient_name || parsed.phone || 'Customer';
+                            } catch {
+                              return 'Customer';
+                            }
+                          })()}
+                        </span>
+                      </td>
+                      <td className="py-3">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          ord.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                          ord.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                          ord.status === 'processing' ? 'bg-indigo-100 text-indigo-800' :
+                          ord.status === 'pending_whatsapp' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                          ord.status === 'packed' ? 'bg-yellow-100 text-yellow-800' :
+                          ord.status === 'out_for_delivery' ? 'bg-purple-100 text-purple-800' :
+                          ord.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                          'bg-stone-100 text-stone-700'
+                        }`}>
+                          {ord.status === 'pending_whatsapp' ? 'WhatsApp Pending' : ord.status.replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 font-black text-stone-900">₹{ord.total_amount}</td>
+                      <td className="py-3 max-w-[160px]">
+                        {ord.admin_notes ? (
+                          <span className="text-[11px] text-stone-600 line-clamp-1 italic" title={ord.admin_notes}>
+                            {ord.admin_notes}
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-stone-300">None added</span>
+                        )}
+                      </td>
+                      <td className="py-3">
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={ord.status}
+                            onChange={(e) => handleUpdateOrderStatus(ord.id, e.target.value)}
+                            className="p-1.5 rounded-lg border border-stone-200 text-xs font-semibold bg-white"
+                          >
+                            <option value="pending_whatsapp">Pending WhatsApp</option>
+                            <option value="pending">Pending Online</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="processing">Processing</option>
+                            <option value="packed">Packed</option>
+                            <option value="out_for_delivery">Out for Delivery</option>
+                            <option value="delivered">Delivered</option>
+                            <option value="cancelled">Cancelled</option>
+                          </select>
+                          <button
+                            onClick={() => handleOpenOrderModal(ord)}
+                            className="px-2.5 py-1.5 rounded-lg bg-stone-100 hover:bg-stone-200 text-stone-700 text-xs font-bold transition-all whitespace-nowrap"
+                          >
+                            Details & Notes
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </div>
         </div>
       )}
@@ -555,6 +720,28 @@ export const AdminDashboardPage: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-bold text-stone-700 mb-1">
+              Store WhatsApp Business Number
+            </label>
+            <div className="flex items-center gap-2">
+              <span className="p-2.5 rounded-xl border border-stone-200 bg-stone-50 text-xs font-mono text-stone-600 flex items-center gap-1.5 shrink-0">
+                <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                <span>wa.me/</span>
+              </span>
+              <input
+                type="text"
+                value={settings.whatsapp_number || ''}
+                onChange={(e) => setSettings({ ...settings, whatsapp_number: e.target.value.replace(/[^0-9]/g, '') })}
+                placeholder="919876543210"
+                className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
+              />
+            </div>
+            <p className="text-[10px] text-stone-400 mt-1">
+              Enter the WhatsApp phone number in international format without spaces, '+' or symbols (e.g. 919876543210 for India).
+            </p>
+          </div>
+
           <div className="pt-2">
             <button
               type="submit"
@@ -695,6 +882,264 @@ export const AdminDashboardPage: React.FC = () => {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Order Details & Tracking Notes Modal */}
+      {selectedOrderForModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div onClick={handleCloseOrderModal} className="fixed inset-0 bg-stone-900/60 backdrop-blur-sm" />
+          <div className="flex min-h-full items-center justify-center p-3 sm:p-4">
+            <div className="relative w-full max-w-2xl rounded-3xl bg-white p-5 sm:p-7 shadow-2xl border border-stone-200 space-y-5 my-8">
+              
+              {/* Modal Header */}
+              <div className="flex items-start justify-between gap-4 pb-4 border-b border-stone-200">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-black text-xl text-stone-900">
+                      #{selectedOrderForModal.order_number}
+                    </span>
+                    <span className={`px-2.5 py-0.5 rounded text-[11px] font-bold uppercase tracking-wider ${
+                      selectedOrderForModal.status === 'delivered' ? 'bg-emerald-100 text-emerald-800' :
+                      selectedOrderForModal.status === 'confirmed' ? 'bg-blue-100 text-blue-800' :
+                      selectedOrderForModal.status === 'processing' ? 'bg-indigo-100 text-indigo-800' :
+                      selectedOrderForModal.status === 'pending_whatsapp' ? 'bg-amber-100 text-amber-900 border border-amber-300' :
+                      selectedOrderForModal.status === 'packed' ? 'bg-yellow-100 text-yellow-800' :
+                      selectedOrderForModal.status === 'out_for_delivery' ? 'bg-purple-100 text-purple-800' :
+                      selectedOrderForModal.status === 'cancelled' ? 'bg-rose-100 text-rose-800' :
+                      'bg-stone-100 text-stone-700'
+                    }`}>
+                      {selectedOrderForModal.status === 'pending_whatsapp' ? 'WhatsApp Pending' : selectedOrderForModal.status.replace(/_/g, ' ')}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-400 mt-0.5">
+                    Placed on {new Date(selectedOrderForModal.created_at).toLocaleString('en-IN', {
+                      day: 'numeric',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </p>
+                </div>
+
+                <button
+                  onClick={handleCloseOrderModal}
+                  className="p-2 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Status Update Quick Bar */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <span className="text-xs font-bold text-stone-700">Update Order Status:</span>
+                <select
+                  value={selectedOrderForModal.status}
+                  onChange={(e) => handleUpdateOrderStatus(selectedOrderForModal.id, e.target.value)}
+                  className="p-2 rounded-xl border border-stone-300 text-xs font-bold bg-white text-stone-800"
+                >
+                  <option value="pending_whatsapp">Pending WhatsApp Confirmation</option>
+                  <option value="pending">Pending Online</option>
+                  <option value="confirmed">Confirmed</option>
+                  <option value="processing">Processing</option>
+                  <option value="packed">Packed</option>
+                  <option value="out_for_delivery">Out for Delivery</option>
+                  <option value="delivered">Delivered</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              {/* Customer & Address Details */}
+              {(() => {
+                let addr: any = {};
+                try {
+                  addr = JSON.parse(selectedOrderForModal.delivery_address_json);
+                } catch {
+                  addr = { street: selectedOrderForModal.delivery_address_json };
+                }
+                const phone = addr.phone || '';
+                const cleanPhone = phone.replace(/[^0-9]/g, '');
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                    <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-2">
+                      <div className="flex items-center gap-1.5 text-rootly-forest font-bold">
+                        <Users className="w-3.5 h-3.5" />
+                        <span>Customer Information</span>
+                      </div>
+                      <p className="font-bold text-stone-900 text-sm">
+                        {addr.recipient_name || 'Customer'}
+                      </p>
+                      {phone && (
+                        <p className="text-stone-600 flex items-center gap-1.5 font-mono">
+                          <Phone className="w-3 h-3 text-stone-400" />
+                          <span>{phone}</span>
+                        </p>
+                      )}
+                      {cleanPhone && (
+                        <a
+                          href={`https://wa.me/${cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#25D366]/10 text-[#128C7E] hover:bg-[#25D366]/20 font-bold text-xs transition-colors mt-1"
+                        >
+                          <WhatsAppIcon className="w-3.5 h-3.5" />
+                          <span>Chat on WhatsApp</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      )}
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-stone-50/70 border border-stone-200/80 space-y-1.5">
+                      <div className="flex items-center gap-1.5 text-rootly-forest font-bold">
+                        <MapPin className="w-3.5 h-3.5" />
+                        <span>Delivery Address & Slot</span>
+                      </div>
+                      <p className="text-stone-700 leading-relaxed">
+                        {[addr.apartment, addr.street, addr.landmark, addr.city, addr.state, addr.postal_code]
+                          .filter(Boolean)
+                          .join(', ')}
+                      </p>
+                      <div className="pt-1 text-[11px] font-semibold text-stone-500">
+                        <span>Slot: </span>
+                        <span className="text-stone-900 font-bold">{selectedOrderForModal.delivery_slot}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Order Items */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-bold text-stone-900 uppercase tracking-wider">
+                    Order Items ({selectedOrderForModal.items?.length || 0})
+                  </h4>
+                  <span className="text-xs font-bold text-stone-700">
+                    Payment: {selectedOrderForModal.payment_method.toUpperCase()} ({selectedOrderForModal.payment_status})
+                  </span>
+                </div>
+                <div className="border border-stone-200 rounded-2xl overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-stone-50 border-b border-stone-200 text-stone-500 uppercase text-[10px] font-bold">
+                      <tr>
+                        <th className="py-2.5 px-3">Item</th>
+                        <th className="py-2.5 px-3">Unit</th>
+                        <th className="py-2.5 px-3 text-right">Qty</th>
+                        <th className="py-2.5 px-3 text-right">Price</th>
+                        <th className="py-2.5 px-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-100">
+                      {selectedOrderForModal.items?.map((item) => (
+                        <tr key={item.id}>
+                          <td className="py-2 px-3 font-semibold text-stone-900">{item.product_name}</td>
+                          <td className="py-2 px-3 text-stone-500">{item.variant_name}</td>
+                          <td className="py-2 px-3 text-right text-stone-700 font-bold">{item.quantity}</td>
+                          <td className="py-2 px-3 text-right text-stone-600">₹{item.unit_price}</td>
+                          <td className="py-2 px-3 text-right font-black text-stone-900">₹{item.total_price}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Order Bill Summary */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
+                <div className="flex justify-between text-stone-600">
+                  <span>Subtotal:</span>
+                  <span className="font-semibold text-stone-900">₹{selectedOrderForModal.subtotal}</span>
+                </div>
+                {selectedOrderForModal.discount > 0 && (
+                  <div className="flex justify-between text-emerald-700 font-semibold">
+                    <span>Discount:</span>
+                    <span>-₹{selectedOrderForModal.discount}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-stone-600">
+                  <span>Delivery Fee:</span>
+                  <span className="font-semibold text-stone-900">₹{selectedOrderForModal.delivery_fee}</span>
+                </div>
+                <div className="flex justify-between text-stone-900 font-black text-sm pt-1 border-t border-stone-200">
+                  <span>Final Total:</span>
+                  <span className="text-rootly-forest">₹{selectedOrderForModal.total_amount}</span>
+                </div>
+              </div>
+
+              {/* Customer Instructions if any */}
+              {selectedOrderForModal.notes && (
+                <div className="p-3 rounded-2xl bg-amber-50/70 border border-amber-200 text-xs space-y-1">
+                  <span className="font-bold text-amber-900">Customer Delivery Instructions:</span>
+                  <p className="text-amber-800">{selectedOrderForModal.notes}</p>
+                </div>
+              )}
+
+              {/* Admin Tracking & Fulfillment Notes */}
+              <div className="space-y-2 pt-2 border-t border-stone-200">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-stone-900 flex items-center gap-1.5">
+                    <FileText className="w-3.5 h-3.5 text-rootly-forest" />
+                    <span>Admin Tracking & Delivery Notes</span>
+                  </label>
+                  {notesSaveStatus && (
+                    <span className="text-xs font-bold text-emerald-600 flex items-center gap-1">
+                      <Check className="w-3.5 h-3.5 stroke-[3]" />
+                      <span>{notesSaveStatus}</span>
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  value={modalAdminNotes}
+                  onChange={(e) => setModalAdminNotes(e.target.value)}
+                  placeholder="Record courier tracking number, delivery executive phone, WhatsApp confirmation log, or custom handling instructions..."
+                  className="w-full p-3 rounded-xl border border-stone-200 text-xs focus:ring-2 focus:ring-rootly-forest/20 focus:border-rootly-forest"
+                />
+                <div className="flex items-center justify-between">
+                  <p className="text-[11px] text-stone-400">
+                    Saved notes are visible only to administrators for order tracking.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleSaveAdminNotes}
+                    disabled={isSavingNotes}
+                    className="px-4 py-2 rounded-xl bg-rootly-forest hover:bg-rootly-dark text-white text-xs font-bold transition-all disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+                  >
+                    {isSavingNotes ? (
+                      <span>Saving Notes...</span>
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5 stroke-[3]" />
+                        <span>Save Notes</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Footer Link */}
+              <div className="flex justify-between items-center pt-3 border-t border-stone-100 text-xs">
+                <Link
+                  to={`/order-confirmation/${selectedOrderForModal.id}`}
+                  target="_blank"
+                  className="text-rootly-forest hover:underline font-bold flex items-center gap-1"
+                >
+                  <span>Open Public Order Confirmation Page</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleCloseOrderModal}
+                  className="px-4 py-2 rounded-xl bg-stone-100 hover:bg-stone-200 text-stone-700 font-bold"
+                >
+                  Close
+                </button>
+              </div>
+
             </div>
           </div>
         </div>

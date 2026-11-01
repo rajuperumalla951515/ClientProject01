@@ -125,8 +125,8 @@ export interface OrderItem {
 export interface Order {
   id: number;
   order_number: string;
-  user_id: number;
-  status: 'pending' | 'confirmed' | 'packed' | 'out_for_delivery' | 'delivered' | 'cancelled';
+  user_id?: number | null;
+  status: 'pending_whatsapp' | 'pending' | 'confirmed' | 'processing' | 'packed' | 'out_for_delivery' | 'delivered' | 'cancelled' | string;
   subtotal: number;
   discount: number;
   delivery_fee: number;
@@ -135,6 +135,7 @@ export interface Order {
   delivery_slot: string;
   delivery_address_json: string;
   notes?: string;
+  admin_notes?: string | null;
   payment_method: string;
   payment_status: string;
   payment_id?: string;
@@ -151,6 +152,40 @@ export interface DeliverySetting {
   express_delivery_fee: number;
   active_slots_json?: string;
   announcement_text?: string;
+  whatsapp_number?: string;
+}
+
+export interface WhatsAppOrderPayload {
+  customer_name: string;
+  customer_phone: string;
+  address_id?: number;
+  delivery_address?: {
+    label?: string;
+    recipient_name?: string;
+    phone?: string;
+    street: string;
+    apartment?: string;
+    landmark?: string;
+    city: string;
+    state: string;
+    postal_code: string;
+  };
+  delivery_slot?: string;
+  payment_method?: string;
+  notes?: string;
+  items?: {
+    product_id: number;
+    variant_id: number;
+    quantity: number;
+  }[];
+  idempotency_key?: string;
+}
+
+export interface WhatsAppOrderResponse {
+  order: Order;
+  whatsapp_url: string;
+  whatsapp_message: string;
+  whatsapp_number: string;
 }
 
 export interface DashboardStats {

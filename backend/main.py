@@ -30,7 +30,7 @@ from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from backend.app.config import settings
 from backend.app.database import (
     engine, Base, is_db_configured, db_config_error, safe_db_url,
-    check_db_connection, get_safe_db_target
+    check_db_connection, get_safe_db_target, run_migrations
 )
 from backend.app.routers import (
     auth, categories, products, cart, addresses, orders, wishlist, settings as settings_router, admin
@@ -67,6 +67,7 @@ async def lifespan(app: FastAPI):
             # Initialize schema and seed data safely
             try:
                 Base.metadata.create_all(bind=engine)
+                run_migrations(engine)
                 seed_database()
                 print("[OK] Database tables and seed catalogue synchronized.")
             except Exception as exc:

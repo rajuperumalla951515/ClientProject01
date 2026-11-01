@@ -67,3 +67,4 @@ export const InitialLocationBanner: React.FC = () => {
     </div>
   );
 };
+

@@ -10,12 +10,15 @@ import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
 import { ProductCard } from '../components/ProductCard';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { addToCart, updateQuantity, getItemByProductAndVariant } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, deliveryMinutes, openLocationModal } = useLocation();
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   const [product, setProduct] = useState<Product | null>(null);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
@@ -250,8 +253,8 @@ export const ProductDetailPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Action Button: Add or Stepper */}
-          <div className="pt-2">
+          {/* Action Buttons: Add to Cart & WhatsApp Order */}
+          <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {quantityInCart > 0 ? (
               <div className="flex items-center gap-4">
                 <div className="flex items-center rounded-2xl bg-rootly-forest text-white shadow-lift overflow-hidden h-12 px-2">
@@ -278,9 +281,10 @@ export const ProductDetailPage: React.FC = () => {
               </div>
             ) : (
               <button
+                type="button"
                 onClick={() => addToCart(product.id, selectedVariant.id, 1)}
                 disabled={isOutOfStock}
-                className={`w-full sm:w-auto px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lift transition-all active:scale-95 flex items-center justify-center gap-2 ${
+                className={`flex-1 sm:flex-initial px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lift transition-all active:scale-95 flex items-center justify-center gap-2 ${
                   isOutOfStock
                     ? 'bg-stone-200 text-stone-400 cursor-not-allowed'
                     : 'bg-rootly-forest hover:bg-rootly-dark text-white'
@@ -288,6 +292,18 @@ export const ProductDetailPage: React.FC = () => {
               >
                 <span>{isOutOfStock ? 'Sold Out' : 'Add to Cart'}</span>
                 {!isOutOfStock && <ArrowRight className="w-4 h-4" />}
+              </button>
+            )}
+
+            {/* Direct WhatsApp Ordering Button */}
+            {!isOutOfStock && (
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppOpen(true)}
+                className="flex-1 sm:flex-initial px-6 py-3.5 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-lift transition-all active:scale-95 flex items-center justify-center gap-2"
+              >
+                <WhatsAppIcon className="w-4 h-4 text-white" />
+                <span>Order on WhatsApp</span>
               </button>
             )}
           </div>
@@ -393,6 +409,15 @@ export const ProductDetailPage: React.FC = () => {
             ))}
           </div>
         </section>
+      )}
+
+      {/* WhatsApp Quick Checkout Modal */}
+      {selectedVariant && (
+        <WhatsAppCheckoutModal
+          isOpen={isWhatsAppOpen}
+          onClose={() => setIsWhatsAppOpen(false)}
+          directItem={{ product, variant: selectedVariant, quantity: 1 }}
+        />
       )}
 
     </div>

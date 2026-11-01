@@ -212,3 +212,27 @@ def get_db():
         raise
     finally:
         db.close()
+
+def run_migrations(target_engine):
+    """Safely apply schema enhancements (columns) without breaking existing data."""
+    try:
+        from sqlalchemy import inspect
+        inspector = inspect(target_engine)
+        tables = inspector.get_table_names()
+
+        with target_engine.begin() as conn:
+            if "orders" in tables:
+                order_cols = [c["name"] for c in inspector.get_columns("orders")]
+                if "admin_notes" not in order_cols:
+                    conn.execute(text("ALTER TABLE orders ADD COLUMN admin_notes TEXT;"))
+                if target_engine.dialect.name == "postgresql":
+                    try:
+                        conn.execute(text("ALTER TABLE orders ALTER COLUMN user_id DROP NOT NULL;"))
+                    except Exception:
+                        pass
+            if "delivery_settings" in tables:
+                ds_cols = [c["name"] for c in inspector.get_columns("delivery_settings")]
+                if "whatsapp_number" not in ds_cols:
+                    conn.execute(text("ALTER TABLE delivery_settings ADD COLUMN whatsapp_number VARCHAR(30) DEFAULT '919876543210';"))
+    except Exception as e:
+        print(f"[MIGRATION] Schema check notice: {e}")

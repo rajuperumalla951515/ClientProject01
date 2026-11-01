@@ -4,6 +4,8 @@ import {
   MapPin, Clock, CreditCard, ShieldCheck, CheckCircle2, Plus, Home,
   Briefcase, Building, ArrowRight, AlertCircle, Sparkles, Check, Zap, Sun, Moon
 } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
 import { api } from '../services/api';
 import { Address, Order } from '../types';
 import { useCart } from '../context/CartContext';
@@ -26,6 +28,7 @@ export const CheckoutPage: React.FC = () => {
   const [selectedSlot, setSelectedSlot] = useState<string>('Express Delivery (15-30 Mins)');
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod'>('upi');
   const [orderNotes, setOrderNotes] = useState('');
+  const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
   
   // New Address form modal (prefilled from global selected delivery address)
   const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -489,6 +492,22 @@ export const CheckoutPage: React.FC = () => {
               )}
             </button>
 
+            {/* WhatsApp Alternative CTA */}
+            <div className="relative flex py-1 items-center">
+              <div className="flex-grow border-t border-stone-200"></div>
+              <span className="flex-shrink mx-2 text-[10px] uppercase font-bold text-stone-400 tracking-wider">or</span>
+              <div className="flex-grow border-t border-stone-200"></div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsWhatsAppModalOpen(true)}
+              className="w-full py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba59] text-white font-bold text-xs shadow-md flex items-center justify-center gap-2 transition-all active:scale-95"
+            >
+              <WhatsAppIcon className="w-4 h-4" />
+              <span>Confirm & Order via WhatsApp</span>
+            </button>
+
             <div className="flex items-center justify-center gap-2 text-[11px] text-stone-400 font-medium">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
               <span>100% Safe & Organic Certified Guarantee</span>
@@ -497,6 +516,12 @@ export const CheckoutPage: React.FC = () => {
         </div>
 
       </div>
+
+      {/* WhatsApp Checkout Modal */}
+      <WhatsAppCheckoutModal
+        isOpen={isWhatsAppModalOpen}
+        onClose={() => setIsWhatsAppModalOpen(false)}
+      />
     </div>
   );
 };

@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin } from 'lucide-react';
+import { WhatsAppIcon } from './WhatsAppIcon';
+import { WhatsAppCheckoutModal } from './WhatsAppCheckoutModal';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -10,6 +12,7 @@ export const CartDrawer: React.FC = () => {
   const { cart, isDrawerOpen, closeDrawer, updateQuantity, removeFromCart } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, openLocationModal } = useLocation();
+  const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   if (!isDrawerOpen) return null;
 
@@ -223,25 +226,41 @@ export const CartDrawer: React.FC = () => {
                 </button>
               </div>
 
+              {/* WhatsApp Quick Order CTA */}
+              <button
+                type="button"
+                onClick={() => setIsWhatsAppOpen(true)}
+                className="w-full py-3 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-xs shadow-lift flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+              >
+                <WhatsAppIcon className="w-4 h-4 text-white" />
+                <span>Order via WhatsApp</span>
+              </button>
+
               {/* Checkout CTA - Touch Friendly */}
               <button
                 type="button"
                 onClick={handleCheckoutClick}
-                className="w-full py-3.5 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-sm shadow-lift flex items-center justify-between transition-all active:scale-[0.98] group touch-manipulation min-h-[48px]"
+                className="w-full py-3 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-xs sm:text-sm shadow-lift flex items-center justify-between transition-all active:scale-[0.98] group touch-manipulation min-h-[44px]"
               >
                 <div className="text-left leading-tight">
-                  <span className="text-[10px] block text-rootly-sagePale font-medium">To Pay</span>
-                  <span className="text-base font-extrabold">₹{cart.total_amount}</span>
+                  <span className="text-[9px] block text-rootly-sagePale font-medium">To Pay</span>
+                  <span className="text-sm font-extrabold">₹{cart.total_amount}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-rootly-sagePale group-hover:text-white">
-                  <span>Proceed to Checkout</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  <span>Standard Checkout</span>
+                  <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
                 </div>
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {/* WhatsApp Checkout Modal */}
+      <WhatsAppCheckoutModal
+        isOpen={isWhatsAppOpen}
+        onClose={() => setIsWhatsAppOpen(false)}
+      />
     </div>
   );
 };

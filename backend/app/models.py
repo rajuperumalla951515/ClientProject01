@@ -154,8 +154,8 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String(50), unique=True, index=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(String(50), default="pending")  # pending, confirmed, packed, out_for_delivery, delivered, cancelled
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    status = Column(String(50), default="pending")  # pending_whatsapp, pending, confirmed, processing, packed, out_for_delivery, delivered, cancelled
     
     # Financials
     subtotal = Column(Float, nullable=False)
@@ -168,9 +168,10 @@ class Order(Base):
     delivery_slot = Column(String(100), default="Instant 15-30 Mins")
     delivery_address_json = Column(Text, nullable=False)  # Snapshot of address at order time
     notes = Column(Text, nullable=True)
+    admin_notes = Column(Text, nullable=True)  # Store tracking or delivery notes
     
     # Payment details
-    payment_method = Column(String(50), default="cod")  # cod, upi, card, netbanking
+    payment_method = Column(String(50), default="cod")  # cod, upi, card, netbanking, whatsapp_cod, whatsapp_online
     payment_status = Column(String(50), default="pending")  # pending, paid, failed, refunded
     payment_id = Column(String(100), nullable=True)
     
@@ -227,6 +228,7 @@ class DeliverySetting(Base):
     express_delivery_fee = Column(Float, default=59.0)
     active_slots_json = Column(Text, nullable=True)
     announcement_text = Column(String(255), default="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Today")
+    whatsapp_number = Column(String(30), default="919876543210")
 
 
 class Wishlist(Base):

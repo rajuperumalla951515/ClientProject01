@@ -17,9 +17,14 @@ def get_store_settings(db: Session = Depends(get_db)):
             standard_delivery_fee=39.0,
             express_delivery_fee=59.0,
             active_slots_json='["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
-            announcement_text="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today"
+            announcement_text="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
+            whatsapp_number="919876543210"
         )
         db.add(setting)
+        db.commit()
+        db.refresh(setting)
+    elif not getattr(setting, "whatsapp_number", None):
+        setting.whatsapp_number = "919876543210"
         db.commit()
         db.refresh(setting)
     return setting

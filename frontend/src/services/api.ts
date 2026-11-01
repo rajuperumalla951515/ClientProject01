@@ -1,5 +1,6 @@
 import {
-  User, Address, Category, Product, CartData, Order, DeliverySetting, DashboardStats
+  User, Address, Category, Product, CartData, Order, DeliverySetting, DashboardStats,
+  WhatsAppOrderPayload, WhatsAppOrderResponse
 } from '../types';
 import { FALLBACK_CATEGORIES, FALLBACK_PRODUCTS } from './fallbackData';
 
@@ -386,6 +387,13 @@ export const api = {
     });
   },
 
+  async createWhatsAppOrder(payload: WhatsAppOrderPayload): Promise<WhatsAppOrderResponse> {
+    return request('/orders/whatsapp', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  },
+
   async getOrders(): Promise<Order[]> {
     return request('/orders');
   },
@@ -394,15 +402,28 @@ export const api = {
     return request(`/orders/${id}`);
   },
 
-  async getAllOrdersAdmin(statusFilter?: string): Promise<Order[]> {
-    const url = statusFilter ? `/orders/admin/all?status_filter=${statusFilter}` : '/orders/admin/all';
-    return request(url);
+  async getAllOrdersAdmin(statusFilter?: string, dateFrom?: string, dateTo?: string): Promise<Order[]> {
+    const params = new URLSearchParams();
+    if (statusFilter) params.append('status_filter', statusFilter);
+    if (dateFrom) params.append('date_from', dateFrom);
+    if (dateTo) params.append('date_to', dateTo);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return request(`/orders/admin/all${query}`);
   },
 
-  async updateOrderStatus(orderId: number, status: string, paymentStatus?: string): Promise<Order> {
+  async updateOrderStatus(
+    orderId: number,
+    status?: string,
+    paymentStatus?: string,
+    adminNotes?: string
+  ): Promise<Order> {
     return request(`/orders/${orderId}/status`, {
       method: 'PUT',
-      body: JSON.stringify({ status, payment_status: paymentStatus }),
+      body: JSON.stringify({
+        status: status || undefined,
+        payment_status: paymentStatus || undefined,
+        admin_notes: adminNotes !== undefined ? adminNotes : undefined,
+      }),
     });
   },
 

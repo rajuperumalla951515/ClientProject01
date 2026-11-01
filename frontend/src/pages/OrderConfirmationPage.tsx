@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle } from 'lucide-react';
+import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { api } from '../services/api';
 import { Order } from '../types';
 
@@ -48,20 +49,49 @@ export const OrderConfirmationPage: React.FC = () => {
       
       {/* Celebration Header */}
       <div className="p-5 sm:p-8 rounded-3xl bg-white border border-stone-200 shadow-card text-center space-y-3">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto shadow-inner">
-          <CheckCircle2 className="w-9 h-9" />
+        <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-inner ${
+          order.status === 'pending_whatsapp' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-emerald-100 text-emerald-600'
+        }`}>
+          {order.status === 'pending_whatsapp' ? (
+            <WhatsAppIcon className="w-9 h-9" />
+          ) : (
+            <CheckCircle2 className="w-9 h-9" />
+          )}
         </div>
         <h1 className="font-display font-black text-2xl sm:text-3xl text-stone-900">
-          Order Successfully Placed!
+          {order.status === 'pending_whatsapp' ? 'Order Placed via WhatsApp!' : 'Order Successfully Placed!'}
         </h1>
         <p className="text-xs sm:text-sm text-stone-600 max-w-md mx-auto">
-          Thank you for choosing certified organic food. Your harvest is being carefully packed at our Indiranagar fulfillment hub.
+          {order.status === 'pending_whatsapp'
+            ? 'Thank you! Your order reference has been recorded in our system. Our team will verify items and confirm dispatch with you on WhatsApp.'
+            : 'Thank you for choosing certified organic food. Your harvest is being carefully packed at our local fulfillment hub.'}
         </p>
-        <div className="pt-2">
+        <div className="pt-2 flex flex-wrap items-center justify-center gap-2">
           <span className="inline-block px-4 py-1.5 rounded-full bg-stone-100 font-mono text-xs font-bold text-stone-800 border border-stone-200">
             Order #{order.order_number}
           </span>
+          <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider ${
+            order.status === 'pending_whatsapp'
+              ? 'bg-amber-100 text-amber-900 border border-amber-200'
+              : 'bg-emerald-100 text-emerald-800'
+          }`}>
+            {order.status === 'pending_whatsapp' ? 'Pending WhatsApp Confirmation' : order.status.replace('_', ' ')}
+          </span>
         </div>
+
+        {order.status === 'pending_whatsapp' && (
+          <div className="pt-3">
+            <a
+              href="https://wa.me/919876543210"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold shadow-md transition-all active:scale-95"
+            >
+              <WhatsAppIcon className="w-4 h-4 text-white" />
+              <span>Chat with Sri Adithya Organics on WhatsApp</span>
+            </a>
+          </div>
+        )}
       </div>
 
       {/* Live Order Status Stepper */}
@@ -69,23 +99,31 @@ export const OrderConfirmationPage: React.FC = () => {
         <h3 className="font-display font-bold text-sm text-stone-900 mb-5">Live Order Tracking</h3>
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2 text-center relative min-w-[280px]">
           
-          {/* Step 1: Confirmed */}
+          {/* Step 1: Confirmed / Placed */}
           <div className="flex flex-col items-center">
-            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-rootly-forest text-white flex items-center justify-center text-xs font-bold z-10 shadow-sm">
+            <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
+              order.status === 'pending_whatsapp'
+                ? 'bg-amber-500 text-white'
+                : 'bg-rootly-forest text-white'
+            }`}>
               <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
             </div>
-            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">Order Confirmed</p>
-            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">Inventory reserved</p>
+            <p className="text-[11px] sm:text-xs font-bold text-stone-900 mt-2 leading-tight">
+              {order.status === 'pending_whatsapp' ? 'Order Placed' : 'Order Confirmed'}
+            </p>
+            <p className="text-[9px] sm:text-[10px] text-stone-400 mt-0.5 line-clamp-1 sm:line-clamp-none">
+              {order.status === 'pending_whatsapp' ? 'WhatsApp Pending' : 'Inventory reserved'}
+            </p>
           </div>
 
           {/* Step 2: Packed */}
           <div className="flex flex-col items-center">
             <div className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold z-10 shadow-sm ${
-              ['packed', 'out_for_delivery', 'delivered'].includes(order.status)
+              ['packed', 'processing', 'out_for_delivery', 'delivered'].includes(order.status)
                 ? 'bg-rootly-forest text-white'
                 : 'bg-stone-100 text-stone-400 border border-stone-200'
             }`}>
-              {['packed', 'out_for_delivery', 'delivered'].includes(order.status) ? (
+              {['packed', 'processing', 'out_for_delivery', 'delivered'].includes(order.status) ? (
                 <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" />
               ) : (
                 '2'
