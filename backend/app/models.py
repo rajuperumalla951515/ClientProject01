@@ -228,7 +228,7 @@ class DeliverySetting(Base):
     express_delivery_fee = Column(Float, default=59.0)
     active_slots_json = Column(Text, nullable=True)
     announcement_text = Column(String(255), default="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Today")
-    whatsapp_number = Column(String(30), default="919876543210")
+    whatsapp_number = Column(String(30), default="919515159006")
 
 
 class Wishlist(Base):

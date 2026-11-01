@@ -38,11 +38,17 @@ def run_tests():
     print("[TEST SUITE] WHATSAPP-BASED ORDERING & DELIVERY INTEGRATION")
     print("=" * 80 + "\n")
 
-    # Step 0: Seed Database
+    # Step 0: Seed Database & Reset Store Business Number
     seed_database()
     db = SessionLocal()
 
     try:
+        # Reset WhatsApp number in settings to 919515159006
+        setting_rec = db.query(DeliverySetting).first()
+        if setting_rec:
+            setting_rec.whatsapp_number = "919515159006"
+            db.commit()
+
         # Get admin user and customer user
         admin_user = db.query(User).filter(User.role == "admin").first()
         assert admin_user is not None, "Admin user must exist"
@@ -114,7 +120,7 @@ def run_tests():
 
         print(f"Generated URL: {url[:60]}... (Total length: {len(url)})")
         assert url.startswith("https://wa.me/"), f"URL must start with https://wa.me/, got {url}"
-        assert res1.whatsapp_number in url, f"Business WhatsApp number {res1.whatsapp_number} must be in URL"
+        assert "919515159006" in url, f"Business WhatsApp number 919515159006 must be in URL, got {url}"
 
         # Check required components
         assert "Sri Adithya Organics" in msg, "Must contain business name"
@@ -312,6 +318,14 @@ def run_tests():
         )
         assert custom_wa_num in res_custom_num.whatsapp_url, f"New WhatsApp number {custom_wa_num} must be in URL"
         print(f"   [PASS] Settings WhatsApp number updated to {custom_wa_num} and used in dynamic click-to-chat URL")
+
+        # Restore to primary business number 919515159006
+        settings.update_store_settings(
+            setting_in=DeliverySettingUpdate(whatsapp_number="919515159006"),
+            db=db,
+            admin=admin_user
+        )
+        print("   [PASS] Store WhatsApp number restored to primary business number: 919515159006")
 
         print("\n" + "=" * 80)
         print("[ALL TESTS PASSED] Complete WhatsApp ordering, delivery address, and admin fulfillment verified!")

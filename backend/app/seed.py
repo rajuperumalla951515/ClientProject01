@@ -13,6 +13,13 @@ def seed_database():
     db: Session = SessionLocal()
 
     try:
+        # Check settings and ensure real WhatsApp number 919515159006 is present
+        curr_setting = db.query(DeliverySetting).first()
+        if curr_setting:
+            if not curr_setting.whatsapp_number or curr_setting.whatsapp_number in ["919876543210", "9876543210"]:
+                curr_setting.whatsapp_number = "919515159006"
+                db.commit()
+
         # Check if already seeded with products
         if db.query(Product).count() > 0:
             print("Database already contains seed products.")
@@ -32,7 +39,8 @@ def seed_database():
                 "Evening Slot (5:30 PM - 8:00 PM)",
                 "Tomorrow Morning (7:00 AM - 9:30 AM)"
             ]),
-            announcement_text="Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499"
+            announcement_text="Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499",
+            whatsapp_number="919515159006"
         )
         db.add(settings)
 

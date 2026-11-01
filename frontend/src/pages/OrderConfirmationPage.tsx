@@ -82,7 +82,7 @@ export const OrderConfirmationPage: React.FC = () => {
         {order.status === 'pending_whatsapp' && (
           <div className="pt-3">
             <a
-              href="https://wa.me/919876543210"
+              href="https://wa.me/919515159006"
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold shadow-md transition-all active:scale-95"

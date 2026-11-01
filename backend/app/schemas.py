@@ -355,7 +355,7 @@ class DeliverySettingOut(BaseModel):
     express_delivery_fee: float
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
-    whatsapp_number: Optional[str] = "919876543210"
+    whatsapp_number: Optional[str] = "919515159006"
 
     class Config:
         from_attributes = True

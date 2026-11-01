@@ -456,7 +456,8 @@ export const api = {
           "Evening Slot (5:30 PM - 8:00 PM)",
           "Tomorrow Morning (7:00 AM - 9:30 AM)"
         ]),
-        announcement_text: "Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499"
+        announcement_text: "Sri Adithya Organics • 100% Pure Wood-Pressed Oils & Certified Organic Produce • Free Delivery over ₹499",
+        whatsapp_number: "919515159006"
       };
     }
   },

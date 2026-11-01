@@ -532,3 +532,4 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
     </div>
   );
 };
+

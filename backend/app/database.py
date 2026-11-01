@@ -233,6 +233,10 @@ def run_migrations(target_engine):
             if "delivery_settings" in tables:
                 ds_cols = [c["name"] for c in inspector.get_columns("delivery_settings")]
                 if "whatsapp_number" not in ds_cols:
-                    conn.execute(text("ALTER TABLE delivery_settings ADD COLUMN whatsapp_number VARCHAR(30) DEFAULT '919876543210';"))
+                    conn.execute(text("ALTER TABLE delivery_settings ADD COLUMN whatsapp_number VARCHAR(30) DEFAULT '919515159006';"))
+                try:
+                    conn.execute(text("UPDATE delivery_settings SET whatsapp_number = '919515159006' WHERE whatsapp_number IS NULL OR whatsapp_number IN ('919876543210', '9876543210', '');"))
+                except Exception:
+                    pass
     except Exception as e:
         print(f"[MIGRATION] Schema check notice: {e}")

@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from backend.app.database import get_db
@@ -18,13 +19,13 @@ def get_store_settings(db: Session = Depends(get_db)):
             express_delivery_fee=59.0,
             active_slots_json='["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
             announcement_text="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
-            whatsapp_number="919876543210"
+            whatsapp_number="919515159006"
         )
         db.add(setting)
         db.commit()
         db.refresh(setting)
-    elif not getattr(setting, "whatsapp_number", None):
-        setting.whatsapp_number = "919876543210"
+    elif not getattr(setting, "whatsapp_number", None) or setting.whatsapp_number in ["919876543210", "9876543210"]:
+        setting.whatsapp_number = "919515159006"
         db.commit()
         db.refresh(setting)
     return setting
@@ -42,6 +43,12 @@ def update_store_settings(
         db.add(setting)
 
     update_data = setting_in.model_dump(exclude_unset=True)
+    if "whatsapp_number" in update_data and update_data["whatsapp_number"]:
+        cleaned = re.sub(r"\D", "", str(update_data["whatsapp_number"]))
+        if len(cleaned) == 10:
+            cleaned = f"91{cleaned}"
+        update_data["whatsapp_number"] = cleaned
+
     for k, v in update_data.items():
         setattr(setting, k, v)
 

@@ -274,7 +274,9 @@ def create_whatsapp_order(
         if recent_order:
             settings_db = db.query(DeliverySetting).first()
             raw_whatsapp_num = (settings_db.whatsapp_number if settings_db and settings_db.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
-            whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919876543210"
+            whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
+            if len(whatsapp_num) == 10:
+                whatsapp_num = f"91{whatsapp_num}"
             msg = format_whatsapp_order_message(recent_order, customer_name, customer_phone)
             encoded_msg = urllib.parse.quote(msg)
             return WhatsAppOrderResponse(
@@ -501,7 +503,9 @@ def create_whatsapp_order(
 
     # 10. Construct Dynamic WhatsApp Message & Click-to-chat URL
     raw_whatsapp_num = (settings_db.whatsapp_number if settings_db and settings_db.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
-    whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919876543210"
+    whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
+    if len(whatsapp_num) == 10:
+        whatsapp_num = f"91{whatsapp_num}"
 
     msg = format_whatsapp_order_message(
         order=order,

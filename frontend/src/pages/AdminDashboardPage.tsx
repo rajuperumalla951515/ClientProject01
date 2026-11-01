@@ -733,12 +733,12 @@ export const AdminDashboardPage: React.FC = () => {
                 type="text"
                 value={settings.whatsapp_number || ''}
                 onChange={(e) => setSettings({ ...settings, whatsapp_number: e.target.value.replace(/[^0-9]/g, '') })}
-                placeholder="919876543210"
+                placeholder="919515159006"
                 className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
               />
             </div>
             <p className="text-[10px] text-stone-400 mt-1">
-              Enter the WhatsApp phone number in international format without spaces, '+' or symbols (e.g. 919876543210 for India).
+              Enter the WhatsApp phone number in international format without spaces, '+' or symbols (e.g. 919515159006 for India).
             </p>
           </div>
 
