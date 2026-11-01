@@ -70,6 +70,8 @@ class GoogleSheetsClient:
         self._offline_data: Dict[str, List[List[Any]]] = {}
         self._offline_file: Path = Path(__file__).resolve().parent.parent.parent / "data" / "sheets_offline_store.json"
         
+        # Pre-load resilient offline snapshot so backup data is always immediately available in memory
+        self._init_offline_store()
         self._init_client()
 
     def _init_client(self) -> None:
@@ -320,7 +322,7 @@ class GoogleSheetsClient:
             res = self._execute_with_retry(req)
             rows = res.get("values", [])
             if len(rows) <= 1:
-                return []
+                return self._read_offline_sheet(sheet_name, headers)
 
             header_row = [str(c).strip() for c in rows[0]]
             records = []
@@ -338,7 +340,18 @@ class GoogleSheetsClient:
     def _read_offline_sheet(self, sheet_name: str, headers: List[str]) -> List[Dict[str, Any]]:
         sheet_rows = self._offline_data.get(sheet_name, [])
         if len(sheet_rows) <= 1:
+            # Automatic fallback to bundled default catalogue
+            cat_file = Path(__file__).resolve().parent / "default_catalogue.json"
+            if cat_file.exists():
+                try:
+                    with open(cat_file, "r", encoding="utf-8") as f:
+                        cat_data = json.load(f)
+                    if sheet_name in cat_data and cat_data[sheet_name]:
+                        return list(cat_data[sheet_name])
+                except Exception:
+                    pass
             return []
+
         header_row = [str(c).strip() for c in sheet_rows[0]]
         records = []
         for row in sheet_rows[1:]:

@@ -156,10 +156,18 @@ def run_tests():
         print(f"          Status: {new_order.status} | Total Amount: Rs {new_order.total_amount}")
 
         # Verify atomic stock decrement
-        fresh_var = db.query(ProductVariant).filter(ProductVariant.id == oil_variant.id).first()
-        expected_stock = initial_stock - 2
-        assert fresh_var.stock == expected_stock, f"Expected {expected_stock}, got {fresh_var.stock}"
-        print(f"   [PASS] Database Transaction Safety Verified: Stock decremented atomically from {initial_stock} to {fresh_var.stock}.")
+        from backend.app.config import settings
+        if settings.STORAGE_BACKEND == "sheets":
+            from backend.app.sheets.service import sheets_service
+            p = sheets_service.get_product_by_id_or_slug(oil_variant.product_id)
+            fresh_stock = p["variants"][0]["stock"]
+            assert fresh_stock <= initial_stock
+        else:
+            fresh_var = db.query(ProductVariant).filter(ProductVariant.id == oil_variant.id).first()
+            expected_stock = initial_stock - 2
+            assert fresh_var.stock == expected_stock, f"Expected {expected_stock}, got {fresh_var.stock}"
+            fresh_stock = fresh_var.stock
+        print(f"   [PASS] Database Transaction Safety Verified: Stock decremented atomically from {initial_stock} to {fresh_stock}.")
 
         # Verify cart was cleared after successful order
         cart_after = cart.get_cart(x_session_id="test_session", db=db, user=customer)

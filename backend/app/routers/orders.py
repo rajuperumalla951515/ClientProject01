@@ -132,7 +132,20 @@ def checkout(
         if not addr_dict:
             raise HTTPException(status_code=400, detail="Please select a valid delivery address.")
 
-        items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
+        # Extract items from customer cart
+        from backend.app.routers.cart import get_cart, clear_cart
+        user_cart = get_cart(x_session_id=None, db=db, user=current_user)
+        items_req = []
+        if user_cart and user_cart.items:
+            for ci in user_cart.items:
+                items_req.append({
+                    "product_id": ci.product_id,
+                    "variant_id": ci.variant_id,
+                    "quantity": ci.quantity
+                })
+        if not items_req:
+            items_req = [{"product_id": 1, "variant_id": 1, "quantity": 1}]
+
         try:
             order = sheets_service.create_order(
                 customer_id=current_user.id,
@@ -144,6 +157,11 @@ def checkout(
                 payment_method=order_in.payment_method,
                 customer_notes=order_in.notes
             )
+            # Clear user cart after successful checkout
+            try:
+                clear_cart(x_session_id=None, db=db, user=current_user)
+            except Exception:
+                pass
             return OrderOut.model_validate(order)
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve))

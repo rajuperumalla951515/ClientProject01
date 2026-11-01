@@ -32,7 +32,7 @@ def run_checks():
     required_pkgs = [
         "fastapi", "uvicorn", "pydantic", "pydantic-settings",
         "email-validator", "sqlalchemy", "psycopg", "psycopg2-binary",
-        "python-jose", "bcrypt", "python-multipart"
+        "python-jose", "bcrypt", "python-multipart", "google-auth", "google-api-python-client"
     ]
     missing = [pkg for pkg in required_pkgs if pkg not in req_text or pkg not in backend_text]
     if not missing:
@@ -125,10 +125,11 @@ def run_checks():
     from backend.main import health_check
     health_resp = health_check()
     assert health_resp["service"] == "Sri Adithya Organics API"
-    assert "database" in health_resp
+    assert "database" in health_resp or "storage" in health_resp
     assert "password" not in str(health_resp).lower()
     print(f"  [PASS] Health endpoint response valid:")
-    print(f"         Status: {health_resp['status']} | Database target: {health_resp['database']['target']}")
+    backend_info = health_resp.get("storage") or health_resp.get("database", {})
+    print(f"         Status: {health_resp['status']} | Backend info: {backend_info}")
     results.append(("6. Health Endpoint", "PASS", "Safe status verified"))
 
     # 7. Core Application Regression Suite
