@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { LocationProvider } from './context/LocationContext';
+import { prewarmBackend } from './services/api';
 
 import { Header } from './components/Header';
 import { Footer } from './components/Footer';
@@ -29,6 +30,10 @@ import { PolicyPage } from './pages/PolicyPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 
 export function App() {
+  useEffect(() => {
+    prewarmBackend();
+  }, []);
+
   return (
     <BrowserRouter>
       <AuthProvider>

@@ -1,4 +1,24 @@
 {
+  "Customers": [
+    [
+      "customer_id",
+      "name",
+      "phone",
+      "email",
+      "password_hash",
+      "role",
+      "created_at"
+    ],
+    [
+      22,
+      "Lakshmi Narayanan",
+      "9876501234",
+      "test.sheets.customer.1793531595@sriadithyaorganics.in",
+      "$2b$12$hqm5/3tPvKQZD9Jfdaj44ed9.zSTDby8IxMGvYjsU96052bbDclZC",
+      "customer",
+      "2026-11-01T11:13:17.842365Z"
+    ]
+  ],
   "Addresses": [
     [
       "address_id",
@@ -19,22 +39,22 @@
       "created_at"
     ],
     [
-      18,
-      2,
-      "Villa 12",
-      "Adithya Greens",
-      "Adithya Valley Road",
-      "Indiranagar",
-      "Near Organic Orchards",
+      19,
+      22,
+      "Flat 302, Sai Residency",
+      "",
+      "100 Feet Road, Indiranagar",
+      "",
+      "",
       "Bengaluru",
       "",
       "Karnataka",
       "560038",
       12.9784,
       77.6408,
-      15.0,
+      12.0,
       "True",
-      "2026-11-01T10:48:47.172951Z"
+      "2026-11-01T11:13:23.631299Z"
     ]
   ],
   "Inventory_Logs": [
@@ -48,13 +68,58 @@
       "created_at"
     ],
     [
-      75,
+      76,
       1,
-      54,
-      -1,
       53,
-      "Customer Order #SAO-20261101-104851-838468",
-      "2026-11-01T10:48:53.353911Z"
+      -1,
+      52,
+      "Customer Order #SAO-20261101-111327-522723",
+      "2026-11-01T11:13:29.332335Z"
+    ],
+    [
+      77,
+      1,
+      52,
+      -1,
+      51,
+      "Customer Order #SAO-20261101-111332-409828",
+      "2026-11-01T11:13:34.148619Z"
+    ],
+    [
+      78,
+      1,
+      51,
+      -1,
+      50,
+      "Customer Order #SAO-20261101-111337-991846",
+      "2026-11-01T11:13:39.154440Z"
+    ],
+    [
+      79,
+      1,
+      50,
+      -1,
+      49,
+      "Customer Order #SAO-20261101-111342-639255",
+      "2026-11-01T11:13:43.970203Z"
+    ],
+    [
+      80,
+      1,
+      49,
+      -1,
+      48,
+      "Customer Order #SAO-20261101-111347-444401",
+      "2026-11-01T11:13:49.157033Z"
+    ],
+    [
+      81,
+      1,
+      48,
+      -1,
+      47,
+      "Customer Order #SAO-20261101-111355-851183",
+      "2026-11-01T11:13:57.234230Z"
     ]
   ],
   "Orders": [
@@ -78,23 +143,118 @@
       "updated_at"
     ],
     [
-      "SAO-20261101-104851-838468",
-      2,
-      "Arjun Sharma",
-      "+91 98450 12345",
+      "SAO-20261101-111327-522723",
+      22,
+      "Concurrent Buyer 0",
+      "9000000000",
       42.0,
       39.0,
       81.0,
-      "upi",
+      "cod",
       "pending",
       "confirmed",
-      1,
-      "",
+      19,
+      "IDEM:CONCURRENT-TEST-0-1793531606 | None",
       "pending_customer_send",
-      "Express Delivery (15-30 Mins)",
-      "{\"id\": 1, \"user_id\": 2, \"customer_id\": 2, \"label\": \"Home\", \"recipient_name\": \"Tower B\", \"phone\": \"\", \"house_number\": \"Tower B\", \"apartment\": \"Tower B\", \"street\": \"Flat 402, Green Glen Orchards, 100ft Road\", \"locality\": \"Bengaluru\", \"landmark\": \"Near Sony World Signal, 12th Main\", \"city\": \"Bengaluru\", \"district\": \"\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": null, \"longitude\": null, \"accuracy_meters\": null, \"formatted_address\": \"Flat 402, Green Glen Orchards, 100ft Road, Bengaluru - 560038\", \"is_confirmed\": true, \"is_default\": true, \"created_at\": \"46323.62068360041\"}",
-      "2026-11-01T10:48:53.869359Z",
-      "2026-11-01T10:48:53.869359Z"
+      "Instant 15-30 Mins",
+      "{\"id\": 19, \"user_id\": 22, \"customer_id\": 22, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T11:13:23.631299Z\"}",
+      "2026-11-01T11:13:29.862192Z",
+      "2026-11-01T11:13:29.862192Z"
+    ],
+    [
+      "SAO-20261101-111332-409828",
+      22,
+      "Concurrent Buyer 1",
+      "9000000001",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      19,
+      "IDEM:CONCURRENT-TEST-1-1793531606 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 19, \"user_id\": 22, \"customer_id\": 22, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T11:13:23.631299Z\"}",
+      "2026-11-01T11:13:34.663087Z",
+      "2026-11-01T11:13:34.663087Z"
+    ],
+    [
+      "SAO-20261101-111337-991846",
+      22,
+      "Concurrent Buyer 2",
+      "9000000002",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      19,
+      "IDEM:CONCURRENT-TEST-2-1793531606 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 19, \"user_id\": 22, \"customer_id\": 22, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T11:13:23.631299Z\"}",
+      "2026-11-01T11:13:39.666240Z",
+      "2026-11-01T11:13:39.666240Z"
+    ],
+    [
+      "SAO-20261101-111342-639255",
+      22,
+      "Concurrent Buyer 3",
+      "9000000003",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      19,
+      "IDEM:CONCURRENT-TEST-3-1793531606 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 19, \"user_id\": 22, \"customer_id\": 22, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T11:13:23.631299Z\"}",
+      "2026-11-01T11:13:44.603407Z",
+      "2026-11-01T11:13:44.603407Z"
+    ],
+    [
+      "SAO-20261101-111347-444401",
+      22,
+      "Concurrent Buyer 4",
+      "9000000004",
+      42.0,
+      39.0,
+      81.0,
+      "cod",
+      "pending",
+      "confirmed",
+      19,
+      "IDEM:CONCURRENT-TEST-4-1793531606 | None",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"id\": 19, \"user_id\": 22, \"customer_id\": 22, \"label\": \"Home\", \"recipient_name\": \"Lakshmi Narayanan\", \"phone\": \"9876501234\", \"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"\", \"house_number\": \"Flat 302, Sai Residency\", \"locality\": \"\", \"landmark\": \"\", \"city\": \"Bengaluru\", \"state\": \"Karnataka\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 12.0, \"is_default\": false, \"created_at\": \"2026-11-01T11:13:23.631299Z\"}",
+      "2026-11-01T11:13:49.758628Z",
+      "2026-11-01T11:13:49.758628Z"
+    ],
+    [
+      "SAO-20261101-111355-851183",
+      "",
+      "Raju Perumalla",
+      "9515159006",
+      42.0,
+      39.0,
+      81.0,
+      "whatsapp_cod",
+      "pending",
+      "confirmed",
+      "",
+      "Confirmed via WhatsApp dispatch desk",
+      "pending_customer_send",
+      "Instant 15-30 Mins",
+      "{\"street\": \"100 Feet Road, Indiranagar\", \"apartment\": \"Flat 302\", \"city\": \"Bengaluru\", \"postal_code\": \"560038\", \"latitude\": 12.9784, \"longitude\": 77.6408, \"accuracy_meters\": 15.0}",
+      "2026-11-01T11:13:57.899550Z",
+      "2026-11-01T11:14:01.969255Z"
     ]
   ],
   "Order_Items": [
@@ -108,8 +268,53 @@
       "line_total"
     ],
     [
-      132,
-      "SAO-20261101-104851-838468",
+      133,
+      "SAO-20261101-111327-522723",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      134,
+      "SAO-20261101-111332-409828",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      135,
+      "SAO-20261101-111337-991846",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      136,
+      "SAO-20261101-111342-639255",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      137,
+      "SAO-20261101-111347-444401",
+      1,
+      "Organic Desi Tomatoes (500g)",
+      1,
+      42.0,
+      42.0
+    ],
+    [
+      138,
+      "SAO-20261101-111355-851183",
       1,
       "Organic Desi Tomatoes (500g)",
       1,

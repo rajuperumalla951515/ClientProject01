@@ -109,6 +109,13 @@ export function setAuthToken(token: string | null) {
   }
 }
 
+export function prewarmBackend(): void {
+  try {
+    const rootUrl = API_BASE.replace(/\/api$/, '');
+    fetch(`${rootUrl}/health/live`, { method: 'GET' }).catch(() => {});
+  } catch {}
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
   const sessionId = getOrCreateSessionId();
@@ -123,19 +130,41 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE}${endpoint}`, {
-      ...options,
-      headers,
-    });
-  } catch (fetchErr: any) {
-    if (fetchErr.name === 'TypeError' || fetchErr.message?.includes('fetch')) {
-      throw new Error(
-        'Unable to connect to Sri Adithya Organics backend server. Please verify your internet connection or check that the backend service on Render is online.'
-      );
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+  const maxRetries = isGet ? 2 : 1;
+  let lastError: any = null;
+  let response: Response | null = null;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      response = await fetch(`${API_BASE}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      // If Render free tier is in the middle of waking up (502/503/504)
+      if ((response.status === 502 || response.status === 503 || response.status === 504) && attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      break;
+    } catch (fetchErr: any) {
+      lastError = fetchErr;
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+        continue;
+      }
+      if (fetchErr.name === 'TypeError' || fetchErr.message?.includes('fetch')) {
+        throw new Error(
+          'Unable to connect to Sri Adithya Organics backend server. The cloud service may be waking up from sleep mode (takes ~30s on Render free tier). Please try again in a few seconds.'
+        );
+      }
+      throw fetchErr;
     }
-    throw fetchErr;
+  }
+
+  if (!response) {
+    throw lastError || new Error('Unable to connect to server.');
   }
 
   if (!response.ok) {
