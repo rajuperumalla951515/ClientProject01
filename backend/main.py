@@ -121,6 +121,7 @@ ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://localhost:4173",
     "https://sriadithyaorganics.vercel.app",
+    "https://adminsriadithyaorganics.vercel.app",
     "https://admin.sriadithyaorganics.com",
 ]
 frontend_url = os.getenv("FRONTEND_URL", "").strip()

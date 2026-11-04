@@ -249,3 +249,18 @@ class Wishlist(Base):
     user = relationship("User", back_populates="wishlists")
     product = relationship("Product", back_populates="wishlists")
 
+
+class InventoryLog(Base):
+    __tablename__ = "inventory_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    previous_stock = Column(Integer, nullable=False)
+    changed_stock = Column(Integer, nullable=False)
+    new_stock = Column(Integer, nullable=False)
+    reason = Column(String(255), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+
+    product = relationship("Product")
+
+

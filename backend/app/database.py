@@ -38,10 +38,11 @@ def is_placeholder_host(host: Optional[str]) -> bool:
 
 def resolve_raw_db_url() -> str:
     """Read database connection URL from environment variables safely, prioritizing non-placeholder URLs."""
-    # Check all possible Render / standard database environment variables
+    # Check all possible Supabase / Render / standard database environment variables
     candidates = [
-        ("INTERNAL_DATABASE_URL", os.getenv("INTERNAL_DATABASE_URL", "").strip()),
+        ("SUPABASE_DATABASE_URL", os.getenv("SUPABASE_DATABASE_URL", "").strip()),
         ("DATABASE_URL", os.getenv("DATABASE_URL", "").strip()),
+        ("INTERNAL_DATABASE_URL", os.getenv("INTERNAL_DATABASE_URL", "").strip()),
         ("EXTERNAL_DATABASE_URL", os.getenv("EXTERNAL_DATABASE_URL", "").strip()),
     ]
 
@@ -156,12 +157,23 @@ is_db_configured, safe_db_url, db_config_error = validate_db_url(raw_url)
 connect_args = {}
 if is_db_configured:
     final_db_url = normalize_db_url(raw_url)
+    engine_kwargs = {"pool_pre_ping": True}
     if final_db_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
+    elif "postgresql" in final_db_url:
+        # Optimized connection pooling for Supabase PostgreSQL & Render
+        engine_kwargs.update({
+            "pool_size": 10,
+            "max_overflow": 20,
+            "pool_recycle": 300,
+        })
+        # Enforce SSL requirement for Supabase remote PostgreSQL
+        if "sslmode" not in final_db_url and "supabase.co" in final_db_url:
+            connect_args["sslmode"] = "require"
     engine = create_engine(
         final_db_url,
         connect_args=connect_args,
-        pool_pre_ping=True
+        **engine_kwargs
     )
 else:
     final_db_url = "sqlite:///:memory:"
@@ -254,6 +266,13 @@ def run_migrations(target_engine):
                     conn.execute(text("ALTER TABLE delivery_settings ADD COLUMN whatsapp_number VARCHAR(30) DEFAULT '919515159006';"))
                 try:
                     conn.execute(text("UPDATE delivery_settings SET whatsapp_number = '919515159006' WHERE whatsapp_number IS NULL OR whatsapp_number IN ('919876543210', '9876543210', '');"))
+                except Exception:
+                    pass
+
+            if "inventory_logs" not in tables:
+                try:
+                    from backend.app.models import InventoryLog
+                    InventoryLog.__table__.create(target_engine, checkfirst=True)
                 except Exception:
                     pass
     except Exception as e:

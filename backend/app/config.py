@@ -19,7 +19,11 @@ class Settings(BaseSettings):
     
     # Database & Storage Provider
     DATABASE_URL: str = os.getenv("DATABASE_URL", "")
-    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "sheets").lower()
+    STORAGE_BACKEND: str = os.getenv("STORAGE_BACKEND", "database").lower()
+    
+    # Centralized Supabase Configuration
+    SUPABASE_URL: str = os.getenv("SUPABASE_URL", "https://gahduzexqmmlahshsyre.supabase.co")
+    SUPABASE_KEY: str = os.getenv("SUPABASE_KEY", "")
     
     # Google Sheets API Storage Configuration
     GOOGLE_SHEETS_SPREADSHEET_ID: str = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID", "1Yvcf7_u-YypWJY8hW9JdvCZZVEneEH7XLlngGgCS_6o")

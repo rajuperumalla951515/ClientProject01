@@ -2,12 +2,12 @@ import datetime
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func
+from sqlalchemy import func, desc, or_
 from backend.app.config import settings
 from backend.app.database import get_db, check_db_connection
-from backend.app.models import Order, Product, ProductVariant, User, Category
+from backend.app.models import Order, OrderItem, Product, ProductVariant, User, Category, InventoryLog, Address
 from backend.app.schemas import (
-    EnhancedDashboardStatsOut, OrderOut, ProductOut,
+    EnhancedDashboardStatsOut, OrderOut, ProductOut, AddressOut,
     InventoryAdjustRequest, InventoryLogOut, CustomerMetricOut,
     CustomerDetailOut, OrderCancelRequest, TopProductStat
 )
@@ -47,10 +47,39 @@ def get_dashboard_stats(db: Session = Depends(get_db), admin=Depends(get_current
     today_orders = db.query(func.count(Order.id)).filter(Order.created_at >= today_start).scalar() or 0
     total_products = db.query(func.count(Product.id)).filter(Product.is_active == True).scalar() or 0
     total_customers = db.query(func.count(User.id)).filter(User.role == "customer").scalar() or 0
-    pending_orders = db.query(func.count(Order.id)).filter(Order.status.in_(["pending", "confirmed", "pending_whatsapp"])).scalar() or 0
+    pending_orders = db.query(func.count(Order.id)).filter(Order.status.in_(["pending", "confirmed", "pending_whatsapp", "processing"])).scalar() or 0
     delivered_orders = db.query(func.count(Order.id)).filter(Order.status == "delivered").scalar() or 0
     cancelled_orders = db.query(func.count(Order.id)).filter(Order.status == "cancelled").scalar() or 0
     low_stock_count = db.query(func.count(ProductVariant.id)).filter(ProductVariant.stock < 10).scalar() or 0
+
+    # Aggregate status counts across all order records
+    order_status_counts: Dict[str, int] = {}
+    status_records = db.query(Order.status, func.count(Order.id)).group_by(Order.status).all()
+    for s_name, s_count in status_records:
+        if s_name:
+            order_status_counts[s_name] = s_count
+
+    # Aggregate Top Products by units sold
+    top_items = db.query(
+        OrderItem.product_id,
+        OrderItem.product_name,
+        func.sum(OrderItem.quantity).label("units_sold"),
+        func.sum(OrderItem.total_price).label("revenue")
+    ).join(Order, Order.id == OrderItem.order_id).filter(
+        Order.status != "cancelled"
+    ).group_by(OrderItem.product_id, OrderItem.product_name).order_by(
+        desc("units_sold")
+    ).limit(5).all()
+
+    top_products = [
+        TopProductStat(
+            id=ti.product_id,
+            name=ti.product_name,
+            units_sold=int(ti.units_sold or 0),
+            revenue=round(float(ti.revenue or 0.0), 2)
+        )
+        for ti in top_items
+    ]
 
     recent_orders = db.query(Order).options(
         joinedload(Order.items)
@@ -67,8 +96,8 @@ def get_dashboard_stats(db: Session = Depends(get_db), admin=Depends(get_current
         delivered_orders=delivered_orders,
         cancelled_orders=cancelled_orders,
         low_stock_products=low_stock_count,
-        order_status_counts={"pending": pending_orders, "delivered": delivered_orders, "cancelled": cancelled_orders},
-        top_products=[],
+        order_status_counts=order_status_counts,
+        top_products=top_products,
         recent_orders=recent_orders
     )
 
@@ -170,6 +199,16 @@ def adjust_inventory_stock(
         variant.stock = max(0, variant.stock + req.delta)
     
     diff = variant.stock - prev
+
+    # Record Inventory Audit Log in Database
+    log_entry = InventoryLog(
+        product_id=req.product_id,
+        previous_stock=prev,
+        changed_stock=diff,
+        new_stock=variant.stock,
+        reason=f"{req.reason}{f' - {req.notes}' if req.notes else ''}"
+    )
+    db.add(log_entry)
     db.commit()
     db.refresh(variant)
     return {
@@ -190,7 +229,24 @@ def get_inventory_audit_logs(
     if is_sheets_storage():
         logs = sheets_service.get_inventory_logs(limit=limit, offset=offset)
         return [InventoryLogOut(**l) for l in logs]
-    return []
+
+    db_logs = db.query(InventoryLog).options(
+        joinedload(InventoryLog.product)
+    ).order_by(InventoryLog.created_at.desc()).offset(offset).limit(limit).all()
+
+    return [
+        InventoryLogOut(
+            log_id=l.id,
+            product_id=l.product_id,
+            product_name=l.product.name if l.product else f"Product #{l.product_id}",
+            previous_stock=l.previous_stock,
+            changed_stock=l.changed_stock,
+            new_stock=l.new_stock,
+            reason=l.reason,
+            created_at=l.created_at.isoformat() if hasattr(l.created_at, "isoformat") else str(l.created_at)
+        )
+        for l in db_logs
+    ]
 
 @router.get("/customers", response_model=List[CustomerMetricOut])
 def list_customers(
@@ -202,7 +258,17 @@ def list_customers(
         custs = sheets_service.get_customers_with_metrics(search=search)
         return [CustomerMetricOut(**c) for c in custs]
 
-    users = db.query(User).filter(User.role == "customer").all()
+    query = db.query(User).filter(User.role == "customer")
+    if search and search.strip():
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(
+            or_(
+                User.name.ilike(term),
+                User.email.ilike(term),
+                User.phone.ilike(term)
+            )
+        )
+    users = query.all()
     results = []
     for u in users:
         ords = db.query(Order).filter(Order.user_id == u.id, Order.status != "cancelled").all()
@@ -236,6 +302,7 @@ def get_customer_details(
     
     ords = db.query(Order).options(joinedload(Order.items)).filter(Order.user_id == user.id).all()
     spend = sum(o.total_amount for o in ords if o.status != "cancelled")
+    addrs = db.query(Address).filter(Address.user_id == user.id).all()
     
     return CustomerDetailOut(
         id=user.id,
@@ -245,7 +312,7 @@ def get_customer_details(
         total_orders=len(ords),
         total_spend=round(spend, 2),
         created_at=user.created_at.isoformat() if hasattr(user.created_at, "isoformat") else str(user.created_at),
-        addresses=[],
+        addresses=[AddressOut.model_validate(a) for a in addrs],
         orders=[OrderOut.model_validate(o) for o in ords]
     )
 
@@ -271,11 +338,20 @@ def cancel_order_admin(
     if order.status != "cancelled":
         order.status = "cancelled"
         order.admin_notes = f"Cancelled: {cancel_in.reason}"
-        # Restock
+        # Restock products and record inventory audit log
         for it in order.items:
             variant = db.query(ProductVariant).filter(ProductVariant.id == it.variant_id).first()
             if variant:
+                prev_stk = variant.stock
                 variant.stock += it.quantity
+                log_entry = InventoryLog(
+                    product_id=it.product_id,
+                    previous_stock=prev_stk,
+                    changed_stock=it.quantity,
+                    new_stock=variant.stock,
+                    reason=f"Order Restock #{order.order_number} ({cancel_in.reason})"
+                )
+                db.add(log_entry)
         db.commit()
         db.refresh(order)
 
