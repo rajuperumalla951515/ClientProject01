@@ -21,9 +21,17 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, title }) => 
         >
           <Menu className="w-5 h-5" />
         </button>
-        <div>
-          <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">{title}</h2>
-          <p className="text-[11px] text-slate-500 hidden sm:block">Sri Adithya Organics Administrative Operations</p>
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/brand/sri-adithya-logo.png"
+            alt="Sri Adithya Organics"
+            className="md:hidden h-8 w-auto object-contain select-none pointer-events-none"
+            loading="eager"
+          />
+          <div>
+            <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">{title}</h2>
+            <p className="text-[11px] text-slate-500 hidden sm:block">Sri Adithya Organics Administrative Operations</p>
+          </div>
         </div>
       </div>
 
