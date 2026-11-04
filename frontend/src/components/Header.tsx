@@ -118,7 +118,7 @@ export const Header: React.FC = () => {
         <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6">
           
           {/* Brand Logo - Responsive Size */}
-          <div className="shrink-0">
+          <div className="shrink-0 flex items-center">
             <BrandLogo size="sm" className="sm:hidden" />
             <BrandLogo size="md" className="hidden sm:flex" />
           </div>

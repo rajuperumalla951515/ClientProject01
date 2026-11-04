@@ -63,6 +63,15 @@ export const OrderConfirmationPage: React.FC = () => {
       
       {/* Celebration Header */}
       <div className="p-5 sm:p-8 rounded-3xl bg-white border border-stone-200 shadow-card text-center space-y-3">
+        <div className="flex justify-center mb-1">
+          <img
+            src="/brand/sri-adithya-logo.png"
+            alt="Sri Adithya Organics"
+            className="h-14 sm:h-16 w-auto object-contain select-none pointer-events-none transform-none transition-none"
+            loading="eager"
+            decoding="async"
+          />
+        </div>
         <div className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto shadow-inner ${
           order.status === 'pending_whatsapp' ? 'bg-[#25D366]/20 text-[#25D366]' : 'bg-emerald-100 text-emerald-600'
         }`}>

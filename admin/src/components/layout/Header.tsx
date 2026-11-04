@@ -25,8 +25,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, title }) => 
           <img
             src="/brand/sri-adithya-logo.png"
             alt="Sri Adithya Organics"
-            className="md:hidden h-8 w-auto object-contain select-none pointer-events-none"
+            className="md:hidden h-9 w-auto object-contain select-none pointer-events-auto transform-none transition-none hover:scale-100 hover:opacity-100"
             loading="eager"
+            decoding="async"
+            draggable={false}
           />
           <div>
             <h2 className="text-base md:text-lg font-bold text-slate-900 leading-tight">{title}</h2>

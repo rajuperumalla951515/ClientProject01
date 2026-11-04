@@ -36,22 +36,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     <aside className="w-64 h-full bg-slate-900 text-white flex flex-col border-r border-slate-800 select-none">
       {/* Brand Header */}
       <div className="p-4 border-b border-slate-800 flex items-center justify-between">
-        <Link to="/" className="flex items-center gap-2.5 select-none focus:outline-none">
+        <Link
+          to="/"
+          className="flex flex-col items-center justify-center text-center gap-1.5 select-none focus:outline-none w-full hover:opacity-100 transform-none transition-none"
+        >
           <img
             src="/brand/sri-adithya-logo.png"
             alt="Sri Adithya Organics"
-            className="h-10 w-auto object-contain"
+            className="h-12 w-auto object-contain select-none pointer-events-auto transform-none transition-none hover:scale-100 hover:opacity-100"
             loading="eager"
+            decoding="async"
+            draggable={false}
           />
-          <div>
-            <h1 className="text-sm font-bold tracking-tight text-white leading-tight">Sri Adithya</h1>
-            <p className="text-[10px] text-emerald-400 font-medium tracking-wide uppercase">Admin Portal</p>
-          </div>
+          <span className="text-[10px] font-bold tracking-wider text-emerald-400 uppercase bg-slate-800/90 border border-slate-700/80 px-2 py-0.5 rounded-full">
+            Admin Portal
+          </span>
         </Link>
         {onCloseMobile && (
           <button
             onClick={onCloseMobile}
-            className="md:hidden text-slate-400 hover:text-white p-1 rounded-lg"
+            className="md:hidden text-slate-400 hover:text-white p-1 rounded-lg shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

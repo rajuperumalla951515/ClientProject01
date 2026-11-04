@@ -38,16 +38,17 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center mb-3">
+          <div className="inline-flex items-center justify-center mb-2">
             <img
               src="/brand/sri-adithya-logo.png"
               alt="Sri Adithya Organics"
-              className="h-20 w-auto object-contain select-none"
+              className="h-24 sm:h-28 w-auto object-contain select-none pointer-events-auto transform-none transition-none hover:scale-100 hover:opacity-100"
               loading="eager"
+              decoding="async"
+              draggable={false}
             />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Sri Adithya Organics</h1>
-          <p className="text-xs font-semibold text-brand-300 uppercase tracking-widest mt-1">
+          <p className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mt-1">
             Administrative Management Console
           </p>
         </div>

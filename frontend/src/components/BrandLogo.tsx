@@ -12,20 +12,20 @@ interface BrandLogoProps {
 
 export const BrandLogo: React.FC<BrandLogoProps> = ({
   className = '',
-  showTagline = true,
-  showText = true,
+  showTagline = false,
+  showText = false,
   size = 'md',
   inverted = false,
   asLink = true,
 }) => {
   const logoHeight =
     size === 'sm'
-      ? 'h-9 xs:h-10'
+      ? 'h-10 xs:h-11 sm:h-12'
       : size === 'lg'
-      ? 'h-14 sm:h-16'
+      ? 'h-16 sm:h-18 md:h-20'
       : size === 'xl'
-      ? 'h-16 sm:h-20'
-      : 'h-11 sm:h-12 md:h-13';
+      ? 'h-20 sm:h-24 md:h-28'
+      : 'h-12 sm:h-14 md:h-16';
 
   const textClass =
     size === 'sm'
@@ -46,19 +46,22 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
       : 'text-[10px]';
 
   const content = (
-    <div className={`flex items-center gap-2 sm:gap-2.5 select-none ${className}`}>
-      {/* Official Business Logo - uncropped authentic aspect ratio, zero hover zoom/distortion */}
-      <div className="relative flex items-center justify-center shrink-0">
+    <div
+      className={`flex items-center gap-2 sm:gap-2.5 select-none pointer-events-auto transform-none transition-none ${className}`}
+    >
+      {/* Official Business Logo - authentic uncropped aspect ratio, strictly zero hover zoom/distortion/animation */}
+      <div className="relative flex items-center justify-center shrink-0 transform-none transition-none">
         <img
           src="/brand/sri-adithya-logo.png"
-          alt="Sri Adithya Organics Official Logo"
-          className={`${logoHeight} w-auto object-contain`}
+          alt="Sri Adithya Organics"
+          className={`${logoHeight} w-auto object-contain select-none pointer-events-auto transform-none transition-none hover:scale-100 hover:opacity-100 active:scale-100 focus:scale-100`}
           loading="eager"
           decoding="async"
+          draggable={false}
         />
       </div>
 
-      {/* Brand Typography */}
+      {/* Brand Typography (Optional: shown only when showText is explicitly requested) */}
       {showText && (
         <div className={`flex flex-col leading-tight min-w-0 ${size === 'sm' ? 'hidden xs:flex' : 'flex'}`}>
           <div className="flex items-baseline gap-1 sm:gap-1.5 truncate">
@@ -96,8 +99,13 @@ export const BrandLogo: React.FC<BrandLogoProps> = ({
   }
 
   return (
-    <Link to="/" className="inline-flex items-center focus:outline-none" aria-label="Sri Adithya Organics Home">
+    <Link
+      to="/"
+      className="inline-flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-700 rounded-lg hover:opacity-100 active:opacity-100 transition-none transform-none cursor-pointer"
+      aria-label="Sri Adithya Organics Home"
+    >
       {content}
     </Link>
   );
 };
+
