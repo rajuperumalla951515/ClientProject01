@@ -38,8 +38,13 @@ export const LoginPage: React.FC = () => {
       <div className="w-full max-w-md relative z-10">
         {/* Brand Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-800 border border-brand-600/40 text-white font-bold text-xl shadow-elevated mb-3">
-            SA
+          <div className="inline-flex items-center justify-center mb-3">
+            <img
+              src="/brand/sri-adithya-logo.png"
+              alt="Sri Adithya Organics"
+              className="h-20 w-auto object-contain select-none"
+              loading="eager"
+            />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-white">Sri Adithya Organics</h1>
           <p className="text-xs font-semibold text-brand-300 uppercase tracking-widest mt-1">
@@ -135,3 +140,4 @@ export const LoginPage: React.FC = () => {
     </div>
   );
 };
+

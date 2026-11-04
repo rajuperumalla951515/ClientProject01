@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   ShoppingBag,
@@ -35,16 +35,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
   return (
     <aside className="w-64 h-full bg-slate-900 text-white flex flex-col border-r border-slate-800 select-none">
       {/* Brand Header */}
-      <div className="p-5 border-b border-slate-800 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-brand-700/80 border border-brand-500/30 flex items-center justify-center text-white font-bold shadow-sm">
-            SA
-          </div>
+      <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2.5 select-none focus:outline-none">
+          <img
+            src="/brand/sri-adithya-logo.png"
+            alt="Sri Adithya Organics"
+            className="h-10 w-auto object-contain"
+            loading="eager"
+          />
           <div>
             <h1 className="text-sm font-bold tracking-tight text-white leading-tight">Sri Adithya</h1>
-            <p className="text-[11px] text-brand-300 font-medium tracking-wide uppercase">Admin Portal</p>
+            <p className="text-[10px] text-emerald-400 font-medium tracking-wide uppercase">Admin Portal</p>
           </div>
-        </div>
+        </Link>
         {onCloseMobile && (
           <button
             onClick={onCloseMobile}
@@ -131,3 +134,4 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
     </aside>
   );
 };
+
