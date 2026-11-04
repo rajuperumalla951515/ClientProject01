@@ -7,17 +7,35 @@ from backend.app.database import get_db
 from backend.app.models import Category, Product
 from backend.app.schemas import CategoryOut, CategoryCreate, CategoryUpdate
 from backend.app.deps import get_current_admin
+from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
 @router.get("", response_model=List[CategoryOut])
 def list_categories(db: Session = Depends(get_db)):
-    categories = db.query(Category).filter(Category.is_active == True).order_by(Category.display_order.asc(), Category.name.asc()).all()
+    """
+    Optimized category list with single-query LEFT JOIN and GROUP BY.
+    Eliminates N+1 query bottlenecks across all client page loads.
+    """
+    rows = db.query(
+        Category,
+        func.coalesce(func.count(Product.id), 0).label("product_count")
+    ).outerjoin(
+        Product,
+        (Product.category_id == Category.id) & (Product.is_active == True)
+    ).filter(
+        Category.is_active == True
+    ).group_by(
+        Category.id
+    ).order_by(
+        Category.display_order.asc(),
+        Category.name.asc()
+    ).all()
+
     results = []
-    for cat in categories:
-        count = db.query(func.count(Product.id)).filter(Product.category_id == cat.id, Product.is_active == True).scalar() or 0
+    for cat, count in rows:
         cat_out = CategoryOut.model_validate(cat)
-        cat_out.product_count = count
+        cat_out.product_count = int(count)
         results.append(cat_out)
     return results
 
@@ -55,6 +73,9 @@ def create_category(cat_in: CategoryCreate, db: Session = Depends(get_db), admin
     db.commit()
     db.refresh(new_cat)
     
+    # Broadcast real-time change event
+    broadcaster.publish("CATEGORY_CREATED", {"category_id": new_cat.id, "slug": new_cat.slug})
+
     cat_out = CategoryOut.model_validate(new_cat)
     cat_out.product_count = 0
     return cat_out
@@ -81,6 +102,9 @@ def update_category(
     db.commit()
     db.refresh(category)
     
+    # Broadcast real-time change event
+    broadcaster.publish("CATEGORY_UPDATED", {"category_id": category.id, "slug": category.slug})
+
     count = db.query(func.count(Product.id)).filter(Product.category_id == category.id, Product.is_active == True).scalar() or 0
     cat_out = CategoryOut.model_validate(category)
     cat_out.product_count = count
@@ -100,4 +124,7 @@ def delete_category(
     # Soft delete to preserve referential integrity
     category.is_active = False
     db.commit()
+
+    # Broadcast real-time change event
+    broadcaster.publish("CATEGORY_DELETED", {"category_id": category.id})
     return None

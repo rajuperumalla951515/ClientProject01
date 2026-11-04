@@ -1,6 +1,6 @@
 import datetime
 from sqlalchemy import (
-    Column, Integer, String, Float, Boolean, Text, DateTime, ForeignKey, Index
+    Column, Integer, String, Float, Numeric, Boolean, Text, DateTime, ForeignKey, Index
 )
 from sqlalchemy.orm import relationship
 from backend.app.database import Base
@@ -28,7 +28,7 @@ class Address(Base):
     __tablename__ = "addresses"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     label = Column(String(50), default="Home")  # Home, Work, Other
     recipient_name = Column(String(100), nullable=False)
     phone = Column(String(20), nullable=False)
@@ -72,7 +72,7 @@ class Product(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(200), index=True, nullable=False)
     slug = Column(String(220), unique=True, index=True, nullable=False)
-    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False)
+    category_id = Column(Integer, ForeignKey("categories.id"), nullable=False, index=True)
     description = Column(Text, nullable=False)
     short_description = Column(String(300), nullable=True)
     brand = Column(String(100), default="Rootly Organics")
@@ -85,12 +85,12 @@ class Product(Base):
     ingredients = Column(Text, nullable=True)
     
     # Marketing & Collection flags
-    is_featured = Column(Boolean, default=False)
-    is_fresh_today = Column(Boolean, default=False)
+    is_featured = Column(Boolean, default=False, index=True)
+    is_fresh_today = Column(Boolean, default=False, index=True)
     is_deal = Column(Boolean, default=False)
-    is_best_seller = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    is_best_seller = Column(Boolean, default=False, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
     category = relationship("Category", back_populates="products")
     variants = relationship("ProductVariant", back_populates="product", cascade="all, delete-orphan")
@@ -103,12 +103,12 @@ class ProductVariant(Base):
     __tablename__ = "product_variants"
 
     id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
     unit = Column(String(50), nullable=False)  # e.g. "500g", "1 kg", "250g", "500ml", "1 L"
     pack_size = Column(String(50), default="Standard Pack")
-    price = Column(Float, nullable=False)  # Selling Price (INR)
-    mrp = Column(Float, nullable=False)    # Original MRP (INR)
-    stock = Column(Integer, default=50, nullable=False)
+    price = Column(Numeric(10, 2), nullable=False)  # Selling Price (INR)
+    mrp = Column(Numeric(10, 2), nullable=False)    # Original MRP (INR)
+    stock = Column(Integer, default=50, nullable=False, index=True)
     sku = Column(String(50), unique=True, nullable=True)
     is_default = Column(Boolean, default=False)
 
@@ -120,7 +120,7 @@ class ProductImage(Base):
     __tablename__ = "product_images"
 
     id = Column(Integer, primary_key=True, index=True)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
     image_url = Column(String(500), nullable=False)
     alt_text = Column(String(200), nullable=True)
     is_primary = Column(Boolean, default=False)
@@ -133,7 +133,7 @@ class Cart(Base):
     __tablename__ = "carts"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     session_id = Column(String(100), index=True, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
@@ -145,9 +145,9 @@ class CartItem(Base):
     __tablename__ = "cart_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    cart_id = Column(Integer, ForeignKey("carts.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
-    variant_id = Column(Integer, ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False)
+    cart_id = Column(Integer, ForeignKey("carts.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True)
+    variant_id = Column(Integer, ForeignKey("product_variants.id", ondelete="CASCADE"), nullable=False, index=True)
     quantity = Column(Integer, default=1, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
@@ -161,15 +161,15 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     order_number = Column(String(50), unique=True, index=True, nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
-    status = Column(String(50), default="pending")  # pending_whatsapp, pending, confirmed, processing, packed, out_for_delivery, delivered, cancelled
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    status = Column(String(50), default="pending", index=True)  # pending_whatsapp, pending, confirmed, processing, packed, out_for_delivery, delivered, cancelled
     
-    # Financials
-    subtotal = Column(Float, nullable=False)
-    discount = Column(Float, default=0.0)
-    delivery_fee = Column(Float, default=0.0)
-    tax = Column(Float, default=0.0)
-    total_amount = Column(Float, nullable=False)
+    # Financials (Exact Numeric currency)
+    subtotal = Column(Numeric(10, 2), nullable=False)
+    discount = Column(Numeric(10, 2), default=0.0)
+    delivery_fee = Column(Numeric(10, 2), default=0.0)
+    tax = Column(Numeric(10, 2), default=0.0)
+    total_amount = Column(Numeric(10, 2), nullable=False)
     
     # Delivery details
     delivery_slot = Column(String(100), default="Instant 15-30 Mins")
@@ -182,7 +182,7 @@ class Order(Base):
     payment_status = Column(String(50), default="pending")  # pending, paid, failed, refunded
     payment_id = Column(String(100), nullable=True)
     
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow)
 
     user = relationship("User", back_populates="orders")
@@ -194,15 +194,15 @@ class OrderItem(Base):
     __tablename__ = "order_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    product_id = Column(Integer, nullable=False)  # stored as ID in case product is modified
-    variant_id = Column(Integer, nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    product_id = Column(Integer, nullable=False, index=True)  # stored as ID in case product is modified
+    variant_id = Column(Integer, nullable=False, index=True)
     product_name = Column(String(200), nullable=False)
     variant_name = Column(String(50), nullable=False)
-    unit_price = Column(Float, nullable=False)
-    mrp = Column(Float, nullable=False)
+    unit_price = Column(Numeric(10, 2), nullable=False)
+    mrp = Column(Numeric(10, 2), nullable=False)
     quantity = Column(Integer, nullable=False)
-    total_price = Column(Float, nullable=False)
+    total_price = Column(Numeric(10, 2), nullable=False)
     image_url = Column(String(500), nullable=True)
 
     order = relationship("Order", back_populates="items")
@@ -212,9 +212,9 @@ class Payment(Base):
     __tablename__ = "payments"
 
     id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    amount = Column(Float, nullable=False)
+    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    amount = Column(Numeric(10, 2), nullable=False)
     currency = Column(String(10), default="INR")
     payment_gateway = Column(String(50), default="Razorpay Test")  # Razorpay Test / UPI Test / COD
     transaction_id = Column(String(100), unique=True, nullable=True)
@@ -229,10 +229,10 @@ class DeliverySetting(Base):
     __tablename__ = "delivery_settings"
 
     id = Column(Integer, primary_key=True)
-    min_order_amount = Column(Float, default=99.0)
-    free_delivery_threshold = Column(Float, default=499.0)
-    standard_delivery_fee = Column(Float, default=39.0)
-    express_delivery_fee = Column(Float, default=59.0)
+    min_order_amount = Column(Numeric(10, 2), default=99.0)
+    free_delivery_threshold = Column(Numeric(10, 2), default=499.0)
+    standard_delivery_fee = Column(Numeric(10, 2), default=39.0)
+    express_delivery_fee = Column(Numeric(10, 2), default=59.0)
     active_slots_json = Column(Text, nullable=True)
     announcement_text = Column(String(255), default="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Today")
     whatsapp_number = Column(String(30), default="919515159006")
@@ -242,7 +242,7 @@ class Wishlist(Base):
     __tablename__ = "wishlists"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     product_id = Column(Integer, ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 

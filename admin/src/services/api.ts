@@ -12,7 +12,7 @@ import {
   StoreSettings
 } from '../types';
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || '';
+const RAW_API_URL = import.meta.env.VITE_API_URL || (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') ? '' : 'https://clientproject01-tc3z.onrender.com');
 // In development, empty VITE_API_URL proxies through Vite `/api`. In production, points to Render backend.
 export const API_BASE = RAW_API_URL.replace(/\/+$/, '');
 

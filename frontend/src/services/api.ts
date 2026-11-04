@@ -2,7 +2,6 @@ import {
   User, Address, Category, Product, CartData, Order, DeliverySetting, DashboardStats,
   WhatsAppOrderPayload, WhatsAppOrderResponse
 } from '../types';
-import { FALLBACK_CATEGORIES, FALLBACK_PRODUCTS } from './fallbackData';
 
 const getApiBase = (): string => {
   const envUrl = ((import.meta as any).env?.VITE_API_URL as string)?.trim();
@@ -16,74 +15,25 @@ const getApiBase = (): string => {
   // In production, default to deployed Render backend URL
   return 'https://clientproject01-tc3z.onrender.com/api';
 };
-const API_BASE = getApiBase();
+export const API_BASE = getApiBase();
 
-function filterFallbackProducts(params: {
-  category_id?: number;
-  category_slug?: string;
-  collection?: string;
-  search?: string;
-  min_price?: number;
-  max_price?: number;
-  in_stock_only?: boolean;
-  sort?: string;
-  limit?: number;
-  offset?: number;
-} = {}): Product[] {
-  let list = [...FALLBACK_PRODUCTS];
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+const apiCache = new Map<string, CacheEntry<any>>();
+const CACHE_TTL_MS = 60_000; // 60 seconds SWR window
 
-  if (params.category_slug) {
-    const targetSlug = params.category_slug.toLowerCase();
-    const cat = FALLBACK_CATEGORIES.find(c => c.slug.toLowerCase() === targetSlug);
-    if (cat) {
-      list = list.filter(p => p.category_id === cat.id);
+export function invalidateApiCache(filter?: string) {
+  if (!filter) {
+    apiCache.clear();
+  } else {
+    for (const key of apiCache.keys()) {
+      if (key.includes(filter)) {
+        apiCache.delete(key);
+      }
     }
-  } else if (params.category_id) {
-    list = list.filter(p => p.category_id === params.category_id);
   }
-
-  if (params.collection === 'best_sellers') {
-    list = list.filter(p => p.is_best_seller);
-  } else if (params.collection === 'fresh_today') {
-    list = list.filter(p => p.is_fresh_today);
-  } else if (params.collection === 'deals') {
-    list = list.filter(p => p.is_deal);
-  } else if (params.collection === 'featured') {
-    list = list.filter(p => p.is_featured);
-  }
-
-  if (params.search) {
-    const q = params.search.toLowerCase().trim();
-    list = list.filter(p =>
-      p.name.toLowerCase().includes(q) ||
-      p.description.toLowerCase().includes(q) ||
-      (p.brand && p.brand.toLowerCase().includes(q))
-    );
-  }
-
-  if (params.in_stock_only) {
-    list = list.filter(p => p.in_stock);
-  }
-
-  if (params.min_price !== undefined) {
-    list = list.filter(p => (p.min_price || 0) >= (params.min_price || 0));
-  }
-
-  if (params.max_price !== undefined) {
-    list = list.filter(p => (p.min_price || 0) <= (params.max_price || 0));
-  }
-
-  if (params.sort === 'price_asc') {
-    list.sort((a, b) => (a.min_price || 0) - (b.min_price || 0));
-  } else if (params.sort === 'price_desc') {
-    list.sort((a, b) => (b.min_price || 0) - (a.min_price || 0));
-  } else if (params.sort === 'popular') {
-    list.sort((a, b) => (b.is_best_seller ? 1 : 0) - (a.is_best_seller ? 1 : 0));
-  }
-
-  const offset = params.offset || 0;
-  const limit = params.limit || 50;
-  return list.slice(offset, offset + limit);
 }
 
 // Helper to generate or get session ID for guest carts
@@ -116,7 +66,25 @@ export function prewarmBackend(): void {
   } catch {}
 }
 
-async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(endpoint: string, options: RequestInit = {}, useCache = false): Promise<T> {
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
+
+  if (isGet && useCache) {
+    const cached = apiCache.get(endpoint);
+    if (cached && (Date.now() - cached.timestamp < CACHE_TTL_MS)) {
+      return cached.data;
+    }
+  }
+
+  // Invalidate related cache entries on mutation requests
+  if (!isGet) {
+    if (endpoint.startsWith('/cart')) invalidateApiCache('/cart');
+    if (endpoint.startsWith('/products')) invalidateApiCache('/products');
+    if (endpoint.startsWith('/categories')) invalidateApiCache('/categories');
+    if (endpoint.startsWith('/settings')) invalidateApiCache('/settings');
+    if (endpoint.startsWith('/orders')) invalidateApiCache('/orders');
+  }
+
   const token = getAuthToken();
   const sessionId = getOrCreateSessionId();
 
@@ -130,7 +98,6 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const isGet = !options.method || options.method.toUpperCase() === 'GET';
   const maxRetries = isGet ? 2 : 1;
   let lastError: any = null;
   let response: Response | null = null;
@@ -184,7 +151,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
     return {} as T;
   }
 
-  return response.json();
+  const data = await response.json();
+  if (isGet && useCache) {
+    apiCache.set(endpoint, { data, timestamp: Date.now() });
+  }
+  return data;
 }
 
 export const api = {
@@ -216,23 +187,11 @@ export const api = {
 
   // Categories
   async getCategories(): Promise<Category[]> {
-    try {
-      const res = await request<Category[]>('/categories');
-      if (Array.isArray(res) && res.length > 0) return res;
-      return FALLBACK_CATEGORIES;
-    } catch {
-      return FALLBACK_CATEGORIES;
-    }
+    return request<Category[]>('/categories', {}, true);
   },
 
   async getCategory(slug: string): Promise<Category> {
-    try {
-      return await request(`/categories/${slug}`);
-    } catch {
-      const found = FALLBACK_CATEGORIES.find(c => c.slug === slug);
-      if (found) return found;
-      throw new Error(`Category ${slug} not found`);
-    }
+    return request<Category>(`/categories/${slug}`, {}, true);
   },
 
   async createCategory(data: Partial<Category>): Promise<Category> {
@@ -268,49 +227,28 @@ export const api = {
     limit?: number;
     offset?: number;
   } = {}): Promise<Product[]> {
-    try {
-      const query = new URLSearchParams();
-      Object.entries(params).forEach(([key, val]) => {
-        if (val !== undefined && val !== null && val !== '') {
-          query.append(key, String(val));
-        }
-      });
-      const res = await request<Product[]>(`/products?${query.toString()}`);
-      if (Array.isArray(res) && res.length > 0) return res;
-      return filterFallbackProducts(params);
-    } catch {
-      return filterFallbackProducts(params);
-    }
+    const query = new URLSearchParams();
+    Object.entries(params).forEach(([key, val]) => {
+      if (val !== undefined && val !== null && val !== '') {
+        query.append(key, String(val));
+      }
+    });
+    const qs = query.toString();
+    const endpoint = `/products${qs ? `?${qs}` : ''}`;
+    return request<Product[]>(endpoint, {}, true);
   },
 
   async getProduct(idOrSlug: string | number): Promise<Product> {
-    try {
-      return await request(`/products/${idOrSlug}`);
-    } catch {
-      const found = FALLBACK_PRODUCTS.find(p => p.id === Number(idOrSlug) || p.slug === String(idOrSlug));
-      if (found) return found;
-      throw new Error(`Product ${idOrSlug} not found`);
-    }
+    return request<Product>(`/products/${idOrSlug}`, {}, true);
   },
 
   async getRelatedProducts(idOrSlug: string | number, limit = 4): Promise<Product[]> {
-    try {
-      return await request(`/products/${idOrSlug}/related?limit=${limit}`);
-    } catch {
-      return FALLBACK_PRODUCTS.slice(0, limit);
-    }
+    return request<Product[]>(`/products/${idOrSlug}/related?limit=${limit}`, {}, true);
   },
 
   async getSearchSuggestions(query: string): Promise<{ products: { name: string; slug: string }[]; categories: { name: string; slug: string }[] }> {
     if (!query.trim()) return { products: [], categories: [] };
-    try {
-      return await request(`/products/search-suggestions?q=${encodeURIComponent(query)}`);
-    } catch {
-      const q = query.toLowerCase().trim();
-      const pMatches = FALLBACK_PRODUCTS.filter(p => p.name.toLowerCase().includes(q)).slice(0, 5).map(p => ({ name: p.name, slug: p.slug }));
-      const cMatches = FALLBACK_CATEGORIES.filter(c => c.name.toLowerCase().includes(q)).slice(0, 3).map(c => ({ name: c.name, slug: c.slug }));
-      return { products: pMatches, categories: cMatches };
-    }
+    return request(`/products/search-suggestions?q=${encodeURIComponent(query)}`);
   },
 
   async createProduct(data: any): Promise<Product> {
@@ -471,7 +409,7 @@ export const api = {
   // Settings
   async getSettings(): Promise<DeliverySetting> {
     try {
-      return await request('/settings');
+      return await request('/settings', {}, true);
     } catch {
       return {
         id: 1,

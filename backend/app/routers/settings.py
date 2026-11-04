@@ -6,6 +6,7 @@ from backend.app.database import get_db
 from backend.app.models import DeliverySetting
 from backend.app.schemas import DeliverySettingOut, DeliverySettingUpdate
 from backend.app.deps import get_current_admin
+from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/settings", tags=["Store Settings"])
 
@@ -55,4 +56,10 @@ def update_store_settings(
 
     db.commit()
     db.refresh(setting)
+    broadcaster.publish("SETTINGS_UPDATED", {
+        "min_order_amount": float(setting.min_order_amount) if setting.min_order_amount is not None else None,
+        "free_delivery_threshold": float(setting.free_delivery_threshold) if setting.free_delivery_threshold is not None else None,
+        "standard_delivery_fee": float(setting.standard_delivery_fee) if setting.standard_delivery_fee is not None else None,
+        "whatsapp_number": setting.whatsapp_number
+    })
     return setting

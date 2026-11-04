@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { CartData, CartItem } from '../types';
 import { api } from '../services/api';
-import { FALLBACK_PRODUCTS } from '../services/fallbackData';
 
 const defaultCart: CartData = {
   items: [],
@@ -93,37 +92,8 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } catch {}
       openDrawer();
     } catch (err: any) {
-      console.warn('Remote cart sync offline, updating local cart:', err);
-      setCart((prev) => {
-        const product = FALLBACK_PRODUCTS.find((p) => p.id === productId);
-        if (!product) return prev;
-        const variant = product.variants.find((v) => v.id === variantId) || product.variants[0];
-        const existingIdx = prev.items.findIndex(
-          (i) => i.product_id === productId && i.variant_id === variantId
-        );
-        let newItems = [...prev.items];
-        if (existingIdx >= 0) {
-          newItems[existingIdx] = {
-            ...newItems[existingIdx],
-            quantity: newItems[existingIdx].quantity + quantity,
-          };
-        } else {
-          newItems.push({
-            id: Date.now(),
-            product_id: productId,
-            variant_id: variantId,
-            quantity,
-            product,
-            variant,
-          });
-        }
-        const updatedCart = calculateCartTotals(newItems);
-        try {
-          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
-        } catch {}
-        return updatedCart;
-      });
-      openDrawer();
+      console.error('Failed to add item to cart:', err);
+      throw err;
     } finally {
       setIsLoading(false);
     }

@@ -35,6 +35,7 @@ from backend.app.database import (
 from backend.app.routers import (
     auth, categories, products, cart, addresses, orders, wishlist, settings as settings_router, admin
 )
+from backend.app.events import router as events_router
 from backend.app.seed import seed_database
 
 @asynccontextmanager
@@ -176,6 +177,7 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(wishlist.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(events_router, prefix="/api")
 
 # Liveness Check (Confirms FastAPI process is alive)
 @app.get("/health/live", tags=["Health"])

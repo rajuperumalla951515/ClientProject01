@@ -1,13 +1,14 @@
 import uuid
 from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Header, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 from backend.app.config import settings
 from backend.app.database import get_db
 from backend.app.models import Cart, CartItem, Product, ProductVariant, DeliverySetting, User
 from backend.app.schemas import CartOut, CartItemAdd, CartItemUpdate, CartItemOut, ProductOut, VariantOut
 from backend.app.routers.products import enrich_product_out
 from backend.app.deps import get_optional_user
+from backend.app.pricing import compute_financials
 
 router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
 
@@ -46,29 +47,21 @@ def compute_cart_details(cart: Cart, db: Session) -> CartOut:
     free_threshold = settings_rec.free_delivery_threshold if settings_rec else 499.0
     standard_delivery = settings_rec.standard_delivery_fee if settings_rec else 39.0
 
-    items_out = []
-    subtotal = 0.0
-    total_mrp = 0.0
-    total_qty = 0
-
-    # Load items with product, images, and variant
+    # Load items with product, images, and variant using non-blocking selectinload
     items = db.query(CartItem).options(
-        joinedload(CartItem.product).joinedload(Product.images),
-        joinedload(CartItem.product).joinedload(Product.variants),
-        joinedload(CartItem.product).joinedload(Product.category),
-        joinedload(CartItem.variant)
+        selectinload(CartItem.product).selectinload(Product.images),
+        selectinload(CartItem.product).selectinload(Product.variants),
+        selectinload(CartItem.product).selectinload(Product.category),
+        selectinload(CartItem.variant)
     ).filter(CartItem.cart_id == cart.id).all()
+
+    items_out = []
+    raw_fin_items = []
 
     for item in items:
         if not item.product or not item.variant or not item.product.is_active:
             continue
         
-        item_subtotal = item.variant.price * item.quantity
-        item_mrp_total = item.variant.mrp * item.quantity
-        subtotal += item_subtotal
-        total_mrp += item_mrp_total
-        total_qty += item.quantity
-
         p_out = enrich_product_out(item.product)
         v_out = VariantOut.model_validate(item.variant)
 
@@ -81,36 +74,32 @@ def compute_cart_details(cart: Cart, db: Session) -> CartOut:
             variant=v_out
         ))
 
-    discount = max(0.0, total_mrp - subtotal)
-    
-    # Delivery fee logic
-    if subtotal == 0:
-        delivery_fee = 0.0
-        free_progress = 0.0
-        needed_for_free = free_threshold
-    elif subtotal >= free_threshold:
-        delivery_fee = 0.0
-        free_progress = 100.0
-        needed_for_free = 0.0
-    else:
-        delivery_fee = standard_delivery
-        free_progress = min(100.0, round((subtotal / free_threshold) * 100, 1))
-        needed_for_free = round(free_threshold - subtotal, 2)
+        raw_fin_items.append({
+            "product_id": item.product_id,
+            "variant_id": item.variant_id,
+            "unit_price": item.variant.price,
+            "mrp": item.variant.mrp,
+            "quantity": item.quantity
+        })
 
-    total_amount = round(subtotal + delivery_fee, 2)
+    fin = compute_financials(
+        raw_fin_items,
+        free_delivery_threshold=free_threshold,
+        standard_delivery_fee=standard_delivery
+    )
 
     return CartOut(
         id=cart.id,
         items=items_out,
-        item_count=total_qty,
-        subtotal=round(subtotal, 2),
-        discount=round(discount, 2),
-        delivery_fee=round(delivery_fee, 2),
-        taxes=0.0,
-        total_amount=total_amount,
-        free_delivery_threshold=free_threshold,
-        free_delivery_progress=free_progress,
-        amount_needed_for_free_delivery=needed_for_free
+        item_count=fin.item_count,
+        subtotal=fin.subtotal,
+        discount=fin.discount,
+        delivery_fee=fin.delivery_fee,
+        taxes=fin.tax,
+        total_amount=fin.total_amount,
+        free_delivery_threshold=fin.free_delivery_threshold,
+        free_delivery_progress=fin.free_delivery_progress,
+        amount_needed_for_free_delivery=fin.amount_needed_for_free_delivery
     )
 
 

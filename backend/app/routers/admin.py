@@ -1,7 +1,7 @@
 import datetime
 from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import func, desc, or_
 from backend.app.config import settings
 from backend.app.database import get_db
@@ -12,6 +12,7 @@ from backend.app.schemas import (
     CustomerDetailOut, OrderCancelRequest, TopProductStat
 )
 from backend.app.deps import get_current_admin
+from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/admin", tags=["Admin Analytics & Operations"])
 
@@ -90,9 +91,9 @@ def get_inventory_status(
     admin=Depends(get_current_admin)
 ):
     query = db.query(Product).options(
-        joinedload(Product.variants),
-        joinedload(Product.category),
-        joinedload(Product.images)
+        selectinload(Product.variants),
+        selectinload(Product.category),
+        selectinload(Product.images)
     )
 
     if category_id:
@@ -114,7 +115,7 @@ def get_inventory_status(
         default_variant = next((v for v in p.variants if v.is_default), p.variants[0]) if p.variants else None
         stock = default_variant.stock if default_variant else 0
         unit_label = default_variant.pack_size or default_variant.unit if default_variant else "1 Unit"
-        price = default_variant.price if default_variant else 0.0
+        price = float(default_variant.price) if (default_variant and default_variant.price is not None) else 0.0
 
         if low_stock_only and stock >= 10:
             continue
@@ -172,6 +173,15 @@ def adjust_inventory_stock(
     db.add(log_entry)
     db.commit()
     db.refresh(variant)
+
+    broadcaster.publish("INVENTORY_UPDATED", {
+        "product_id": req.product_id,
+        "variant_id": variant.id,
+        "previous_stock": prev,
+        "new_stock": variant.stock,
+        "reason": req.reason
+    })
+
     return {
         "product_id": req.product_id,
         "previous_stock": prev,
@@ -215,7 +225,22 @@ def list_customers(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    query = db.query(User).filter(User.role == "customer")
+    """
+    Optimized single-query customer analytics.
+    Eliminates N+1 query loop using a single LEFT OUTER JOIN and GROUP BY.
+    """
+    subq = db.query(
+        Order.user_id,
+        func.count(Order.id).label("total_orders"),
+        func.coalesce(func.sum(Order.total_amount), 0).label("total_spend")
+    ).filter(Order.status != "cancelled").group_by(Order.user_id).subquery()
+
+    query = db.query(
+        User,
+        func.coalesce(subq.c.total_orders, 0).label("total_orders"),
+        func.coalesce(subq.c.total_spend, 0).label("total_spend")
+    ).outerjoin(subq, User.id == subq.c.user_id).filter(User.role == "customer")
+
     if search and search.strip():
         term = f"%{search.strip().lower()}%"
         query = query.filter(
@@ -232,18 +257,16 @@ def list_customers(
     if isinstance(limit, int):
         query = query.limit(limit)
 
-    users = query.all()
+    rows = query.all()
     results = []
-    for u in users:
-        ords = db.query(Order).filter(Order.user_id == u.id, Order.status != "cancelled").all()
-        spend = sum(o.total_amount for o in ords)
+    for u, total_orders, total_spend in rows:
         results.append(CustomerMetricOut(
             id=u.id,
             name=u.name,
             email=u.email,
             phone=u.phone,
-            total_orders=len(ords),
-            total_spend=round(spend, 2),
+            total_orders=int(total_orders),
+            total_spend=float(round(float(total_spend), 2)),
             created_at=u.created_at.isoformat() if hasattr(u.created_at, "isoformat") else str(u.created_at)
         ))
     return results
@@ -259,7 +282,7 @@ def get_customer_details(
     if not user:
         raise HTTPException(status_code=404, detail="Customer not found.")
     
-    ords = db.query(Order).options(joinedload(Order.items)).filter(Order.user_id == user.id).all()
+    ords = db.query(Order).options(selectinload(Order.items)).filter(Order.user_id == user.id).all()
     spend = sum(o.total_amount for o in ords if o.status != "cancelled")
     addrs = db.query(Address).filter(Address.user_id == user.id).all()
     
@@ -269,7 +292,7 @@ def get_customer_details(
         email=user.email,
         phone=user.phone,
         total_orders=len(ords),
-        total_spend=round(spend, 2),
+        total_spend=float(round(float(spend), 2)),
         created_at=user.created_at.isoformat() if hasattr(user.created_at, "isoformat") else str(user.created_at),
         addresses=[AddressOut.model_validate(a) for a in addrs],
         orders=[OrderOut.model_validate(o) for o in ords]
@@ -283,7 +306,7 @@ def cancel_order_admin(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    order = db.query(Order).options(joinedload(Order.items)).filter(
+    order = db.query(Order).options(selectinload(Order.items)).filter(
         (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
     ).first()
     if not order:
@@ -308,5 +331,15 @@ def cancel_order_admin(
                 db.add(log_entry)
         db.commit()
         db.refresh(order)
+
+        broadcaster.publish("ORDER_UPDATED", {
+            "order_id": order.id,
+            "order_number": order.order_number,
+            "status": "cancelled",
+            "cancelled_by": "admin"
+        })
+        broadcaster.publish("INVENTORY_UPDATED", {
+            "reason": f"Restocked order {order.order_number}"
+        })
 
     return order

@@ -2,10 +2,14 @@ import React, { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { useRealtimeSync } from '../../hooks/useRealtimeSync';
 
 export const AdminLayout: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
+
+  // Connect to SSE stream for live updates
+  useRealtimeSync();
 
   const getPageTitle = (pathname: string): string => {
     switch (pathname) {

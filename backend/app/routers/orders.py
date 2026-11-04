@@ -14,6 +14,8 @@ from backend.app.schemas import (
     WhatsAppOrderCreate, WhatsAppOrderResponse, WhatsAppOrderItemInput
 )
 from backend.app.deps import get_current_user, get_optional_user, get_current_admin
+from backend.app.pricing import compute_financials, to_decimal
+from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
@@ -128,12 +130,15 @@ def checkout(
     free_threshold = settings_rec.free_delivery_threshold if settings_rec else 499.0
     standard_delivery = settings_rec.standard_delivery_fee if settings_rec else 39.0
 
-    # 4. Stock validation & Subtotal calculation
-    subtotal = 0.0
+    # 4. Atomic Row Lock & Stock validation
+    raw_fin_items = []
     order_items_to_create = []
 
     for item in cart.items:
-        variant = db.query(ProductVariant).filter(ProductVariant.id == item.variant_id).first()
+        # with_for_update locks the variant row against concurrent checkouts
+        variant = db.query(ProductVariant).filter(
+            ProductVariant.id == item.variant_id
+        ).with_for_update().first()
         product = db.query(Product).filter(Product.id == item.product_id).first()
 
         if not product or not variant or not product.is_active:
@@ -148,32 +153,32 @@ def checkout(
                 detail=f"Insufficient stock for {product.name}. Only {variant.stock} available."
             )
 
-        line_total = variant.price * item.quantity
-        subtotal += line_total
-
-        order_items_to_create.append({
+        raw_fin_items.append({
             "product_id": product.id,
             "variant_id": variant.id,
             "product_name": product.name,
             "variant_name": variant.pack_size or variant.unit or "Standard Pack",
             "unit_price": variant.price,
             "mrp": variant.mrp,
-            "quantity": item.quantity,
-            "total_price": line_total
+            "quantity": item.quantity
         })
 
-    delivery_fee = 0.0 if subtotal >= free_threshold else standard_delivery
-    total_amount = round(subtotal + delivery_fee, 2)
+    fin = compute_financials(
+        raw_fin_items,
+        free_delivery_threshold=free_threshold,
+        standard_delivery_fee=standard_delivery
+    )
 
     # 5. Create Order
     new_order = Order(
         order_number=generate_order_number(),
         user_id=current_user.id,
         status="pending",
-        subtotal=round(subtotal, 2),
-        delivery_fee=round(delivery_fee, 2),
-        tax=0.0,
-        total_amount=total_amount,
+        subtotal=fin.subtotal,
+        discount=fin.discount,
+        delivery_fee=fin.delivery_fee,
+        tax=fin.tax,
+        total_amount=fin.total_amount,
         delivery_slot=order_in.delivery_slot or "Standard Delivery",
         delivery_address_json=json.dumps(address_snapshot),
         notes=order_in.notes,
@@ -183,38 +188,42 @@ def checkout(
     db.add(new_order)
     db.flush()
 
-    # 6. Create Order Items & Decrement Stock
-    for oi in order_items_to_create:
+    # 6. Create Order Items & Decrement Stock atomically
+    for calc_item in fin.items:
         order_item = OrderItem(
             order_id=new_order.id,
-            product_id=oi["product_id"],
-            variant_id=oi["variant_id"],
-            product_name=oi["product_name"],
-            variant_name=oi["variant_name"],
-            unit_price=oi["unit_price"],
-            mrp=oi["mrp"],
-            quantity=oi["quantity"],
-            total_price=oi["total_price"]
+            product_id=calc_item.product_id,
+            variant_id=calc_item.variant_id,
+            product_name=calc_item.product_name,
+            variant_name=calc_item.variant_name,
+            unit_price=calc_item.unit_price,
+            mrp=calc_item.mrp,
+            quantity=calc_item.quantity,
+            total_price=calc_item.total_price
         )
         db.add(order_item)
 
-        variant = db.query(ProductVariant).filter(ProductVariant.id == oi["variant_id"]).first()
+        variant = db.query(ProductVariant).filter(ProductVariant.id == calc_item.variant_id).first()
         if variant:
             prev_stock = variant.stock
-            variant.stock = max(0, variant.stock - oi["quantity"])
+            variant.stock = max(0, variant.stock - calc_item.quantity)
             log_entry = InventoryLog(
-                product_id=oi["product_id"],
+                product_id=calc_item.product_id,
                 previous_stock=prev_stock,
-                changed_stock=-oi["quantity"],
+                changed_stock=-calc_item.quantity,
                 new_stock=variant.stock,
                 reason=f"Order #{new_order.order_number}"
             )
             db.add(log_entry)
 
-    # 7. Clear User Cart
+    # 7. Clear User Cart & Commit
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
     db.commit()
     db.refresh(new_order)
+
+    # Real-Time Event Broadcast
+    broadcaster.publish("ORDER_CREATED", {"order_id": new_order.id, "order_number": new_order.order_number})
+    broadcaster.publish("INVENTORY_UPDATED")
 
     return new_order
 
@@ -339,25 +348,31 @@ def create_whatsapp_order(
     if not items_to_process:
         raise HTTPException(status_code=400, detail="Please select at least one organic product.")
 
-    subtotal = 0.0
+    # 4. Atomic Row Lock & Stock validation
+    raw_fin_items = []
     items_to_create = []
 
     for item_req in items_to_process:
-        product = db.query(Product).filter(Product.id == item_req.product_id, Product.is_active == True).first()
-        if not product:
-            continue
+        # Atomic row-lock to prevent race conditions & overselling
         variant = None
         if item_req.variant_id:
             variant = db.query(ProductVariant).filter(
-                ProductVariant.id == item_req.variant_id,
-                ProductVariant.product_id == product.id
-            ).first()
-        if not variant:
+                ProductVariant.id == item_req.variant_id
+            ).with_for_update().first()
+        else:
             variant = db.query(ProductVariant).filter(
-                ProductVariant.product_id == product.id
-            ).order_by(ProductVariant.is_default.desc()).first()
+                ProductVariant.product_id == item_req.product_id
+            ).order_by(ProductVariant.is_default.desc(), ProductVariant.id.asc()).with_for_update().first()
 
         if not variant:
+            continue
+
+        product = db.query(Product).filter(
+            Product.id == variant.product_id,
+            Product.is_active == True
+        ).first()
+
+        if not product:
             continue
 
         qty = max(1, item_req.quantity)
@@ -367,30 +382,29 @@ def create_whatsapp_order(
                 detail=f"Insufficient stock for {product.name}. Only {variant.stock} available."
             )
 
-        line_total = variant.price * qty
-        subtotal += line_total
-
-        items_to_create.append({
+        raw_fin_items.append({
             "product_id": product.id,
             "variant_id": variant.id,
             "product_name": product.name,
             "variant_name": variant.pack_size or variant.unit or "Standard Pack",
             "unit_price": variant.price,
             "mrp": variant.mrp,
-            "quantity": qty,
-            "total_price": line_total
+            "quantity": qty
         })
 
-    if not items_to_create:
+    if not raw_fin_items:
         raise HTTPException(status_code=400, detail="Could not resolve any valid items for this order.")
 
-    # 5. Pricing & Delivery Fee
+    # 5. Pricing & Delivery Fee (via central Decimal arithmetic)
     settings_rec = db.query(DeliverySetting).first()
     free_threshold = settings_rec.free_delivery_threshold if settings_rec else 499.0
     standard_delivery = settings_rec.standard_delivery_fee if settings_rec else 39.0
 
-    delivery_fee = 0.0 if subtotal >= free_threshold else standard_delivery
-    total_amount = round(subtotal + delivery_fee, 2)
+    fin = compute_financials(
+        raw_fin_items,
+        free_delivery_threshold=free_threshold,
+        standard_delivery_fee=standard_delivery
+    )
 
     # 6. Create WhatsApp Order
     user_id = optional_user.id if optional_user else None
@@ -398,10 +412,11 @@ def create_whatsapp_order(
         order_number=generate_order_number(),
         user_id=user_id,
         status="pending_whatsapp",
-        subtotal=round(subtotal, 2),
-        delivery_fee=round(delivery_fee, 2),
-        tax=0.0,
-        total_amount=total_amount,
+        subtotal=fin.subtotal,
+        discount=fin.discount,
+        delivery_fee=fin.delivery_fee,
+        tax=fin.tax,
+        total_amount=fin.total_amount,
         delivery_slot=order_in.delivery_slot or "Standard Express Delivery",
         delivery_address_json=json.dumps(address_snapshot),
         notes=f"Customer: {customer_name} ({customer_phone})" + (f" | {order_in.notes}" if order_in.notes else ""),
@@ -412,29 +427,29 @@ def create_whatsapp_order(
     db.add(new_order)
     db.flush()
 
-    for it in items_to_create:
+    for calc_it in fin.items:
         oi = OrderItem(
             order_id=new_order.id,
-            product_id=it["product_id"],
-            variant_id=it["variant_id"],
-            product_name=it["product_name"],
-            variant_name=it["variant_name"],
-            unit_price=it["unit_price"],
-            mrp=it["mrp"],
-            quantity=it["quantity"],
-            total_price=it["total_price"]
+            product_id=calc_it.product_id,
+            variant_id=calc_it.variant_id,
+            product_name=calc_it.product_name,
+            variant_name=calc_it.variant_name,
+            unit_price=calc_it.unit_price,
+            mrp=calc_it.mrp,
+            quantity=calc_it.quantity,
+            total_price=calc_it.total_price
         )
         db.add(oi)
 
-        # Inventory deduction
-        variant = db.query(ProductVariant).filter(ProductVariant.id == it["variant_id"]).first()
+        # Atomic inventory deduction
+        variant = db.query(ProductVariant).filter(ProductVariant.id == calc_it.variant_id).first()
         if variant:
             prev = variant.stock
-            variant.stock = max(0, variant.stock - it["quantity"])
+            variant.stock = max(0, variant.stock - calc_it.quantity)
             log_entry = InventoryLog(
-                product_id=it["product_id"],
+                product_id=calc_it.product_id,
                 previous_stock=prev,
-                changed_stock=-it["quantity"],
+                changed_stock=-calc_it.quantity,
                 new_stock=variant.stock,
                 reason=f"WhatsApp Order #{new_order.order_number}"
             )
@@ -442,6 +457,10 @@ def create_whatsapp_order(
 
     db.commit()
     db.refresh(new_order)
+
+    # Real-Time Event Broadcast
+    broadcaster.publish("ORDER_CREATED", {"order_id": new_order.id, "order_number": new_order.order_number})
+    broadcaster.publish("INVENTORY_UPDATED")
 
     # WhatsApp Redirection
     raw_whatsapp_num = (settings_rec.whatsapp_number if settings_rec and settings_rec.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
@@ -588,4 +607,15 @@ def update_order_status(
 
     db.commit()
     db.refresh(order)
+
+    # Real-time event broadcasting
+    broadcaster.publish("ORDER_UPDATED", {
+        "order_id": order.id,
+        "order_number": order.order_number,
+        "status": order.status,
+        "payment_status": order.payment_status
+    })
+    if status_in.status == "cancelled" and old_status != "cancelled":
+        broadcaster.publish("INVENTORY_UPDATED")
+
     return order
