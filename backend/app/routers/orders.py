@@ -11,7 +11,7 @@ from backend.app.database import get_db
 from backend.app.models import Order, OrderItem, Cart, CartItem, Product, ProductVariant, Address, User, DeliverySetting, InventoryLog
 from backend.app.schemas import (
     OrderCreate, OrderOut, OrderStatusUpdate,
-    WhatsAppOrderCreate, WhatsAppOrderResponse
+    WhatsAppOrderCreate, WhatsAppOrderResponse, WhatsAppOrderItemInput
 )
 from backend.app.deps import get_current_user, get_optional_user, get_current_admin
 
@@ -324,13 +324,25 @@ def create_whatsapp_order(
         raise HTTPException(status_code=400, detail="Delivery address is required to proceed with order.")
 
     # 4. Resolve Items & Validate Stock
-    if not order_in.items:
+    items_to_process = list(order_in.items) if order_in.items else []
+    if not items_to_process and optional_user:
+        user_cart = db.query(Cart).filter(Cart.user_id == optional_user.id).first()
+        if user_cart and user_cart.items:
+            items_to_process = [
+                WhatsAppOrderItemInput(
+                    product_id=ci.product_id,
+                    variant_id=ci.variant_id,
+                    quantity=ci.quantity
+                ) for ci in user_cart.items
+            ]
+
+    if not items_to_process:
         raise HTTPException(status_code=400, detail="Please select at least one organic product.")
 
     subtotal = 0.0
     items_to_create = []
 
-    for item_req in order_in.items:
+    for item_req in items_to_process:
         product = db.query(Product).filter(Product.id == item_req.product_id, Product.is_active == True).first()
         if not product:
             continue

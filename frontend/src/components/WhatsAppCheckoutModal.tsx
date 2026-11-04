@@ -107,6 +107,11 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
       return;
     }
 
+    if (!isDirect && (!cart.items || cart.items.length === 0)) {
+      setErrorMessage('Please select at least one organic product.');
+      return;
+    }
+
     if (subtotal < 99.0) {
       setErrorMessage('Minimum order amount is ₹99. Please add more items.');
       return;
@@ -153,6 +158,12 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
             quantity: directItem.quantity,
           },
         ];
+      } else if (cart.items && cart.items.length > 0) {
+        payload.items = cart.items.map((item) => ({
+          product_id: item.product_id || item.product?.id,
+          variant_id: item.variant_id || item.variant?.id,
+          quantity: item.quantity,
+        }));
       }
 
       const res = await api.createWhatsAppOrder(payload);
