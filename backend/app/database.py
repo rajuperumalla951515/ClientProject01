@@ -196,6 +196,12 @@ def check_db_connection() -> Tuple[bool, Optional[str]]:
     except Exception as exc:
         # Never leak credentials in connection error messages
         err_msg = str(exc)
+        if "Network is unreachable" in err_msg or "2406:" in err_msg or "IPv6" in err_msg:
+            return False, (
+                "Render cloud containers only support IPv4 networking and cannot reach Supabase IPv6 direct host (db.xxx.supabase.co). "
+                "In Render Dashboard, please update DATABASE_URL to your Supabase Connection Pooler URL: "
+                "postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+            )
         return False, f"Connection failed: {err_msg[:250]}"
 
 def get_safe_db_target() -> str:
