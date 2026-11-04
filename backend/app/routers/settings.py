@@ -56,6 +56,17 @@ def update_store_settings(
 
     db.commit()
     db.refresh(setting)
+
+    # Invalidate cart settings cache
+    try:
+        from backend.app.routers import cart
+        cart._settings_cache = (
+            float(setting.free_delivery_threshold if setting.free_delivery_threshold is not None else 499.0),
+            float(setting.standard_delivery_fee if setting.standard_delivery_fee is not None else 39.0)
+        )
+    except Exception:
+        pass
+
     broadcaster.publish("SETTINGS_UPDATED", {
         "min_order_amount": float(setting.min_order_amount) if setting.min_order_amount is not None else None,
         "free_delivery_threshold": float(setting.free_delivery_threshold) if setting.free_delivery_threshold is not None else None,

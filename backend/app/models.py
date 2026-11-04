@@ -113,6 +113,10 @@ class ProductVariant(Base):
     is_default = Column(Boolean, default=False)
 
     product = relationship("Product", back_populates="variants")
+
+    __table_args__ = (
+        Index("idx_product_variants_prod_def", "product_id", "is_default"),
+    )
     cart_items = relationship("CartItem", back_populates="variant")
 
 
@@ -188,6 +192,12 @@ class Order(Base):
     user = relationship("User", back_populates="orders")
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        Index("idx_orders_user_created", "user_id", "created_at"),
+        Index("idx_orders_status_created", "status", "created_at"),
+        Index("idx_orders_payment_id", "payment_id"),
+    )
 
 
 class OrderItem(Base):

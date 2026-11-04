@@ -276,8 +276,8 @@ class OrderCreate(BaseModel):
     delivery_slot: str = "Instant 15-30 Mins"
     payment_method: str = "cod"  # "cod", "upi", "card", "netbanking"
     notes: Optional[str] = None
-    # For instant test payment verification
     payment_id: Optional[str] = None
+    idempotency_key: Optional[str] = None
 
 class OrderItemOut(BaseModel):
     id: int

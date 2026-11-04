@@ -117,3 +117,4 @@ def compute_financials(
         free_delivery_progress=free_progress,
         amount_needed_for_free_delivery=needed_for_free
     )
+

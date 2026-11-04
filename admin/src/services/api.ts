@@ -115,6 +115,8 @@ class ApiClient {
     date_from?: string;
     date_to?: string;
     search?: string;
+    limit?: number;
+    offset?: number;
   }): Promise<Order[]> {
     const q = new URLSearchParams();
     if (params?.status_filter && params.status_filter !== 'all') {
@@ -122,21 +124,12 @@ class ApiClient {
     }
     if (params?.date_from) q.append('date_from', params.date_from);
     if (params?.date_to) q.append('date_to', params.date_to);
+    if (params?.search && params.search.trim()) q.append('search', params.search.trim());
+    if (params?.limit) q.append('limit', String(params.limit));
+    if (params?.offset !== undefined) q.append('offset', String(params.offset));
 
     const queryStr = q.toString() ? `?${q.toString()}` : '';
-    const orders = await this.request<Order[]>(`/orders/admin/all${queryStr}`);
-
-    if (params?.search && params.search.trim()) {
-      const term = params.search.toLowerCase().trim();
-      return orders.filter(
-        (o) =>
-          o.order_number.toLowerCase().includes(term) ||
-          (o.customer_name && o.customer_name.toLowerCase().includes(term)) ||
-          (o.phone && o.phone.toLowerCase().includes(term))
-      );
-    }
-
-    return orders;
+    return this.request<Order[]>(`/orders/admin/all${queryStr}`);
   }
 
   async getOrder(id: string | number): Promise<Order> {

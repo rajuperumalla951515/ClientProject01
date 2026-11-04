@@ -17,6 +17,20 @@ export const OrderConfirmationPage: React.FC = () => {
     }
   }, [id, order]);
 
+  // Real-time live status update listener
+  useEffect(() => {
+    const handleOrderUpdate = (e: any) => {
+      const payload = e.detail?.payload;
+      if (payload && (String(payload.order_id) === String(id) || payload.order_number === order?.order_number)) {
+        if (id) {
+          api.getOrder(Number(id)).then(setOrder).catch(() => {});
+        }
+      }
+    };
+    window.addEventListener('sa_orders_updated', handleOrderUpdate);
+    return () => window.removeEventListener('sa_orders_updated', handleOrderUpdate);
+  }, [id, order?.order_number]);
+
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">

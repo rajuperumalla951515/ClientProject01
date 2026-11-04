@@ -39,8 +39,6 @@ class EventBroadcaster:
             except Exception:
                 self._subscribers.discard(queue)
 
-        return event
-
     async def subscribe(self) -> asyncio.Queue:
         queue = asyncio.Queue(maxsize=100)
         self._subscribers.add(queue)
@@ -107,3 +105,4 @@ async def event_stream(request: Request):
             "X-Accel-Buffering": "no",  # Disable proxy buffering on Nginx/Cloudflare
         }
     )
+

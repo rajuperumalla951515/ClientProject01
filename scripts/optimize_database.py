@@ -30,6 +30,10 @@ def optimize():
             ("idx_cart_items_composite", "CREATE INDEX IF NOT EXISTS idx_cart_items_composite ON cart_items (cart_id, product_id, variant_id);"),
             ("idx_order_items_order_id", "CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items (order_id);"),
             ("idx_orders_user_status", "CREATE INDEX IF NOT EXISTS idx_orders_user_status ON orders (user_id, status);"),
+            ("idx_orders_user_created", "CREATE INDEX IF NOT EXISTS idx_orders_user_created ON orders (user_id, created_at DESC);"),
+            ("idx_orders_status_created", "CREATE INDEX IF NOT EXISTS idx_orders_status_created ON orders (status, created_at DESC);"),
+            ("idx_orders_payment_id", "CREATE INDEX IF NOT EXISTS idx_orders_payment_id ON orders (payment_id);"),
+            ("idx_product_variants_prod_def", "CREATE INDEX IF NOT EXISTS idx_product_variants_prod_def ON product_variants (product_id, is_default DESC);"),
         ]
 
         for name, sql in indexes:
@@ -72,3 +76,4 @@ def optimize():
 
 if __name__ == "__main__":
     optimize()
+

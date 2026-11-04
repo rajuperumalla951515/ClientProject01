@@ -255,9 +255,7 @@ def create_product(
 
     db.commit()
     db.refresh(new_prod)
-    out = enrich_product_out(new_prod)
-    broadcaster.publish("PRODUCT_CREATED", {"product_id": new_prod.id, "slug": new_prod.slug, "name": new_prod.name})
-    return out
+    return enrich_product_out(new_prod)
 
 
 @router.put("/{product_id}", response_model=ProductOut)
@@ -291,9 +289,7 @@ def update_product(
 
     db.commit()
     db.refresh(product)
-    out = enrich_product_out(product)
-    broadcaster.publish("PRODUCT_UPDATED", {"product_id": product.id, "slug": product.slug, "name": product.name})
-    return out
+    return enrich_product_out(product)
 
 
 @router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -308,7 +304,6 @@ def delete_product(
 
     product.is_active = False
     db.commit()
-    broadcaster.publish("PRODUCT_DELETED", {"product_id": product.id, "slug": product.slug})
     return None
 
 
@@ -334,11 +329,4 @@ def update_variant(
 
     db.commit()
     product = db.query(Product).filter(Product.id == product_id).first()
-    out = enrich_product_out(product)
-    broadcaster.publish("VARIANT_UPDATED", {
-        "product_id": product_id,
-        "variant_id": variant_id,
-        "price": float(variant.price) if variant.price is not None else None,
-        "stock": variant.stock
-    })
-    return out
+    return enrich_product_out(product)

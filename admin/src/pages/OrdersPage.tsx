@@ -78,6 +78,18 @@ export const OrdersPage: React.FC = () => {
     fetchOrders();
   }, [statusFilter]);
 
+  // Real-time synchronization: refresh on incoming SSE order updates
+  useEffect(() => {
+    const handleRealtimeEvent = (e: any) => {
+      const type = e.detail?.event_type;
+      if (type === 'ORDER_CREATED' || type === 'ORDER_UPDATED' || type === 'ORDER_CANCELLED') {
+        fetchOrders();
+      }
+    };
+    window.addEventListener('admin_realtime_event', handleRealtimeEvent);
+    return () => window.removeEventListener('admin_realtime_event', handleRealtimeEvent);
+  }, [statusFilter, searchQuery]);
+
   // Handle Search Debounce
   useEffect(() => {
     const timer = setTimeout(() => {

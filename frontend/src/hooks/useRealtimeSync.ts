@@ -118,3 +118,4 @@ export function useRealtimeSync(onEvent?: (event: RealtimeEventPayload) => void)
     };
   }, []);
 }
+

@@ -45,13 +45,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onWishlistTog
     e.preventDefault();
     e.stopPropagation();
     if (isOutOfStock) return;
-    setIsActionLoading(true);
     try {
-      await addToCart(product.id, selectedVariant.id, 1);
+      await addToCart(product.id, selectedVariant.id, 1, product, selectedVariant);
     } catch (err) {
       console.error(err);
-    } finally {
-      setIsActionLoading(false);
     }
   };
 

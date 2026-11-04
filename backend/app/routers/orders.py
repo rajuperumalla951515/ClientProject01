@@ -4,7 +4,7 @@ import urllib.parse
 import datetime
 from typing import List, Optional, Any
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 from sqlalchemy import or_, desc, asc
 from backend.app.config import settings
 from backend.app.database import get_db
@@ -94,6 +94,14 @@ def checkout(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # Idempotency Protection: If order was already submitted with this idempotency key, return it immediately
+    if order_in.idempotency_key:
+        existing_order = db.query(Order).options(selectinload(Order.items)).filter(
+            Order.payment_id == f"IDEM-{order_in.idempotency_key}"
+        ).first()
+        if existing_order:
+            return existing_order
+
     # 1. Validate Address with strict ownership check
     address = db.query(Address).filter(
         Address.id == order_in.address_id,
@@ -120,43 +128,46 @@ def checkout(
         "formatted_address": address.formatted_address,
     }
 
-    # 2. Get User Cart
-    cart = db.query(Cart).filter(Cart.user_id == current_user.id).first()
+    # 2. Get User Cart with items and products in single query
+    cart = db.query(Cart).options(
+        joinedload(Cart.items).joinedload(CartItem.variant).joinedload(ProductVariant.product)
+    ).filter(Cart.user_id == current_user.id).first()
+
     if not cart or not cart.items:
         raise HTTPException(status_code=400, detail="Your cart is empty. Add items before checking out.")
 
     # 3. Check delivery settings
-    settings_rec = db.query(DeliverySetting).first()
-    free_threshold = settings_rec.free_delivery_threshold if settings_rec else 499.0
-    standard_delivery = settings_rec.standard_delivery_fee if settings_rec else 39.0
+    from backend.app.routers.cart import get_cached_delivery_settings
+    free_threshold, standard_delivery = get_cached_delivery_settings(db)
 
-    # 4. Atomic Row Lock & Stock validation
+    # 4. Atomic Row Lock & Stock validation in a single batch
+    variant_ids = [item.variant_id for item in cart.items]
+    locked_variants = db.query(ProductVariant).options(
+        joinedload(ProductVariant.product)
+    ).filter(
+        ProductVariant.id.in_(variant_ids)
+    ).with_for_update().all()
+    locked_variant_map = {v.id: v for v in locked_variants}
+
     raw_fin_items = []
-    order_items_to_create = []
-
     for item in cart.items:
-        # with_for_update locks the variant row against concurrent checkouts
-        variant = db.query(ProductVariant).filter(
-            ProductVariant.id == item.variant_id
-        ).with_for_update().first()
-        product = db.query(Product).filter(Product.id == item.product_id).first()
-
-        if not product or not variant or not product.is_active:
+        variant = locked_variant_map.get(item.variant_id)
+        if not variant or not variant.product or not variant.product.is_active:
             raise HTTPException(
                 status_code=400,
-                detail=f"An item in your cart is no longer available."
+                detail="An item in your cart is no longer available."
             )
 
         if variant.stock < item.quantity:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient stock for {product.name}. Only {variant.stock} available."
+                detail=f"Insufficient stock for {variant.product.name}. Only {variant.stock} available."
             )
 
         raw_fin_items.append({
-            "product_id": product.id,
+            "product_id": variant.product.id,
             "variant_id": variant.id,
-            "product_name": product.name,
+            "product_name": variant.product.name,
             "variant_name": variant.pack_size or variant.unit or "Standard Pack",
             "unit_price": variant.price,
             "mrp": variant.mrp,
@@ -170,6 +181,7 @@ def checkout(
     )
 
     # 5. Create Order
+    payment_token = f"IDEM-{order_in.idempotency_key}" if order_in.idempotency_key else order_in.payment_id
     new_order = Order(
         order_number=generate_order_number(),
         user_id=current_user.id,
@@ -183,12 +195,13 @@ def checkout(
         delivery_address_json=json.dumps(address_snapshot),
         notes=order_in.notes,
         payment_method=order_in.payment_method or "cod",
-        payment_status="pending"
+        payment_status="pending",
+        payment_id=payment_token
     )
     db.add(new_order)
     db.flush()
 
-    # 6. Create Order Items & Decrement Stock atomically
+    # 6. Create Order Items & Decrement Stock atomically without secondary re-queries
     for calc_item in fin.items:
         order_item = OrderItem(
             order_id=new_order.id,
@@ -203,7 +216,7 @@ def checkout(
         )
         db.add(order_item)
 
-        variant = db.query(ProductVariant).filter(ProductVariant.id == calc_item.variant_id).first()
+        variant = locked_variant_map.get(calc_item.variant_id)
         if variant:
             prev_stock = variant.stock
             variant.stock = max(0, variant.stock - calc_item.quantity)
@@ -348,31 +361,39 @@ def create_whatsapp_order(
     if not items_to_process:
         raise HTTPException(status_code=400, detail="Please select at least one organic product.")
 
-    # 4. Atomic Row Lock & Stock validation
+    # 4. Atomic Row Lock & Stock validation in a single batch
+    variant_ids = [it.variant_id for it in items_to_process if it.variant_id]
+    product_ids_no_var = [it.product_id for it in items_to_process if not it.variant_id]
+
+    if product_ids_no_var:
+        def_vars = db.query(ProductVariant).filter(
+            ProductVariant.product_id.in_(product_ids_no_var),
+            ProductVariant.is_default == True
+        ).all()
+        for dv in def_vars:
+            variant_ids.append(dv.id)
+
+    locked_variants = db.query(ProductVariant).options(
+        joinedload(ProductVariant.product)
+    ).filter(
+        ProductVariant.id.in_(variant_ids)
+    ).with_for_update().all()
+    locked_variant_map = {v.id: v for v in locked_variants}
+
     raw_fin_items = []
-    items_to_create = []
-
     for item_req in items_to_process:
-        # Atomic row-lock to prevent race conditions & overselling
-        variant = None
-        if item_req.variant_id:
-            variant = db.query(ProductVariant).filter(
-                ProductVariant.id == item_req.variant_id
-            ).with_for_update().first()
-        else:
-            variant = db.query(ProductVariant).filter(
-                ProductVariant.product_id == item_req.product_id
-            ).order_by(ProductVariant.is_default.desc(), ProductVariant.id.asc()).with_for_update().first()
-
-        if not variant:
+        vid = item_req.variant_id
+        if not vid:
+            for v in locked_variants:
+                if v.product_id == item_req.product_id:
+                    vid = v.id
+                    break
+        if not vid or vid not in locked_variant_map:
             continue
 
-        product = db.query(Product).filter(
-            Product.id == variant.product_id,
-            Product.is_active == True
-        ).first()
-
-        if not product:
+        variant = locked_variant_map[vid]
+        product = variant.product
+        if not product or not product.is_active:
             continue
 
         qty = max(1, item_req.quantity)
@@ -395,10 +416,9 @@ def create_whatsapp_order(
     if not raw_fin_items:
         raise HTTPException(status_code=400, detail="Could not resolve any valid items for this order.")
 
-    # 5. Pricing & Delivery Fee (via central Decimal arithmetic)
-    settings_rec = db.query(DeliverySetting).first()
-    free_threshold = settings_rec.free_delivery_threshold if settings_rec else 499.0
-    standard_delivery = settings_rec.standard_delivery_fee if settings_rec else 39.0
+    # 5. Pricing & Delivery Fee (via central Decimal arithmetic & cached settings)
+    from backend.app.routers.cart import get_cached_delivery_settings
+    free_threshold, standard_delivery = get_cached_delivery_settings(db)
 
     fin = compute_financials(
         raw_fin_items,
@@ -441,8 +461,8 @@ def create_whatsapp_order(
         )
         db.add(oi)
 
-        # Atomic inventory deduction
-        variant = db.query(ProductVariant).filter(ProductVariant.id == calc_it.variant_id).first()
+        # Atomic inventory deduction on already locked variant object
+        variant = locked_variant_map.get(calc_it.variant_id)
         if variant:
             prev = variant.stock
             variant.stock = max(0, variant.stock - calc_it.quantity)
@@ -463,6 +483,7 @@ def create_whatsapp_order(
     broadcaster.publish("INVENTORY_UPDATED")
 
     # WhatsApp Redirection
+    settings_rec = db.query(DeliverySetting).first()
     raw_whatsapp_num = (settings_rec.whatsapp_number if settings_rec and settings_rec.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
     whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
     if len(whatsapp_num) == 10:
@@ -482,15 +503,22 @@ def create_whatsapp_order(
 
 @router.get("", response_model=List[OrderOut])
 def get_user_orders(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status_filter: Optional[str] = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    orders = db.query(Order).options(
-        joinedload(Order.items)
+    query = db.query(Order).options(
+        selectinload(Order.items)
     ).filter(
         Order.user_id == current_user.id
-    ).order_by(Order.created_at.desc()).all()
+    )
 
+    if status_filter and status_filter.strip() and status_filter != "all":
+        query = query.filter(Order.status == status_filter.strip())
+
+    orders = query.order_by(Order.created_at.desc()).offset(offset).limit(limit).all()
     return orders
 
 
@@ -500,12 +528,12 @@ def get_all_orders_admin(
     search: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
-    limit: Optional[int] = Query(None, ge=1, le=500),
-    offset: Optional[int] = Query(None, ge=0),
+    limit: int = Query(50, ge=1, le=500),
+    offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    query = db.query(Order).options(joinedload(Order.items))
+    query = db.query(Order).options(selectinload(Order.items))
     
     if status_filter and status_filter.strip() and status_filter != "all":
         query = query.filter(Order.status == status_filter.strip())
@@ -535,13 +563,7 @@ def get_all_orders_admin(
         except ValueError:
             pass
             
-    query = query.order_by(Order.created_at.desc())
-    
-    if isinstance(offset, int):
-        query = query.offset(offset)
-    if isinstance(limit, int):
-        query = query.limit(limit)
-        
+    query = query.order_by(Order.created_at.desc()).offset(offset).limit(limit)
     return query.all()
 
 
@@ -552,7 +574,7 @@ def get_order_details(
     current_user: User = Depends(get_current_user)
 ):
     order = db.query(Order).options(
-        joinedload(Order.items)
+        selectinload(Order.items)
     ).filter(
         (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
     ).first()

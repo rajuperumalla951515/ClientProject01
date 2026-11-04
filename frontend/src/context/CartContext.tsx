@@ -1,5 +1,5 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { CartData, CartItem } from '../types';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { CartData, CartItem, Product, ProductVariant } from '../types';
 import { api } from '../services/api';
 
 const defaultCart: CartData = {
@@ -16,8 +16,8 @@ const defaultCart: CartData = {
 };
 
 function calculateCartTotals(items: CartItem[]): CartData {
-  const subtotal = items.reduce((acc, i) => acc + i.variant.price * i.quantity, 0);
-  const totalMrp = items.reduce((acc, i) => acc + (i.variant.mrp || i.variant.price) * i.quantity, 0);
+  const subtotal = items.reduce((acc, i) => acc + (i.variant?.price || 0) * i.quantity, 0);
+  const totalMrp = items.reduce((acc, i) => acc + (i.variant?.mrp || i.variant?.price || 0) * i.quantity, 0);
   const discount = Math.max(0, totalMrp - subtotal);
   const delivery_fee = subtotal >= 499 || subtotal === 0 ? 0 : 39;
   return {
@@ -40,8 +40,14 @@ interface CartContextType {
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
-  addToCart: (productId: number, variantId: number, quantity?: number) => Promise<void>;
-  updateQuantity: (itemId: number, quantity: number) => Promise<void>;
+  addToCart: (
+    productId: number,
+    variantId: number,
+    quantity?: number,
+    product?: Product,
+    variant?: ProductVariant
+  ) => Promise<void>;
+  updateQuantity: (itemId: number, quantity: number) => void;
   removeFromCart: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
   getItemQuantity: (productId: number, variantId?: number) => number;
@@ -52,27 +58,34 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [cart, setCart] = useState<CartData>(defaultCart);
+  // Instant hydration from local storage for 0ms initial cart display
+  const [cart, setCart] = useState<CartData>(() => {
+    try {
+      const saved = localStorage.getItem('sri_adithya_local_cart');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return defaultCart;
+  });
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
+
+  // Debounce timers map to batch rapid clicks (+ + +) on the same item into 1 request
+  const debounceTimers = useRef<Map<number, any>>(new Map());
 
   const refreshCart = async () => {
     try {
       const data = await api.getCart();
       if (data && Array.isArray(data.items)) {
         setCart(data);
+        try {
+          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(data));
+        } catch {}
         return;
       }
     } catch (err) {
-      console.warn('Backend cart fetch notice:', err);
+      console.warn('Backend cart refresh notice:', err);
     }
-    // Load local cart if present
-    try {
-      const saved = localStorage.getItem('sri_adithya_local_cart');
-      if (saved) {
-        setCart(JSON.parse(saved));
-      }
-    } catch {}
   };
 
   useEffect(() => {
@@ -82,88 +95,132 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const openDrawer = () => setIsDrawerOpen(true);
   const closeDrawer = () => setIsDrawerOpen(false);
 
-  const addToCart = async (productId: number, variantId: number, quantity = 1) => {
-    setIsLoading(true);
-    try {
-      const updated = await api.addToCart(productId, variantId, quantity);
-      setCart(updated);
+  // Optimistic Add To Cart (< 10ms UI update)
+  const addToCart = async (
+    productId: number,
+    variantId: number,
+    quantity = 1,
+    product?: Product,
+    variant?: ProductVariant
+  ) => {
+    // 1. Synchronously update local cart
+    setCart((prev) => {
+      const existingIdx = prev.items.findIndex(
+        (i) => i.product_id === productId && i.variant_id === variantId
+      );
+      let newItems = [...prev.items];
+      if (existingIdx >= 0) {
+        newItems[existingIdx] = {
+          ...newItems[existingIdx],
+          quantity: newItems[existingIdx].quantity + quantity,
+        };
+      } else if (product && variant) {
+        newItems.push({
+          id: Date.now(), // temporary optimistic ID
+          product_id: productId,
+          variant_id: variantId,
+          quantity,
+          product,
+          variant,
+        });
+      }
+      const updated = calculateCartTotals(newItems);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}
-      openDrawer();
+      return updated;
+    });
+
+    // 2. Open drawer immediately
+    openDrawer();
+
+    // 3. Sync to backend asynchronously
+    try {
+      const serverCart = await api.addToCart(productId, variantId, quantity);
+      setCart(serverCart);
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
+      } catch {}
     } catch (err: any) {
-      console.error('Failed to add item to cart:', err);
+      console.error('Failed to sync item to cart on server:', err);
+      // Reconcile with latest server state on error
+      await refreshCart();
       throw err;
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const updateQuantity = async (itemId: number, quantity: number) => {
-    setIsLoading(true);
-    try {
-      const updated = await api.updateCartItem(itemId, quantity);
-      setCart(updated);
+  // Optimistic Quantity Stepper with Request Debouncing (< 10ms UI update)
+  const updateQuantity = (itemId: number, quantity: number) => {
+    // 1. Immediately update UI state
+    setCart((prev) => {
+      let newItems: CartItem[];
+      if (quantity <= 0) {
+        newItems = prev.items.filter((i) => i.id !== itemId);
+      } else {
+        newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
+      }
+      const updated = calculateCartTotals(newItems);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}
-    } catch (err: any) {
-      console.warn('Remote cart sync offline, updating local cart item:', err);
-      setCart((prev) => {
-        let newItems: CartItem[];
-        if (quantity <= 0) {
-          newItems = prev.items.filter((i) => i.id !== itemId);
-        } else {
-          newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
-        }
-        const updatedCart = calculateCartTotals(newItems);
-        try {
-          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
-        } catch {}
-        return updatedCart;
-      });
-    } finally {
-      setIsLoading(false);
+      return updated;
+    });
+
+    // 2. Debounce backend network sync (300ms window)
+    if (debounceTimers.current.has(itemId)) {
+      clearTimeout(debounceTimers.current.get(itemId));
     }
+
+    const timer = setTimeout(async () => {
+      debounceTimers.current.delete(itemId);
+      try {
+        const serverCart = await api.updateCartItem(itemId, quantity);
+        setCart(serverCart);
+        try {
+          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
+        } catch {}
+      } catch (err: any) {
+        console.error('Failed to sync quantity with backend:', err);
+        await refreshCart();
+      }
+    }, 300);
+
+    debounceTimers.current.set(itemId, timer);
   };
 
+  // Optimistic Remove From Cart (< 10ms UI update)
   const removeFromCart = async (itemId: number) => {
-    setIsLoading(true);
-    try {
-      const updated = await api.removeCartItem(itemId);
-      setCart(updated);
+    setCart((prev) => {
+      const newItems = prev.items.filter((i) => i.id !== itemId);
+      const updated = calculateCartTotals(newItems);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}
+      return updated;
+    });
+
+    try {
+      const serverCart = await api.removeCartItem(itemId);
+      setCart(serverCart);
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
+      } catch {}
     } catch (err: any) {
-      setCart((prev) => {
-        const newItems = prev.items.filter((i) => i.id !== itemId);
-        const updatedCart = calculateCartTotals(newItems);
-        try {
-          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updatedCart));
-        } catch {}
-        return updatedCart;
-      });
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to remove item from server cart:', err);
+      await refreshCart();
     }
   };
 
   const clearCart = async () => {
-    setIsLoading(true);
+    setCart(defaultCart);
     try {
-      const updated = await api.clearCart();
-      setCart(updated);
-      try {
-        localStorage.removeItem('sri_adithya_local_cart');
-      } catch {}
-    } catch (err: any) {
-      setCart(defaultCart);
-      try {
-        localStorage.removeItem('sri_adithya_local_cart');
-      } catch {}
-    } finally {
-      setIsLoading(false);
+      localStorage.removeItem('sri_adithya_local_cart');
+    } catch {}
+
+    try {
+      await api.clearCart();
+    } catch (err) {
+      console.warn('Failed to clear remote cart:', err);
     }
   };
 

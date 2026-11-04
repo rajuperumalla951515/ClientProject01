@@ -282,7 +282,7 @@ export const ProductDetailPage: React.FC = () => {
             ) : (
               <button
                 type="button"
-                onClick={() => addToCart(product.id, selectedVariant.id, 1)}
+                onClick={() => addToCart(product.id, selectedVariant.id, 1, product, selectedVariant)}
                 disabled={isOutOfStock}
                 className={`flex-1 sm:flex-initial px-8 py-3.5 rounded-2xl font-bold text-sm shadow-lift transition-all active:scale-95 flex items-center justify-center gap-2 ${
                   isOutOfStock

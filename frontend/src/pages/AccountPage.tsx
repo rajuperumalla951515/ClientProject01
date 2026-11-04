@@ -65,6 +65,15 @@ export const AccountPage: React.FC = () => {
     loadData();
   }, [user, navigate]);
 
+  // Real-time live order update listener
+  useEffect(() => {
+    const handleOrderUpdate = () => {
+      api.getOrders().then((ord) => setOrders(ord)).catch(() => {});
+    };
+    window.addEventListener('sa_orders_updated', handleOrderUpdate);
+    return () => window.removeEventListener('sa_orders_updated', handleOrderUpdate);
+  }, []);
+
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
