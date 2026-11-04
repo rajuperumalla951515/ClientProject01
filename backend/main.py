@@ -133,7 +133,7 @@ async def db_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={
-            "detail": "Database connection error. In Render Dashboard, please set DATABASE_URL to your real Render PostgreSQL Internal Connection String (copy from Render PostgreSQL -> Connections -> Internal Database URL).",
+            "detail": "Centralized Supabase PostgreSQL connection error. In Render Dashboard, please verify that DATABASE_URL is set to the Singapore pooler (aws-0-ap-southeast-1.pooler.supabase.com).",
             "error_type": exc.__class__.__name__
         }
     )

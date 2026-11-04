@@ -118,7 +118,7 @@ def validate_db_url(url_str: str) -> Tuple[bool, str, Optional[str]]:
             return False, "", (
                 "DATABASE_URL environment variable is missing on Render. "
                 "In Render Dashboard, go to your Web Service -> Environment -> add 'DATABASE_URL' "
-                "with your Render PostgreSQL Internal Connection String."
+                "with your Supabase PostgreSQL Connection Pooler URL (Singapore region)."
             )
         return False, "", "Database URL is not configured."
 
@@ -134,16 +134,15 @@ def validate_db_url(url_str: str) -> Tuple[bool, str, Optional[str]]:
     if is_placeholder_host(parsed.host):
         return False, safe_url, (
             f"DATABASE_URL contains placeholder host '{parsed.host}'. "
-            "Render cloud containers cannot resolve this dummy hostname. "
-            "In Render Dashboard, go to your PostgreSQL database -> copy 'Internal Database URL' "
-            "-> update DATABASE_URL in your Web Service Environment."
+            "In Render Dashboard, go to your Web Service -> Environment "
+            "-> set DATABASE_URL to your Supabase Connection Pooler URL."
         )
 
     # 2. In production, prevent localhost / 127.0.0.1
     if settings.IS_PRODUCTION and parsed.host and parsed.host.lower() in ("localhost", "127.0.0.1"):
         return False, safe_url, (
             f"DATABASE_URL points to '{parsed.host}', which is not reachable inside a Render cloud container. "
-            "Please configure your Render PostgreSQL Internal Connection String."
+            "Please configure your Supabase PostgreSQL Connection Pooler URL."
         )
 
     # 3. In production, prevent accidental SQLite use unless explicitly permitted
