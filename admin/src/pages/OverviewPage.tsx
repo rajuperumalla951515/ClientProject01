@@ -36,7 +36,7 @@ export const OverviewPage: React.FC = () => {
       const data = await api.getDashboardStats();
       setStats(data);
       if (isManual) {
-        showSuccess('Dashboard metrics updated from Google Sheets.', 'Synchronized');
+        showSuccess('Dashboard metrics updated.', 'Synchronized');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to fetch dashboard metrics.');
@@ -60,7 +60,7 @@ export const OverviewPage: React.FC = () => {
   }, [autoRefresh, fetchStats]);
 
   if (isLoading) {
-    return <LoadingSpinner text="Loading real-time Google Sheets analytics..." size="lg" />;
+    return <LoadingSpinner text="Loading real-time analytics..." size="lg" />;
   }
 
   const formatCurrency = (val: number) => {
@@ -77,7 +77,7 @@ export const OverviewPage: React.FC = () => {
         <div>
           <h2 className="text-base font-bold text-slate-900">Sri Adithya Organics Overview</h2>
           <p className="text-xs text-slate-500">
-            Real-time fulfillment metrics synced with Google Sheets
+            Real-time fulfillment metrics synced with central database
           </p>
         </div>
 
@@ -327,3 +327,4 @@ export const OverviewPage: React.FC = () => {
     </div>
   );
 };
+

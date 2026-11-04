@@ -57,7 +57,7 @@ export const OrdersPage: React.FC = () => {
       });
       setOrders(data);
       if (isManual) {
-        showSuccess('Order list refreshed from Google Sheets.', 'Updated');
+        showSuccess('Order list refreshed.', 'Updated');
       }
 
       // If highlight param exists, auto-select that order
@@ -108,7 +108,7 @@ export const OrdersPage: React.FC = () => {
     try {
       const updated = await api.cancelOrder(orderToCancel.order_number, cancelReason);
       showSuccess(
-        `Order ${updated.order_number} cancelled and items automatically restocked in Google Sheets.`,
+        `Order ${updated.order_number} cancelled and items automatically restocked.`,
         'Order Cancelled'
       );
       setOrders((prev) => prev.map((o) => (o.order_number === updated.order_number ? updated : o)));
@@ -215,7 +215,7 @@ export const OrdersPage: React.FC = () => {
       {/* Orders Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
         {isLoading ? (
-          <LoadingSpinner text="Loading orders from Google Sheets..." />
+          <LoadingSpinner text="Loading orders..." />
         ) : orders.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
@@ -523,7 +523,7 @@ export const OrdersPage: React.FC = () => {
               <div>
                 <p className="font-semibold">Automatic Stock Restoration Active</p>
                 <p className="mt-0.5 text-rose-800">
-                  Cancelling order <strong>#{orderToCancel.order_number}</strong> will automatically return the ordered quantities back to Google Sheets product inventory and log an audit entry in <strong>Inventory_Logs</strong>.
+                  Cancelling order <strong>#{orderToCancel.order_number}</strong> will automatically return the ordered quantities back to central inventory and record an audit entry.
                 </p>
               </div>
             </div>

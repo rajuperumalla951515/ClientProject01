@@ -44,33 +44,14 @@ async def lifespan(app: FastAPI):
     print(f"[STARTUP] Starting {settings.PROJECT_NAME} (v{settings.VERSION})")
     print(f"[ENV] Runtime Mode: {'Production (Render Cloud)' if settings.IS_PRODUCTION else 'Development'}")
 
-    if settings.STORAGE_BACKEND == "sheets":
-        print("=" * 70)
-        print("[STORAGE] PRIMARY STORAGE: Google Sheets API Storage Engine")
-        print(f"   Spreadsheet ID: {settings.GOOGLE_SHEETS_SPREADSHEET_ID or 'Configured via Service Account / Local Resilient Store'}")
-        print(f"   In-Memory Cache TTL: {settings.GOOGLE_SHEETS_CACHE_TTL}s (Optimized for ~30,000 monthly active users)")
-        print("   Concurrency Protection: Active (threading.Lock on checkout inventory)")
-        try:
-            from backend.app.sheets.service import sheets_service
-            p_res = sheets_service.get_all_products()
-            c_res = sheets_service.get_categories()
-            print(f"[OK] Sheets storage initialized successfully ({len(p_res)} products, {len(c_res)} categories).")
-        except Exception as exc:
-            print(f"[NOTICE] Sheets initialization check: {exc}")
-        print("=" * 70)
-        app.state.storage_backend = "sheets"
-        app.state.db_connected = True
-        app.state.db_error = None
-    elif not is_db_configured:
+    if not is_db_configured:
         print("=" * 70)
         print("[WARNING] DATABASE CONFIGURATION NOTICE:")
         print(f"   {db_config_error}")
         print("   TO RESOLVE IN RENDER DASHBOARD:")
-        print("   1. Open Render Dashboard -> Go to your PostgreSQL database.")
-        print("   2. Under 'Connections', copy the 'Internal Database URL'.")
-        print("   3. Go to your Web Service -> 'Environment'.")
-        print("   4. Set 'DATABASE_URL' = <copied Internal Database URL>.")
-        print("   5. (Or set STORAGE_BACKEND=sheets to use Google Sheets storage)")
+        print("   1. Open Render Dashboard -> Go to your Sri Adithya backend Web Service.")
+        print("   2. Under 'Environment', set 'DATABASE_URL' to your Supabase Connection Pooler URL:")
+        print("      postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require")
         print("=" * 70)
         app.state.db_connected = False
         app.state.db_error = db_config_error
@@ -78,17 +59,16 @@ async def lifespan(app: FastAPI):
         print(f"[DATABASE] Target Database: {safe_db_url}")
         connected, conn_err = check_db_connection()
         if connected:
-            print("[OK] Database connection verified successfully.")
+            print("[OK] Supabase PostgreSQL database connection verified successfully.")
             app.state.db_connected = True
             app.state.db_error = None
-            # Initialize schema and seed data safely
+            # Initialize schema safely
             try:
                 Base.metadata.create_all(bind=engine)
                 run_migrations(engine)
-                seed_database()
-                print("[OK] Database tables and seed catalogue synchronized.")
+                print("[OK] Centralized database tables and schema verified.")
             except Exception as exc:
-                print(f"[NOTICE] Database table/seed notice: {exc}")
+                print(f"[NOTICE] Database table synchronization notice: {exc}")
         else:
             print("=" * 70)
             print(f"[WARNING] DATABASE CONNECTION WARNING: {conn_err}")
@@ -206,20 +186,9 @@ def liveness():
         "version": settings.VERSION
     }
 
-# Readiness Check (Tests active database or sheets storage)
+# Readiness Check (Tests active Supabase database storage)
 @app.get("/health/ready", tags=["Health"])
 def readiness(response: Response):
-    if settings.STORAGE_BACKEND == "sheets":
-        return {
-            "status": "ready",
-            "service": settings.PROJECT_NAME,
-            "storage": {
-                "backend": "sheets",
-                "connected": True,
-                "spreadsheet_id": settings.GOOGLE_SHEETS_SPREADSHEET_ID or "default_organic_store",
-                "cache_ttl": settings.GOOGLE_SHEETS_CACHE_TTL
-            }
-        }
     connected, conn_err = check_db_connection()
     if not connected:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
@@ -230,7 +199,7 @@ def readiness(response: Response):
                 "connected": False,
                 "target": get_safe_db_target(),
                 "error": conn_err or "Database connection failed",
-                "hint": "Set DATABASE_URL to your Render PostgreSQL Internal Connection String in Render Dashboard, or set STORAGE_BACKEND=sheets"
+                "hint": "Set DATABASE_URL to your Supabase Connection Pooler URL in Render Dashboard"
             }
         }
     return {
@@ -245,20 +214,6 @@ def readiness(response: Response):
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
 def health_check(response: Response = None):
-    if settings.STORAGE_BACKEND == "sheets":
-        return {
-            "status": "healthy",
-            "service": settings.PROJECT_NAME,
-            "version": settings.VERSION,
-            "storage": {
-                "backend": "sheets",
-                "connected": True,
-                "spreadsheet_id": settings.GOOGLE_SHEETS_SPREADSHEET_ID or "default_organic_store",
-                "cache_ttl": settings.GOOGLE_SHEETS_CACHE_TTL,
-                "rate_limit_protection": "active"
-            }
-        }
-
     # If app.state.db_connected was evaluated during lifespan, use it; otherwise test live
     if hasattr(app.state, "db_connected"):
         is_connected = app.state.db_connected
@@ -273,7 +228,7 @@ def health_check(response: Response = None):
     
     if not is_connected:
         db_info["error"] = error_msg or "Database connection unverified"
-        db_info["hint"] = "Set DATABASE_URL to your Render PostgreSQL Internal Connection String in Render Dashboard, or set STORAGE_BACKEND=sheets"
+        db_info["hint"] = "Set DATABASE_URL to your Supabase Connection Pooler URL in Render Dashboard"
         # Distinguish application health from database connectivity
         if response:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE if settings.IS_PRODUCTION else status.HTTP_200_OK
@@ -295,18 +250,6 @@ def health_check(response: Response = None):
 @app.post("/api/seed", tags=["Admin"])
 def force_seed():
     """Explicit endpoint to seed or verify Sri Adithya Organics catalogue."""
-    if settings.STORAGE_BACKEND == "sheets":
-        from backend.app.sheets.service import sheets_service
-        prods = sheets_service.get_all_products()
-        cats = sheets_service.get_categories()
-        return {
-            "status": "seeded",
-            "storage": "sheets",
-            "products_count": len(prods),
-            "categories_count": len(cats),
-            "message": f"Successfully verified {len(prods)} products across {len(cats)} organic categories in Google Sheets store."
-        }
-
     from backend.app.seed import seed_database
     from backend.app.database import SessionLocal
     from backend.app.models import Product, Category

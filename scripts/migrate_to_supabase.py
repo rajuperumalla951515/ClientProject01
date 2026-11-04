@@ -46,7 +46,7 @@ def run_supabase_migration(db_url: str):
     print(f"[1/6] Connecting to target PostgreSQL database...")
     
     connect_args = {}
-    if "postgresql" in clean_url and "supabase.co" in clean_url and "sslmode" not in clean_url:
+    if "postgresql" in clean_url and ("supabase.co" in clean_url or "supabase.com" in clean_url) and "sslmode" not in clean_url:
         connect_args["sslmode"] = "require"
 
     engine = create_engine(

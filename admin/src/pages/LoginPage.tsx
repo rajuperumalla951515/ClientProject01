@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, FileSpreadsheet } from 'lucide-react';
+import { Lock, Mail, ArrowRight, ShieldCheck, AlertCircle, Database } from 'lucide-react';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -133,8 +133,8 @@ export const LoginPage: React.FC = () => {
 
         {/* Database Status Info */}
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span>Central Storage: Google Sheets API v4 (Live Synced)</span>
+          <Database className="w-4 h-4 text-emerald-400" />
+          <span>Central Storage: Supabase PostgreSQL (Production Connected)</span>
         </div>
       </div>
     </div>

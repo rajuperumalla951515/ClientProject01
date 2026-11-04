@@ -9,7 +9,7 @@ import {
   Users,
   Settings,
   LogOut,
-  FileSpreadsheet,
+  Database,
   ExternalLink,
   X
 } from 'lucide-react';
@@ -100,11 +100,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ onCloseMobile }) => {
         </a>
       </nav>
 
-      {/* Google Sheets Engine Status Pill */}
+      {/* Central Database Engine Status Pill */}
       <div className="p-3 mx-3 mb-3 rounded-xl bg-slate-800/60 border border-slate-700/60 text-xs">
         <div className="flex items-center gap-2 mb-1">
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span className="font-semibold text-slate-200">Google Sheets DB</span>
+          <Database className="w-4 h-4 text-emerald-400" />
+          <span className="font-semibold text-slate-200">Supabase DB</span>
         </div>
         <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 font-medium">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />

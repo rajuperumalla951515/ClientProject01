@@ -232,3 +232,4 @@ CREATE TABLE IF NOT EXISTS wishlists (
     created_at TIMESTAMP WITHOUT TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT uq_user_product_wishlist UNIQUE (user_id, product_id)
 );
+

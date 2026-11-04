@@ -59,7 +59,7 @@ export const SettingsPage: React.FC = () => {
       }
 
       if (isManual) {
-        showSuccess('Store settings refreshed from Google Sheets.', 'Updated');
+        showSuccess('Store settings refreshed.', 'Updated');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load store settings.');
@@ -99,8 +99,8 @@ export const SettingsPage: React.FC = () => {
       });
 
       showSuccess(
-        'Store configuration saved to Google Sheets and cache cleared for immediate customer effect.',
-        'Settings Synchronized'
+        'Store configuration saved successfully.',
+        'Settings Saved'
       );
       loadSettings();
     } catch (err: any) {
@@ -111,7 +111,7 @@ export const SettingsPage: React.FC = () => {
   };
 
   if (isLoading) {
-    return <LoadingSpinner text="Reading settings from Google Sheets worksheet Store_Settings..." size="lg" />;
+    return <LoadingSpinner text="Reading settings from database..." size="lg" />;
   }
 
   return (
@@ -121,7 +121,7 @@ export const SettingsPage: React.FC = () => {
         <div>
           <h2 className="text-base font-bold text-slate-900">Store & Delivery Configuration</h2>
           <p className="text-xs text-slate-500">
-            Changes persist directly to Google Sheets worksheet <strong>Store_Settings</strong>
+            Changes persist directly to central PostgreSQL database
           </p>
         </div>
 
@@ -129,7 +129,7 @@ export const SettingsPage: React.FC = () => {
           onClick={() => loadSettings(true)}
           disabled={isRefreshing}
           className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-          title="Refresh from Sheets"
+          title="Refresh"
         >
           <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-700' : ''}`} />
         </button>
@@ -326,10 +326,11 @@ export const SettingsPage: React.FC = () => {
             ) : (
               <Save className="w-4 h-4" />
             )}
-            <span>{isSaving ? 'Saving to Google Sheets...' : 'Save Store Configuration'}</span>
+            <span>{isSaving ? 'Saving...' : 'Save Store Configuration'}</span>
           </button>
         </div>
       </form>
     </div>
   );
 };
+

@@ -28,10 +28,10 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, title }) => 
       </div>
 
       <div className="flex items-center gap-3">
-        {/* Google Sheets Sync Pill */}
+        {/* Supabase Database Status Pill */}
         <div className="hidden lg:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200/80 text-emerald-800 text-xs font-semibold">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-          <span>Google Sheets Central Store: Synced</span>
+          <span>Supabase PostgreSQL: Connected</span>
         </div>
 
         {/* Profile Dropdown */}
@@ -79,3 +79,4 @@ export const Header: React.FC<HeaderProps> = ({ onToggleMobileMenu, title }) => 
     </header>
   );
 };
+

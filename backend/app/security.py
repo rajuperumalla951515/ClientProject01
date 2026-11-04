@@ -1,8 +1,50 @@
 import bcrypt
+import time
+import threading
 from datetime import datetime, timedelta, timezone
-from typing import Optional, Any
+from typing import Optional, Any, Dict, Tuple
 from jose import jwt, JWTError
 from backend.app.config import settings
+
+# Thread-safe in-memory login rate limiter (protects against credential brute-forcing)
+_login_attempts: Dict[str, Tuple[int, float]] = {}
+_limiter_lock = threading.Lock()
+
+def check_login_rate_limit(key: str, max_attempts: int = 5, window_seconds: int = 900) -> Tuple[bool, int]:
+    """
+    Check if an IP or email identifier has exceeded maximum allowed failed login attempts.
+    Returns: (is_allowed: bool, remaining_seconds: int)
+    """
+    now = time.time()
+    with _limiter_lock:
+        # Clean up stale entries older than window_seconds
+        stale_keys = [k for k, (_, last_time) in _login_attempts.items() if now - last_time > window_seconds]
+        for k in stale_keys:
+            del _login_attempts[k]
+
+        attempts, first_attempt = _login_attempts.get(key, (0, now))
+        if attempts >= max_attempts:
+            remaining = int(window_seconds - (now - first_attempt))
+            if remaining > 0:
+                return False, remaining
+            else:
+                del _login_attempts[key]
+                return True, 0
+        return True, 0
+
+def record_failed_login(key: str, window_seconds: int = 900):
+    now = time.time()
+    with _limiter_lock:
+        attempts, first_attempt = _login_attempts.get(key, (0, now))
+        if now - first_attempt > window_seconds:
+            _login_attempts[key] = (1, now)
+        else:
+            _login_attempts[key] = (attempts + 1, first_attempt)
+
+def clear_failed_login(key: str):
+    with _limiter_lock:
+        if key in _login_attempts:
+            del _login_attempts[key]
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     try:

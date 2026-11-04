@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func, desc, or_
 from backend.app.config import settings
-from backend.app.database import get_db, check_db_connection
+from backend.app.database import get_db
 from backend.app.models import Order, OrderItem, Product, ProductVariant, User, Category, InventoryLog, Address
 from backend.app.schemas import (
     EnhancedDashboardStatsOut, OrderOut, ProductOut, AddressOut,
@@ -12,34 +12,11 @@ from backend.app.schemas import (
     CustomerDetailOut, OrderCancelRequest, TopProductStat
 )
 from backend.app.deps import get_current_admin
-from backend.app.sheets.service import sheets_service
 
 router = APIRouter(prefix="/admin", tags=["Admin Analytics & Operations"])
 
-def is_sheets_storage() -> bool:
-    return settings.STORAGE_BACKEND == "sheets" or not check_db_connection()[0]
-
 @router.get("/dashboard-stats", response_model=EnhancedDashboardStatsOut)
 def get_dashboard_stats(db: Session = Depends(get_db), admin=Depends(get_current_admin)):
-    if is_sheets_storage():
-        stats = sheets_service.get_detailed_dashboard_stats()
-        return EnhancedDashboardStatsOut(
-            total_revenue=stats["total_revenue"],
-            today_revenue=stats["today_revenue"],
-            total_orders=stats["total_orders"],
-            today_orders=stats["today_orders"],
-            total_products=stats["total_products"],
-            total_customers=stats["total_customers"],
-            pending_orders=stats["pending_orders"],
-            delivered_orders=stats["delivered_orders"],
-            cancelled_orders=stats["cancelled_orders"],
-            low_stock_products=stats["low_stock_products"],
-            order_status_counts=stats["order_status_counts"],
-            top_products=[TopProductStat(**tp) for tp in stats["top_products"]],
-            recent_orders=[OrderOut.model_validate(o) for o in stats["recent_orders"]]
-        )
-
-    # Relational Database Mode
     today_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     total_rev = db.query(func.sum(Order.total_amount)).filter(Order.status != "cancelled").scalar() or 0.0
     today_rev = db.query(func.sum(Order.total_amount)).filter(Order.status != "cancelled", Order.created_at >= today_start).scalar() or 0.0
@@ -101,56 +78,44 @@ def get_dashboard_stats(db: Session = Depends(get_db), admin=Depends(get_current
         recent_orders=recent_orders
     )
 
+
 @router.get("/inventory")
 def get_inventory_status(
     search: Optional[str] = None,
     category_id: Optional[int] = None,
     low_stock_only: bool = False,
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: Optional[int] = Query(None, ge=0),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        all_prods = sheets_service.get_all_products()
-        categories = {c["id"]: c["name"] for c in sheets_service.get_categories(only_active=False)}
-        
-        result = []
-        for p in all_prods:
-            stock = p["variants"][0]["stock"] if p.get("variants") else 0
-            if low_stock_only and stock >= 10:
-                continue
-            if category_id and p.get("category_id") != category_id:
-                continue
-            if search and search.strip():
-                q = search.strip().lower()
-                if q not in p["name"].lower() and q not in str(p.get("id")) and q not in p.get("slug", ""):
-                    continue
+    query = db.query(Product).options(
+        joinedload(Product.variants),
+        joinedload(Product.category),
+        joinedload(Product.images)
+    )
 
-            result.append({
-                "id": p["id"],
-                "name": p["name"],
-                "slug": p["slug"],
-                "category_id": p.get("category_id"),
-                "category_name": categories.get(p.get("category_id"), "Organic Produce"),
-                "price": p["min_price"],
-                "stock": stock,
-                "is_low_stock": stock < 10,
-                "is_out_of_stock": stock <= 0,
-                "unit": p["variants"][0]["unit"] if p.get("variants") else "1 Unit",
-                "image_url": p["images"][0]["image_url"] if p.get("images") else None,
-                "is_active": p["is_active"]
-            })
-        return result
-
-    query = db.query(Product).options(joinedload(Product.variants), joinedload(Product.category))
     if category_id:
         query = query.filter(Product.category_id == category_id)
+
     if search and search.strip():
-        query = query.filter(Product.name.ilike(f"%{search.strip()}%"))
-    
-    prods = query.all()
+        term = f"%{search.strip().lower()}%"
+        query = query.filter(
+            or_(
+                Product.name.ilike(term),
+                Product.slug.ilike(term)
+            )
+        )
+
+    prods = query.order_by(Product.id.asc()).all()
     result = []
+
     for p in prods:
-        stock = p.variants[0].stock if p.variants else 0
+        default_variant = next((v for v in p.variants if v.is_default), p.variants[0]) if p.variants else None
+        stock = default_variant.stock if default_variant else 0
+        unit_label = default_variant.pack_size or default_variant.unit if default_variant else "1 Unit"
+        price = default_variant.price if default_variant else 0.0
+
         if low_stock_only and stock >= 10:
             continue
         result.append({
@@ -159,15 +124,22 @@ def get_inventory_status(
             "slug": p.slug,
             "category_id": p.category_id,
             "category_name": p.category.name if p.category else "Organic Produce",
-            "price": p.variants[0].price if p.variants else 0.0,
+            "price": price,
             "stock": stock,
             "is_low_stock": stock < 10,
             "is_out_of_stock": stock <= 0,
-            "unit": p.variants[0].unit if p.variants else "1 Unit",
+            "unit": unit_label,
             "image_url": p.images[0].image_url if p.images else None,
             "is_active": p.is_active
         })
+
+    if isinstance(offset, int):
+        result = result[offset:]
+    if isinstance(limit, int):
+        result = result[:limit]
+
     return result
+
 
 @router.post("/inventory/adjust")
 def adjust_inventory_stock(
@@ -175,20 +147,9 @@ def adjust_inventory_stock(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        try:
-            res = sheets_service.adjust_inventory(
-                product_id=req.product_id,
-                delta=req.delta,
-                new_stock=req.new_stock,
-                reason=req.reason,
-                notes=req.notes
-            )
-            return res
-        except ValueError as err:
-            raise HTTPException(status_code=400, detail=str(err))
-
-    variant = db.query(ProductVariant).filter(ProductVariant.product_id == req.product_id).first()
+    variant = db.query(ProductVariant).filter(
+        ProductVariant.product_id == req.product_id
+    ).order_by(ProductVariant.is_default.desc(), ProductVariant.id.asc()).first()
     if not variant:
         raise HTTPException(status_code=404, detail="Product variant not found.")
     
@@ -200,7 +161,7 @@ def adjust_inventory_stock(
     
     diff = variant.stock - prev
 
-    # Record Inventory Audit Log in Database
+    # Record Inventory Audit Log in PostgreSQL
     log_entry = InventoryLog(
         product_id=req.product_id,
         previous_stock=prev,
@@ -219,6 +180,7 @@ def adjust_inventory_stock(
         "reason": req.reason
     }
 
+
 @router.get("/inventory/logs", response_model=List[InventoryLogOut])
 def get_inventory_audit_logs(
     limit: int = 100,
@@ -226,10 +188,6 @@ def get_inventory_audit_logs(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        logs = sheets_service.get_inventory_logs(limit=limit, offset=offset)
-        return [InventoryLogOut(**l) for l in logs]
-
     db_logs = db.query(InventoryLog).options(
         joinedload(InventoryLog.product)
     ).order_by(InventoryLog.created_at.desc()).offset(offset).limit(limit).all()
@@ -248,16 +206,15 @@ def get_inventory_audit_logs(
         for l in db_logs
     ]
 
+
 @router.get("/customers", response_model=List[CustomerMetricOut])
 def list_customers(
     search: Optional[str] = None,
+    limit: Optional[int] = Query(None, ge=1, le=500),
+    offset: Optional[int] = Query(None, ge=0),
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        custs = sheets_service.get_customers_with_metrics(search=search)
-        return [CustomerMetricOut(**c) for c in custs]
-
     query = db.query(User).filter(User.role == "customer")
     if search and search.strip():
         term = f"%{search.strip().lower()}%"
@@ -268,6 +225,13 @@ def list_customers(
                 User.phone.ilike(term)
             )
         )
+
+    query = query.order_by(User.created_at.desc())
+    if isinstance(offset, int):
+        query = query.offset(offset)
+    if isinstance(limit, int):
+        query = query.limit(limit)
+
     users = query.all()
     results = []
     for u in users:
@@ -284,18 +248,13 @@ def list_customers(
         ))
     return results
 
+
 @router.get("/customers/{customer_id}", response_model=CustomerDetailOut)
 def get_customer_details(
     customer_id: int,
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        cust = sheets_service.get_customer_detail(customer_id)
-        if not cust:
-            raise HTTPException(status_code=404, detail="Customer not found.")
-        return CustomerDetailOut.model_validate(cust)
-
     user = db.query(User).filter(User.id == customer_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="Customer not found.")
@@ -316,6 +275,7 @@ def get_customer_details(
         orders=[OrderOut.model_validate(o) for o in ords]
     )
 
+
 @router.post("/orders/{order_id}/cancel", response_model=OrderOut)
 def cancel_order_admin(
     order_id: str,
@@ -323,12 +283,6 @@ def cancel_order_admin(
     db: Session = Depends(get_db),
     admin=Depends(get_current_admin)
 ):
-    if is_sheets_storage():
-        cancelled_order = sheets_service.cancel_order(order_id, reason=cancel_in.reason)
-        if not cancelled_order:
-            raise HTTPException(status_code=404, detail="Order not found.")
-        return OrderOut.model_validate(cancelled_order)
-
     order = db.query(Order).options(joinedload(Order.items)).filter(
         (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
     ).first()
@@ -337,7 +291,7 @@ def cancel_order_admin(
 
     if order.status != "cancelled":
         order.status = "cancelled"
-        order.admin_notes = f"Cancelled: {cancel_in.reason}"
+        order.admin_notes = f"Cancelled by Admin: {cancel_in.reason}"
         # Restock products and record inventory audit log
         for it in order.items:
             variant = db.query(ProductVariant).filter(ProductVariant.id == it.variant_id).first()

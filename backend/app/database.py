@@ -85,16 +85,27 @@ def resolve_raw_db_url() -> str:
 
 def normalize_db_url(raw_url: str) -> str:
     """
-    Ensure postgresql+psycopg:// dialect prefix for SQLAlchemy 2.0 with Psycopg 3.
-    Render supplies postgres://, which is converted to postgresql+psycopg://.
+    Ensure postgresql+psycopg:// or postgresql+psycopg2:// dialect prefix for SQLAlchemy.
+    Detects which driver is installed (psycopg v3 on Render, psycopg2 fallback).
     """
     if not raw_url:
         return ""
     clean = raw_url.strip()
+
+    driver_suffix = "+psycopg"
+    try:
+        import psycopg  # noqa: F401
+    except ImportError:
+        try:
+            import psycopg2  # noqa: F401
+            driver_suffix = "+psycopg2"
+        except ImportError:
+            driver_suffix = ""
+
     if clean.startswith("postgres://"):
-        return clean.replace("postgres://", "postgresql+psycopg://", 1)
+        return clean.replace("postgres://", f"postgresql{driver_suffix}://", 1)
     if clean.startswith("postgresql://") and not clean.startswith("postgresql+"):
-        return clean.replace("postgresql://", "postgresql+psycopg://", 1)
+        return clean.replace("postgresql://", f"postgresql{driver_suffix}://", 1)
     return clean
 
 def validate_db_url(url_str: str) -> Tuple[bool, str, Optional[str]]:
@@ -168,7 +179,7 @@ if is_db_configured:
             "pool_recycle": 300,
         })
         # Enforce SSL requirement for Supabase remote PostgreSQL
-        if "sslmode" not in final_db_url and "supabase.co" in final_db_url:
+        if "sslmode" not in final_db_url and ("supabase.co" in final_db_url or "supabase.com" in final_db_url):
             connect_args["sslmode"] = "require"
     engine = create_engine(
         final_db_url,
@@ -185,8 +196,6 @@ Base = declarative_base()
 
 def check_db_connection() -> Tuple[bool, Optional[str]]:
     """Test active database connectivity with a lightweight SELECT 1 query."""
-    if settings.STORAGE_BACKEND == "sheets":
-        return True, None
     if not is_db_configured:
         return False, db_config_error
     try:
@@ -199,8 +208,14 @@ def check_db_connection() -> Tuple[bool, Optional[str]]:
         if "Network is unreachable" in err_msg or "2406:" in err_msg or "IPv6" in err_msg:
             return False, (
                 "Render cloud containers only support IPv4 networking and cannot reach Supabase IPv6 direct host (db.xxx.supabase.co). "
-                "In Render Dashboard, please update DATABASE_URL to your Supabase Connection Pooler URL: "
-                "postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-south-1.pooler.supabase.com:5432/postgres?sslmode=require"
+                "In Render Dashboard, please update DATABASE_URL to your Supabase Connection Pooler URL (Singapore region): "
+                "postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
+            )
+        if "tenant/user" in err_msg and "not found" in err_msg:
+            return False, (
+                "Supabase pooler could not find tenant. Your project is in Singapore (ap-southeast-1), not Mumbai. "
+                "In Render Dashboard, please set DATABASE_URL to: "
+                "postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
             )
         return False, f"Connection failed: {err_msg[:250]}"
 
@@ -218,11 +233,12 @@ def get_safe_db_target() -> str:
         return "unknown"
 
 def get_db():
-    """FastAPI database session dependency with automatic transaction safety and sheets fallback."""
-    if settings.STORAGE_BACKEND == "sheets" or not is_db_configured:
-        # In Google Sheets storage mode or unconfigured DB, yield None to allow sheets routing
-        yield None
-        return
+    """FastAPI database session dependency with automatic transaction safety."""
+    if not is_db_configured:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Centralized Supabase PostgreSQL service is temporarily unavailable. Please verify DATABASE_URL."
+        )
     db = SessionLocal()
     try:
         yield db

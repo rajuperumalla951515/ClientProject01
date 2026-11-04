@@ -88,3 +88,4 @@ npm run dev
 5. Click **Deploy**.
 6. Under **Settings -> Domains**, add your custom domain: `admin.sriadithyaorganics.com`.
 7. Configure CNAME DNS record pointing `admin` to `cname.vercel-dns.com`.
+

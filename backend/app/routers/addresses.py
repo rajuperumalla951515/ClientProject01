@@ -17,12 +17,8 @@ from backend.app.schemas import (
     AddressSearchResultItem
 )
 from backend.app.deps import get_current_user
-from backend.app.sheets.service import sheets_service
 
 router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
-
-def is_sheets_storage() -> bool:
-    return settings.STORAGE_BACKEND == "sheets" or not check_db_connection()[0]
 
 # Known Indian Metropolitan Fulfillment Clusters for Logistics Routing & Delivery ETA
 KNOWN_LOCALITY_CLUSTERS = [
@@ -435,12 +431,8 @@ def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(
 @router.get("", response_model=List[AddressOut])
 def get_user_addresses(
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    if is_sheets_storage():
-        addrs = sheets_service.get_customer_addresses(current_user.id)
-        return [AddressOut.model_validate(a) for a in addrs]
-
     return db.query(Address).filter(Address.user_id == current_user.id).order_by(Address.is_default.desc(), Address.id.desc()).all()
 
 
@@ -448,11 +440,8 @@ def get_user_addresses(
 def create_address(
     address_in: AddressCreate,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    if is_sheets_storage():
-        created = sheets_service.create_address(current_user.id, address_in.model_dump())
-        return AddressOut.model_validate(created)
     # If this is the user's first address, make it default automatically
     count = db.query(Address).filter(Address.user_id == current_user.id).count()
     is_default = address_in.is_default or (count == 0)
@@ -491,15 +480,8 @@ def update_address(
     address_id: int,
     address_in: AddressUpdate,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    if is_sheets_storage():
-        user_id = getattr(current_user, "id", None) or 1
-        res = sheets_service.update_address(user_id, address_id, address_in.model_dump(exclude_unset=True))
-        if not res:
-            raise HTTPException(status_code=404, detail="Address not found.")
-        return AddressOut.model_validate(res)
-
     address = db.query(Address).filter(
         Address.id == address_id,
         Address.user_id == current_user.id
@@ -524,15 +506,8 @@ def update_address(
 def set_default_address(
     address_id: int,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    if is_sheets_storage():
-        user_id = getattr(current_user, "id", None) or 1
-        res = sheets_service.set_default_address(user_id, address_id)
-        if not res:
-            raise HTTPException(status_code=404, detail="Address not found.")
-        return AddressOut.model_validate(res)
-
     address = db.query(Address).filter(
         Address.id == address_id,
         Address.user_id == current_user.id
@@ -552,15 +527,8 @@ def set_default_address(
 def delete_address(
     address_id: int,
     db: Session = Depends(get_db),
-    current_user: Any = Depends(get_current_user)
+    current_user: User = Depends(get_current_user)
 ):
-    if is_sheets_storage():
-        user_id = getattr(current_user, "id", None) or 1
-        deleted = sheets_service.delete_address(user_id, address_id)
-        if not deleted:
-            raise HTTPException(status_code=404, detail="Address not found.")
-        return None
-
     address = db.query(Address).filter(
         Address.id == address_id,
         Address.user_id == current_user.id

@@ -34,7 +34,7 @@ export const CategoriesPage: React.FC = () => {
       const data = await api.getCategories();
       setCategories(data);
       if (isManual) {
-        showSuccess('Categories synced from Google Sheets.', 'Updated');
+        showSuccess('Categories synced.', 'Updated');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load categories.');
@@ -77,14 +77,14 @@ export const CategoriesPage: React.FC = () => {
           image_url: formImageUrl,
           is_active: formIsActive,
         });
-        showSuccess(`Category "${formName}" updated in Google Sheets.`, 'Category Saved');
+        showSuccess(`Category "${formName}" updated.`, 'Category Saved');
       } else {
         await api.createCategory({
           name: formName,
           description: formDescription,
           image_url: formImageUrl,
         });
-        showSuccess(`Category "${formName}" added to Google Sheets.`, 'Category Created');
+        showSuccess(`Category "${formName}" created.`, 'Category Created');
       }
       setIsModalOpen(false);
       loadCategories();
@@ -100,7 +100,7 @@ export const CategoriesPage: React.FC = () => {
     setIsDeleting(true);
     try {
       await api.deleteCategory(categoryToDelete.id);
-      showSuccess(`Category "${categoryToDelete.name}" deactivated in Google Sheets.`, 'Category Deactivated');
+      showSuccess(`Category "${categoryToDelete.name}" deactivated.`, 'Category Deactivated');
       setCategoryToDelete(null);
       loadCategories();
     } catch (err: any) {
@@ -142,7 +142,7 @@ export const CategoriesPage: React.FC = () => {
 
       {/* Categories Grid */}
       {isLoading ? (
-        <LoadingSpinner text="Loading categories from Google Sheets..." />
+        <LoadingSpinner text="Loading categories..." />
       ) : categories.length === 0 ? (
         <EmptyState
           icon={Layers}
@@ -285,7 +285,7 @@ export const CategoriesPage: React.FC = () => {
                 disabled={isSaving}
                 className="px-5 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
               >
-                {isSaving ? 'Saving to Sheets...' : editingCategory ? 'Save Changes' : 'Create Category'}
+                {isSaving ? 'Saving...' : editingCategory ? 'Save Changes' : 'Create Category'}
               </button>
             </div>
           </form>
@@ -299,7 +299,7 @@ export const CategoriesPage: React.FC = () => {
           onClose={() => setCategoryToDelete(null)}
           onConfirm={handleDeleteConfirm}
           title="Deactivate Category"
-          message={`Are you sure you want to deactivate "${categoryToDelete.name}" in Google Sheets?`}
+          message={`Are you sure you want to deactivate "${categoryToDelete.name}"?`}
           confirmLabel="Deactivate"
           variant="danger"
           isLoading={isDeleting}
@@ -308,3 +308,4 @@ export const CategoriesPage: React.FC = () => {
     </div>
   );
 };
+

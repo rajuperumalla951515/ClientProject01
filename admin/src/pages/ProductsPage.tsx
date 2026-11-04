@@ -69,7 +69,7 @@ export const ProductsPage: React.FC = () => {
         setFormCategoryId(cats[0].id);
       }
       if (isManual) {
-        showSuccess('Product catalogue synced from Google Sheets.', 'Updated');
+        showSuccess('Product catalogue synced.', 'Updated');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load products.');
@@ -135,7 +135,7 @@ export const ProductsPage: React.FC = () => {
           is_featured: formIsFeatured,
           is_active: formIsActive,
         });
-        showSuccess(`Product "${formName}" updated in Google Sheets and cache cleared.`, 'Product Saved');
+        showSuccess(`Product "${formName}" updated.`, 'Product Saved');
       } else {
         // Create new product
         await api.createProduct({
@@ -151,7 +151,7 @@ export const ProductsPage: React.FC = () => {
           is_featured: formIsFeatured,
           is_active: formIsActive,
         });
-        showSuccess(`Product "${formName}" added to Google Sheets catalogue.`, 'Product Created');
+        showSuccess(`Product "${formName}" created.`, 'Product Created');
       }
 
       setIsModalOpen(false);
@@ -168,7 +168,7 @@ export const ProductsPage: React.FC = () => {
     setIsDeleting(true);
     try {
       await api.deleteProduct(productToDelete.id);
-      showSuccess(`Product "${productToDelete.name}" deactivated in Google Sheets.`, 'Product Deactivated');
+      showSuccess(`Product "${productToDelete.name}" deactivated.`, 'Product Deactivated');
       setProductToDelete(null);
       loadData();
     } catch (err: any) {
@@ -256,7 +256,7 @@ export const ProductsPage: React.FC = () => {
             onClick={() => loadData(true)}
             disabled={isRefreshing}
             className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-            title="Refresh from Google Sheets"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-700' : ''}`} />
           </button>
@@ -274,7 +274,7 @@ export const ProductsPage: React.FC = () => {
       {/* Product List Table Card */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
         {isLoading ? (
-          <LoadingSpinner text="Reading product inventory from Google Sheets..." />
+          <LoadingSpinner text="Reading product inventory..." />
         ) : filteredProducts.length === 0 ? (
           <EmptyState
             icon={Package}
@@ -420,7 +420,7 @@ export const ProductsPage: React.FC = () => {
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
           title={editingProduct ? `Edit ${editingProduct.name}` : 'Add New Organic Product'}
-          subtitle="Changes are written directly to Google Sheets and instantly updated on the customer store"
+          subtitle="Changes are saved directly to central database and immediately visible to customers"
           maxWidth="2xl"
         >
           <form onSubmit={handleSaveProduct} className="space-y-4">
@@ -572,7 +572,7 @@ export const ProductsPage: React.FC = () => {
                 disabled={isSaving}
                 className="px-5 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
               >
-                {isSaving ? 'Writing to Google Sheets...' : editingProduct ? 'Save Product Changes' : 'Create Product'}
+                {isSaving ? 'Saving...' : editingProduct ? 'Save Product Changes' : 'Create Product'}
               </button>
             </div>
           </form>
@@ -586,7 +586,7 @@ export const ProductsPage: React.FC = () => {
           onClose={() => setProductToDelete(null)}
           onConfirm={handleDeleteConfirm}
           title="Deactivate Organic Product"
-          message={`Are you sure you want to deactivate "${productToDelete.name}"? It will be hidden from customer search and store catalogues in Google Sheets.`}
+          message={`Are you sure you want to deactivate "${productToDelete.name}"? It will be hidden from customer search and store catalogues.`}
           confirmLabel="Deactivate"
           variant="danger"
           isLoading={isDeleting}

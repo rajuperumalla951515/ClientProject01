@@ -8,7 +8,7 @@ import {
   SlidersHorizontal,
   RefreshCw,
   History,
-  FileSpreadsheet,
+  Database,
   ArrowUpRight,
   ArrowDownRight,
   Filter
@@ -53,7 +53,7 @@ export const InventoryPage: React.FC = () => {
       setInventory(invData);
       setLogs(logData);
       if (isManual) {
-        showSuccess('Inventory levels and audit logs synced from Google Sheets.', 'Updated');
+        showSuccess('Inventory levels and audit logs synced.', 'Updated');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load inventory data.');
@@ -125,7 +125,7 @@ export const InventoryPage: React.FC = () => {
 
       const res = await api.adjustInventory(payload);
       showSuccess(
-        `Stock for "${adjustItem.name}" updated to ${res.new_stock} units. Audit log recorded in Google Sheets.`,
+        `Stock for "${adjustItem.name}" updated to ${res.new_stock} units. Audit log recorded.`,
         'Inventory Updated'
       );
       setAdjustItem(null);
@@ -144,7 +144,7 @@ export const InventoryPage: React.FC = () => {
         <StatCard
           title="Total Catalog SKUs"
           value={metrics.total}
-          subtitle="Organic items tracked in Sheets"
+          subtitle="Organic items tracked in central inventory"
           icon={Boxes}
           colorScheme="blue"
         />
@@ -242,7 +242,7 @@ export const InventoryPage: React.FC = () => {
       {activeTab === 'inventory' ? (
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
           {isLoading ? (
-            <LoadingSpinner text="Reading real-time inventory from Google Sheets..." />
+            <LoadingSpinner text="Reading real-time inventory..." />
           ) : filteredInventory.length === 0 ? (
             <EmptyState
               icon={Boxes}
@@ -344,12 +344,12 @@ export const InventoryPage: React.FC = () => {
         <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
           <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Google Sheets Inventory Logs</h3>
+              <h3 className="text-sm font-bold text-slate-900">Inventory Audit Logs</h3>
               <p className="text-xs text-slate-500">Authoritative audit ledger of all stock mutations</p>
             </div>
             <div className="flex items-center gap-2 text-xs text-emerald-800 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Synced with Worksheet: Inventory_Logs</span>
+              <Database className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Synced with Central Database</span>
             </div>
           </div>
 
@@ -418,7 +418,7 @@ export const InventoryPage: React.FC = () => {
           isOpen={!!adjustItem}
           onClose={() => setAdjustItem(null)}
           title={`Adjust Stock: ${adjustItem.name}`}
-          subtitle={`Current stock in Google Sheets: ${adjustItem.stock} units`}
+          subtitle={`Current stock in database: ${adjustItem.stock} units`}
           maxWidth="md"
         >
           <form onSubmit={handleAdjustSubmit} className="space-y-4">
@@ -533,7 +533,7 @@ export const InventoryPage: React.FC = () => {
                 disabled={isAdjusting}
                 className="px-5 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
               >
-                {isAdjusting ? 'Recording in Sheets...' : 'Save & Record Audit'}
+                {isAdjusting ? 'Recording...' : 'Save & Record Audit'}
               </button>
             </div>
           </form>

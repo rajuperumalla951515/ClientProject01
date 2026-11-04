@@ -44,7 +44,7 @@ export const CustomersPage: React.FC = () => {
       const data = await api.getCustomers(searchQuery);
       setCustomers(data);
       if (isManual) {
-        showSuccess('Customer directory refreshed from Google Sheets.', 'Updated');
+        showSuccess('Customer directory refreshed.', 'Updated');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load customer directory.');
@@ -120,7 +120,7 @@ export const CustomersPage: React.FC = () => {
             onClick={() => loadCustomers(true)}
             disabled={isRefreshing}
             className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-            title="Refresh from Google Sheets"
+            title="Refresh"
           >
             <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-700' : ''}`} />
           </button>
@@ -130,7 +130,7 @@ export const CustomersPage: React.FC = () => {
       {/* Customer Directory Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
         {isLoading ? (
-          <LoadingSpinner text="Reading customer accounts from Google Sheets..." />
+          <LoadingSpinner text="Reading customer accounts..." />
         ) : customers.length === 0 ? (
           <EmptyState
             icon={Users}
@@ -363,3 +363,4 @@ export const CustomersPage: React.FC = () => {
     </div>
   );
 };
+

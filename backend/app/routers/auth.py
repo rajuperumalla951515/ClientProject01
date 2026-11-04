@@ -1,55 +1,26 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 from backend.app.config import settings
-from backend.app.database import get_db, check_db_connection
+from backend.app.database import get_db
 from backend.app.models import User
 from backend.app.schemas import UserCreate, UserLogin, UserOut, UserUpdate, Token
-from backend.app.security import verify_password, get_password_hash, create_access_token
+from backend.app.security import (
+    verify_password, get_password_hash, create_access_token,
+    check_login_rate_limit, record_failed_login, clear_failed_login
+)
 from backend.app.deps import get_current_user
-from backend.app.sheets.service import sheets_service
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
-
-def is_sheets_storage() -> bool:
-    return settings.STORAGE_BACKEND == "sheets" or not check_db_connection()[0]
 
 @router.post("/register", response_model=Token, status_code=status.HTTP_201_CREATED)
 def register(user_in: UserCreate, db: Session = Depends(get_db)):
     clean_email = user_in.email.lower().strip()
 
-    if is_sheets_storage():
-        existing = sheets_service.get_customer_by_email(clean_email)
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="An account with this email address already exists."
-            )
-        hashed = get_password_hash(user_in.password)
-        cust = sheets_service.create_customer(
-            name=user_in.name.strip(),
-            email=clean_email,
-            phone=user_in.phone.strip() if user_in.phone else "",
-            hashed_password=hashed,
-            role="customer"
-        )
-        token = create_access_token(subject=cust["id"])
-        user_out = UserOut(
-            id=cust["id"],
-            name=cust["name"],
-            email=cust["email"],
-            phone=cust["phone"],
-            role=cust["role"],
-            is_active=cust["is_active"],
-            created_at=cust["created_at"]
-        )
-        return Token(access_token=token, token_type="bearer", user=user_out)
-
-    # Database Mode
     existing = db.query(User).filter(User.email == clean_email).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="An account with this email address already exists."
+            detail="An account with this email address already exists. Please log in."
         )
     
     user = User(
@@ -69,45 +40,36 @@ def register(user_in: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=Token)
-def login(login_data: UserLogin, db: Session = Depends(get_db)):
+def login(login_data: UserLogin, request: Request, db: Session = Depends(get_db)):
     clean_email = login_data.email.lower().strip()
+    client_ip = request.client.host if request.client else "unknown"
+    rate_key = f"{client_ip}:{clean_email}"
 
-    if is_sheets_storage():
-        cust = sheets_service.get_customer_by_email(clean_email)
-        if not cust or not verify_password(login_data.password, cust["password_hash"]):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid email or password. Please try again."
-            )
-        if not cust.get("is_active", True):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="This account has been disabled."
-            )
-        token = create_access_token(subject=cust["id"])
-        user_out = UserOut(
-            id=cust["id"],
-            name=cust["name"],
-            email=cust["email"],
-            phone=cust["phone"],
-            role=cust["role"],
-            is_active=cust["is_active"],
-            created_at=cust["created_at"]
+    # Rate Limit Check
+    allowed, remaining_sec = check_login_rate_limit(rate_key, max_attempts=5, window_seconds=900)
+    if not allowed:
+        minutes = max(1, remaining_sec // 60)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Please wait {minutes} minute(s) before trying again."
         )
-        return Token(access_token=token, token_type="bearer", user=user_out)
 
     user = db.query(User).filter(User.email == clean_email).first()
     if not user or not verify_password(login_data.password, user.hashed_password):
+        record_failed_login(rate_key)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid email or password. Please try again."
+            detail="Invalid email or password. Please verify your credentials and try again."
         )
     
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="This account has been disabled."
+            detail="This account has been disabled. Please contact Sri Adithya Organics customer support."
         )
+
+    # Success: clear failed rate limiting
+    clear_failed_login(rate_key)
 
     token = create_access_token(subject=user.id)
     return Token(access_token=token, token_type="bearer", user=user)
@@ -124,14 +86,13 @@ def update_profile(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if update_data.name is not None:
+    if update_data.name is not None and update_data.name.strip():
         current_user.name = update_data.name.strip()
     if update_data.phone is not None:
-        current_user.phone = update_data.phone.strip()
+        current_user.phone = update_data.phone.strip() if update_data.phone else None
     if update_data.password:
         current_user.hashed_password = get_password_hash(update_data.password)
 
     db.commit()
     db.refresh(current_user)
     return current_user
-
