@@ -140,6 +140,28 @@ class D1Database:
                 self._local_conn.rollback()
                 raise
 
+    async def exec_statements(self, statements: List[str]) -> Any:
+        """Execute a list of raw SQL statements, batching them safely."""
+        clean_stmts = [s.strip() for s in statements if s and s.strip()]
+        if not clean_stmts:
+            return True
+
+        if self.is_d1:
+            chunk_size = 64
+            results = []
+            for i in range(0, len(clean_stmts), chunk_size):
+                chunk = clean_stmts[i:i + chunk_size]
+                prepared_list = [self.binding.prepare(s) for s in chunk]
+                res = await self.binding.batch(prepared_list)
+                results.append(res)
+            return results
+        else:
+            cur = self._local_conn.cursor()
+            for s in clean_stmts:
+                cur.execute(s)
+            self._local_conn.commit()
+            return True
+
 
 # Global fallback instance for local testing
 _global_local_d1: Optional[D1Database] = None

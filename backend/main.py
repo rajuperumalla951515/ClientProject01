@@ -206,18 +206,33 @@ async def health_check(d1: D1Database = Depends(get_d1)):
             }
         )
 
-# Seed Verification Endpoint
+# Database Initialization & Seed Endpoint
+@app.get("/api/init-db", tags=["Admin"])
+@app.post("/api/init-db", tags=["Admin"])
 @app.get("/api/seed", tags=["Admin"])
 @app.post("/api/seed", tags=["Admin"])
-async def verify_seed(d1: D1Database = Depends(get_d1)):
-    p_count = await d1.fetch_one("SELECT count(*) as c FROM products")
-    c_count = await d1.fetch_one("SELECT count(*) as c FROM categories")
-    p_num = p_count["c"] if p_count else 0
-    c_num = c_count["c"] if c_count else 0
-    return {
-        "status": "verified",
-        "database": "Cloudflare D1",
-        "products_count": p_num,
-        "categories_count": c_num,
-        "message": f"Successfully verified {p_num} products across {c_num} organic categories in Cloudflare D1."
-    }
+async def initialize_and_seed_db(d1: D1Database = Depends(get_d1)):
+    from backend.app.d1_migrations import SCHEMA_STATEMENTS, SEED_STATEMENTS
+    try:
+        await d1.exec_statements(SCHEMA_STATEMENTS)
+        await d1.exec_statements(SEED_STATEMENTS)
+        prod_count = await d1.fetch_one("SELECT count(*) as c FROM products")
+        cat_count = await d1.fetch_one("SELECT count(*) as c FROM categories")
+        p_num = prod_count["c"] if prod_count else 0
+        c_num = cat_count["c"] if cat_count else 0
+        return {
+            "status": "success",
+            "database": "Cloudflare D1",
+            "products_count": p_num,
+            "categories_count": c_num,
+            "message": f"Successfully verified/initialized {p_num} products across {c_num} organic categories in Cloudflare D1."
+        }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            content={
+                "status": "error",
+                "database": "Cloudflare D1",
+                "detail": str(exc)
+            }
+        )

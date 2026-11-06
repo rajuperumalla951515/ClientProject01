@@ -42,6 +42,22 @@ try:
                 # 2. Attach Cloudflare D1 database binding to FastAPI application state
                 if hasattr(self.env, "DB") and self.env.DB is not None:
                     app.state.d1 = D1Database(binding=self.env.DB)
+                    if not getattr(app.state, "_d1_initialized", False):
+                        try:
+                            check_row = await app.state.d1.fetch_one("SELECT count(*) as c FROM products")
+                            if check_row and check_row.get("c", 0) > 0:
+                                app.state._d1_initialized = True
+                            else:
+                                raise Exception("Empty products table")
+                        except Exception:
+                            try:
+                                from backend.app.d1_migrations import SCHEMA_STATEMENTS, SEED_STATEMENTS
+                                await app.state.d1.exec_statements(SCHEMA_STATEMENTS)
+                                await app.state.d1.exec_statements(SEED_STATEMENTS)
+                                app.state._d1_initialized = True
+                                print("[D1] Auto-initialized and seeded D1 schema and catalogue successfully.")
+                            except Exception as e:
+                                print(f"[D1] Auto-initialization notice: {e}")
             
             if (request.headers.get("upgrade") or "").lower() == "websocket":
                 return await asgi.websocket(app, request, self.env)
