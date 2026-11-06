@@ -212,12 +212,56 @@ else:
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
+_active_engine = engine
+_active_sessionmaker = SessionLocal
+_last_engine_url = raw_url
+
+def ensure_engine_synced():
+    """Dynamically rebind engine if Cloudflare Worker Hyperdrive sets DATABASE_URL at request time."""
+    global _active_engine, _active_sessionmaker, _last_engine_url, raw_url, is_db_configured
+    current_raw = resolve_raw_db_url()
+    if current_raw and current_raw != _last_engine_url:
+        try:
+            norm = normalize_db_url(current_raw)
+            valid, _, _ = validate_db_url(norm)
+            if valid:
+                c_args = {}
+                e_kwargs = {"pool_pre_ping": True}
+                if norm.startswith("sqlite"):
+                    c_args["check_same_thread"] = False
+                elif "postgresql" in norm:
+                    if "pg8000" in norm:
+                        if "?" in norm:
+                            norm = norm.split("?")[0]
+                        is_hd = bool(os.getenv("HYPERDRIVE") or os.getenv("CLOUDFLARE_HYPERDRIVE") or "hyperdrive" in norm.lower())
+                        if is_hd:
+                            c_args["ssl_context"] = False
+                        else:
+                            import ssl
+                            ctx = ssl.create_default_context()
+                            ctx.check_hostname = False
+                            ctx.verify_mode = ssl.CERT_NONE
+                            c_args["ssl_context"] = ctx
+                    else:
+                        if "sslmode" not in norm:
+                            c_args["sslmode"] = "require"
+                    e_kwargs.update({"pool_size": 10, "max_overflow": 20, "pool_recycle": 300})
+                new_eng = create_engine(norm, connect_args=c_args, **e_kwargs)
+                _active_engine = new_eng
+                _active_sessionmaker = sessionmaker(autocommit=False, autoflush=False, bind=new_eng)
+                _last_engine_url = current_raw
+                raw_url = current_raw
+                is_db_configured = True
+        except Exception as e:
+            print(f"[DATABASE] Rebind warning: {e}")
+
 def check_db_connection() -> Tuple[bool, Optional[str]]:
     """Test active database connectivity with a lightweight SELECT 1 query."""
+    ensure_engine_synced()
     if not is_db_configured:
         return False, db_config_error
     try:
-        with engine.connect() as conn:
+        with _active_engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return True, None
     except Exception as exc:
@@ -239,6 +283,7 @@ def check_db_connection() -> Tuple[bool, Optional[str]]:
 
 def get_safe_db_target() -> str:
     """Return host:port/database without exposing username or password."""
+    ensure_engine_synced()
     if not is_db_configured:
         return "unconfigured"
     try:
@@ -252,12 +297,13 @@ def get_safe_db_target() -> str:
 
 def get_db():
     """FastAPI database session dependency with automatic transaction safety."""
+    ensure_engine_synced()
     if not is_db_configured:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Centralized Supabase PostgreSQL service is temporarily unavailable. Please verify DATABASE_URL."
         )
-    db = SessionLocal()
+    db = _active_sessionmaker()
     try:
         yield db
     except Exception:

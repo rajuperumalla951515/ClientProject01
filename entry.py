@@ -27,7 +27,7 @@ try:
     
     class Default(WorkerEntrypoint):
         async def fetch(self, request):
-            # Sync Cloudflare Worker environment variables/secrets to os.environ
+            # 1. Sync Cloudflare Worker environment variables/secrets to os.environ
             if hasattr(self, "env") and self.env:
                 try:
                     import js
@@ -37,6 +37,20 @@ try:
                             os.environ[str(key)] = str(val)
                 except Exception:
                     pass
+                
+                # 2. Bridge Cloudflare Hyperdrive accelerated PostgreSQL edge connection
+                if hasattr(self.env, "HYPERDRIVE"):
+                    try:
+                        hd = self.env.HYPERDRIVE
+                        conn_str = getattr(hd, "connectionString", getattr(hd, "connection_string", None))
+                        if conn_str:
+                            raw_str = str(conn_str)
+                            if "pg8000" not in raw_str:
+                                raw_str = raw_str.replace("postgresql://", "postgresql+pg8000://").replace("postgres://", "postgresql+pg8000://")
+                            os.environ["DATABASE_URL"] = raw_str
+                            os.environ["HYPERDRIVE"] = "1"
+                    except Exception:
+                        pass
             
             if (request.headers.get("upgrade") or "").lower() == "websocket":
                 return await asgi.websocket(app, request, self.env)
