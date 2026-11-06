@@ -1,4 +1,4 @@
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 import urllib.request
 import urllib.parse
 import json
@@ -6,10 +6,8 @@ import math
 import os
 import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session
 from backend.app.config import settings
-from backend.app.database import get_db, check_db_connection
-from backend.app.models import Address, User, DeliverySetting
+from backend.app.d1 import D1Database, get_d1
 from backend.app.schemas import (
     AddressOut, AddressCreate, AddressUpdate,
     ReverseGeocodeRequest, ReverseGeocodeOut,
@@ -103,12 +101,6 @@ def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> fl
 
 @router.post("/reverse-geocode", response_model=ReverseGeocodeOut)
 def reverse_geocode(geo: ReverseGeocodeRequest):
-    """
-    High-precision reverse-geocoding for real coordinates.
-    Retrieves building, street, neighbourhood, locality, city, district, state, and postal code.
-    Evaluates Google Maps if configured, falling back to OpenStreetMap Nominatim and BigDataCloud.
-    Never fabricates missing house details or distorts coordinates.
-    """
     lat, lon = geo.latitude, geo.longitude
     accuracy = geo.accuracy
 
@@ -124,7 +116,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     resolved_formatted = None
     landmark = None
 
-    # Method 1: Google Maps Geocoding API if key is present
+    # Google Maps Geocoding API if key is present
     google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
     if google_key:
         try:
@@ -157,205 +149,109 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
                                 resolved_state = name
                             elif "postal_code" in types:
                                 resolved_pin = name
-        except Exception as e:
-            print(f"[REVERSE_GEOCODE] Google Maps lookup note: {e}")
+        except Exception:
+            pass
 
-    # Method 2: OpenStreetMap Nominatim Reverse Geocoding with zoom=18 for building/house level precision
-    if not (resolved_locality and resolved_pin):
+    # OpenStreetMap Nominatim
+    if not resolved_city or not resolved_pin:
         try:
-            url = f"https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat={lat}&lon={lon}&addressdetails=1&zoom=18"
-            req = urllib.request.Request(
-                url,
-                headers={
-                    "User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact: info@sriadithyaorganics.com)",
-                    "Accept-Language": "en"
-                }
-            )
-            with urllib.request.urlopen(req, timeout=4.0) as resp:
+            url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&addressdetails=1"
+            req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact@sriadithyaorganics.com)"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
+                    resolved_formatted = resolved_formatted or data.get("display_name")
                     addr = data.get("address", {})
-                    
-                    house_number = house_number or addr.get("house_number") or addr.get("housename")
-                    building = building or addr.get("building") or addr.get("residential") or addr.get("apartment")
-                    road = road or addr.get("road") or addr.get("street") or addr.get("pedestrian") or addr.get("footway")
-                    neighbourhood = neighbourhood or addr.get("neighbourhood") or addr.get("suburb") or addr.get("residential")
-                    landmark = landmark or addr.get("amenity") or addr.get("landmark") or addr.get("shop")
-                    
-                    resolved_locality = resolved_locality or (
-                        addr.get("suburb") or addr.get("neighbourhood") or 
-                        addr.get("residential") or addr.get("city_district") or 
-                        addr.get("village") or addr.get("town") or addr.get("road")
-                    )
-                    resolved_city = resolved_city or (
-                        addr.get("city") or addr.get("town") or 
-                        addr.get("city_district") or addr.get("district") or 
-                        addr.get("municipality")
-                    )
-                    resolved_district = resolved_district or addr.get("state_district") or addr.get("county") or addr.get("district")
+                    house_number = house_number or addr.get("house_number")
+                    building = building or addr.get("building") or addr.get("commercial") or addr.get("residential")
+                    road = road or addr.get("road") or addr.get("pedestrian") or addr.get("street")
+                    neighbourhood = neighbourhood or addr.get("neighbourhood") or addr.get("suburb")
+                    resolved_locality = resolved_locality or addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential")
+                    resolved_city = resolved_city or addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county")
+                    resolved_district = resolved_district or addr.get("state_district") or addr.get("county")
                     resolved_state = resolved_state or addr.get("state")
                     resolved_pin = resolved_pin or addr.get("postcode")
-                    resolved_formatted = resolved_formatted or data.get("display_name")
-        except Exception as e:
-            print(f"[REVERSE_GEOCODE] Nominatim lookup note: {e}")
+        except Exception:
+            pass
 
-    # Method 3: Fallback to BigDataCloud client API if Nominatim failed or was throttled
-    if not (resolved_locality and resolved_pin):
-        try:
-            bdc_url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
-            req = urllib.request.Request(bdc_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
-            with urllib.request.urlopen(req, timeout=3.5) as resp:
-                if resp.status == 200:
-                    bdc_data = json.loads(resp.read().decode("utf-8"))
-                    if not resolved_locality:
-                        resolved_locality = bdc_data.get("locality") or bdc_data.get("principalSubdivision")
-                    if not resolved_city:
-                        resolved_city = bdc_data.get("city") or bdc_data.get("locality")
-                    if not resolved_state:
-                        resolved_state = bdc_data.get("principalSubdivision")
-                    if not resolved_pin:
-                        resolved_pin = bdc_data.get("postcode")
-                    if not resolved_formatted:
-                        resolved_formatted = f"{resolved_locality or ''}, {resolved_city or ''}, {resolved_state or ''} {resolved_pin or ''}".strip(", ")
-        except Exception as e:
-            print(f"[REVERSE_GEOCODE] BigDataCloud lookup note: {e}")
+    # Cluster fallback
+    closest_cluster = None
+    min_dist = float("inf")
+    for cluster in KNOWN_LOCALITY_CLUSTERS:
+        dist = calculate_distance(lat, lon, cluster["lat"], cluster["lon"])
+        if dist < min_dist:
+            min_dist = dist
+            closest_cluster = cluster
 
-    # Method 4: Find closest logistics hub for delivery ETA calculation
-    closest_cluster = min(
-        KNOWN_LOCALITY_CLUSTERS,
-        key=lambda c: calculate_distance(lat, lon, c["lat"], c["lon"])
-    )
-    dist = calculate_distance(lat, lon, closest_cluster["lat"], closest_cluster["lon"])
+    if closest_cluster and (not resolved_city or min_dist < 25.0):
+        if not resolved_locality:
+            resolved_locality = closest_cluster["name"]
+        if not resolved_city:
+            resolved_city = closest_cluster["city"]
+        if not resolved_state:
+            resolved_state = closest_cluster["state"]
+        if not resolved_pin:
+            resolved_pin = closest_cluster["pin"]
 
-    # Fallback default locality ONLY if geocoding services returned empty
-    if not resolved_locality:
-        resolved_locality = closest_cluster["name"]
-    if not resolved_city:
-        resolved_city = closest_cluster["city"]
-    if not resolved_state:
-        resolved_state = closest_cluster["state"]
-    if not resolved_pin:
-        resolved_pin = closest_cluster["pin"]
+    # Final safe fallbacks
+    resolved_locality = resolved_locality or "Indiranagar"
+    resolved_city = resolved_city or "Bengaluru"
+    resolved_state = resolved_state or "Karnataka"
+    resolved_pin = (resolved_pin or "560038").strip()
+
+    street_parts = [p for p in [building, road, neighbourhood] if p]
+    street_line = ", ".join(street_parts) if street_parts else resolved_locality
+
     if not resolved_formatted:
-        resolved_formatted = f"{resolved_locality}, {resolved_city}, {resolved_state} - {resolved_pin}"
-
-    # Construct clean human-readable formatted address
-    components = []
-    if house_number:
-        components.append(house_number)
-    if building:
-        components.append(building)
-    if road:
-        components.append(road)
-    if neighbourhood and neighbourhood != resolved_locality:
-        components.append(neighbourhood)
-    if resolved_locality:
-        components.append(resolved_locality)
-    if resolved_city:
-        components.append(resolved_city)
-    if resolved_state:
-        components.append(f"{resolved_state} - {resolved_pin}")
-
-    if components:
-        clean_formatted = ", ".join(dict.fromkeys(components))
-    else:
-        clean_formatted = resolved_formatted
-
-    # Delivery serviceability calculation
-    is_express = (
-        (resolved_pin and resolved_pin.startswith(("560", "641", "600"))) or
-        (dist <= 25.0)
-    )
-    is_serviceable = True
-
-    if is_express:
-        minutes = closest_cluster["minutes"] if dist <= 15.0 else 30
-        hub = closest_cluster["hub"]
-        msg = f"Express Delivery Active! Dispatched from {hub} in {minutes} mins."
-    else:
-        minutes = 48 * 60
-        hub = "Sri Adithya Organics Central Fulfillment Facility"
-        msg = f"Standard Courier Delivery Active to {resolved_city}."
-
-    # Mark as incomplete if house number or building is missing (prompt customer to enter door/flat)
-    is_incomplete = not bool(house_number or building)
+        resolved_formatted = f"{street_line}, {resolved_locality}, {resolved_city}, {resolved_state} - {resolved_pin}"
 
     return ReverseGeocodeOut(
-        formatted_address=clean_formatted,
-        house_number=house_number,
-        building=building,
-        road=road,
-        locality=resolved_locality,
-        neighbourhood=neighbourhood,
-        landmark=landmark,
-        city=resolved_city,
-        district=resolved_district,
-        state=resolved_state,
-        postal_code=resolved_pin,
-        country="India",
         latitude=lat,
         longitude=lon,
         accuracy_meters=accuracy,
-        is_serviceable=is_serviceable,
-        estimated_delivery_minutes=minutes,
-        service_hub=hub,
-        message=msg,
-        is_incomplete=is_incomplete,
-        source="gps_detected" if not accuracy or accuracy <= 100 else "gps_approximate"
+        house_number=house_number,
+        apartment=building,
+        street=street_line,
+        locality=resolved_locality,
+        landmark=landmark,
+        city=resolved_city,
+        state=resolved_state,
+        postal_code=resolved_pin,
+        formatted_address=resolved_formatted,
+        delivery_cluster=closest_cluster["name"] if closest_cluster else "Indiranagar",
+        estimated_delivery_minutes=closest_cluster["minutes"] if closest_cluster else 25,
+        service_hub=closest_cluster["hub"] if closest_cluster else "Sri Adithya Hub"
     )
 
 @router.get("/search", response_model=List[AddressSearchResultItem])
-def search_address_locations(q: str = Query(..., min_length=2, description="Address, area, building or PIN query")):
-    """
-    Search address locations across India with autocomplete.
-    Uses OpenStreetMap Nominatim Search API to return structured results.
-    """
-    query = q.strip()
-    if not query:
-        return []
-
-    results: List[AddressSearchResultItem] = []
+def search_address(query: str = Query(..., min_length=2)):
+    results = []
     try:
-        encoded_q = urllib.parse.quote(query)
-        url = f"https://nominatim.openstreetmap.org/search?format=jsonv2&q={encoded_q}&countrycodes=in&limit=6&addressdetails=1"
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact: info@sriadithyaorganics.com)",
-                "Accept-Language": "en"
-            }
-        )
-        with urllib.request.urlopen(req, timeout=4.0) as resp:
+        encoded = urllib.parse.quote(f"{query}, India")
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=6"
+        req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
             if resp.status == 200:
-                items = json.loads(resp.read().decode("utf-8"))
-                for it in items:
+                data = json.loads(resp.read().decode("utf-8"))
+                for it in data:
                     addr = it.get("address", {})
-                    loc = (
-                        addr.get("suburb") or addr.get("neighbourhood") or 
-                        addr.get("residential") or addr.get("road") or 
-                        addr.get("city_district") or addr.get("village") or "Area"
-                    )
-                    cty = (
-                        addr.get("city") or addr.get("town") or 
-                        addr.get("district") or addr.get("county") or "Bengaluru"
-                    )
-                    st = addr.get("state") or "Karnataka"
-                    pin = addr.get("postcode") or ""
-                    
+                    pin = addr.get("postcode", "")
+                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county", "Bengaluru")
+                    st = addr.get("state", "Karnataka")
+                    loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or it.get("name")
                     results.append(AddressSearchResultItem(
                         place_id=str(it.get("place_id")),
-                        formatted_address=it.get("display_name", ""),
+                        formatted_address=it.get("display_name"),
                         locality=loc,
-                        city=cty,
+                        city=city,
                         state=st,
                         postal_code=pin,
                         latitude=float(it["lat"]),
                         longitude=float(it["lon"])
                     ))
-    except Exception as e:
-        print(f"[SEARCH_ADDRESS] Search note: {e}")
+    except Exception:
+        pass
 
-    # Fallback to known locality clusters if external search is throttled
     if not results:
         q_lower = query.lower()
         for c in KNOWN_LOCALITY_CLUSTERS:
@@ -373,15 +269,14 @@ def search_address_locations(q: str = Query(..., min_length=2, description="Addr
     return results
 
 @router.post("/check-serviceability", response_model=ServiceabilityCheckOut)
-def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(get_db)):
-    """Verify delivery serviceability for a PIN code or coordinates."""
+async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database = Depends(get_d1)):
     min_order = 99.0
     free_thresh = 499.0
     try:
-        settings = db.query(DeliverySetting).first()
-        if settings:
-            min_order = settings.min_order_amount
-            free_thresh = settings.free_delivery_threshold
+        setting = await d1.fetch_one("SELECT min_order_amount, free_delivery_threshold FROM delivery_settings LIMIT 1")
+        if setting:
+            min_order = float(setting.get("min_order_amount") or 99.0)
+            free_thresh = float(setting.get("free_delivery_threshold") or 499.0)
     except Exception:
         pass
 
@@ -389,7 +284,6 @@ def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(
     is_express = pin.startswith(("560", "641", "600"))
     is_serviceable = len(pin) == 6 and pin.isdigit()
 
-    # Match locality
     matching = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
     if matching:
         locality = matching["name"]
@@ -429,123 +323,140 @@ def check_serviceability(req: ServiceabilityCheckRequest, db: Session = Depends(
 
 
 @router.get("", response_model=List[AddressOut])
-def get_user_addresses(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+async def get_user_addresses(
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    return db.query(Address).filter(Address.user_id == current_user.id).order_by(Address.is_default.desc(), Address.id.desc()).all()
+    rows = await d1.fetch_all(
+        "SELECT * FROM addresses WHERE user_id = ? ORDER BY is_default DESC, id DESC",
+        current_user["id"]
+    )
+    return [AddressOut(**r) for r in rows]
 
 
 @router.post("", response_model=AddressOut, status_code=status.HTTP_201_CREATED)
-def create_address(
+async def create_address(
     address_in: AddressCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    # If this is the user's first address, make it default automatically
-    count = db.query(Address).filter(Address.user_id == current_user.id).count()
+    user_id = current_user["id"]
+    count_row = await d1.fetch_one("SELECT count(*) as c FROM addresses WHERE user_id = ?", user_id)
+    count = count_row["c"] if count_row else 0
     is_default = address_in.is_default or (count == 0)
 
     if is_default:
-        db.query(Address).filter(Address.user_id == current_user.id).update({"is_default": False})
+        await d1.execute("UPDATE addresses SET is_default = 0 WHERE user_id = ?", user_id)
 
-    new_address = Address(
-        user_id=current_user.id,
-        label=address_in.label,
-        recipient_name=address_in.recipient_name,
-        phone=address_in.phone,
-        street=address_in.street,
-        apartment=address_in.apartment,
-        house_number=address_in.house_number,
-        locality=address_in.locality,
-        landmark=address_in.landmark,
-        city=address_in.city,
-        state=address_in.state,
-        postal_code=address_in.postal_code,
-        latitude=address_in.latitude,
-        longitude=address_in.longitude,
-        accuracy_meters=address_in.accuracy_meters,
-        formatted_address=address_in.formatted_address,
-        confirmed_at=address_in.confirmed_at or datetime.datetime.utcnow(),
-        is_default=is_default
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    confirmed_at_str = address_in.confirmed_at.strftime("%Y-%m-%d %H:%M:%S") if address_in.confirmed_at else now
+
+    sql = """
+        INSERT INTO addresses (
+            user_id, label, recipient_name, phone, street, apartment,
+            house_number, locality, landmark, city, state, postal_code,
+            latitude, longitude, accuracy_meters, formatted_address,
+            confirmed_at, is_default, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    new_id = await d1.execute_insert(
+        sql,
+        user_id,
+        address_in.label,
+        address_in.recipient_name,
+        address_in.phone,
+        address_in.street,
+        address_in.apartment,
+        address_in.house_number,
+        address_in.locality,
+        address_in.landmark,
+        address_in.city,
+        address_in.state,
+        address_in.postal_code,
+        address_in.latitude,
+        address_in.longitude,
+        address_in.accuracy_meters,
+        address_in.formatted_address,
+        confirmed_at_str,
+        1 if is_default else 0,
+        now
     )
-    db.add(new_address)
-    db.commit()
-    db.refresh(new_address)
-    return new_address
+
+    new_addr = await d1.fetch_one("SELECT * FROM addresses WHERE id = ?", new_id)
+    return AddressOut(**new_addr)
 
 
 @router.put("/{address_id}", response_model=AddressOut)
-def update_address(
+async def update_address(
     address_id: int,
     address_in: AddressUpdate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    address = db.query(Address).filter(
-        Address.id == address_id,
-        Address.user_id == current_user.id
-    ).first()
-
+    user_id = current_user["id"]
+    address = await d1.fetch_one(
+        "SELECT * FROM addresses WHERE id = ? AND user_id = ?",
+        address_id, user_id
+    )
     if not address:
         raise HTTPException(status_code=404, detail="Address not found.")
 
-    update_data = address_in.model_dump(exclude_unset=True)
-    if update_data.get("is_default"):
-        db.query(Address).filter(Address.user_id == current_user.id).update({"is_default": False})
+    update_dict = address_in.model_dump(exclude_unset=True)
+    if update_dict.get("is_default"):
+        await d1.execute("UPDATE addresses SET is_default = 0 WHERE user_id = ?", user_id)
 
-    for field, val in update_data.items():
-        setattr(address, field, val)
+    fields = []
+    params = []
+    for k, v in update_dict.items():
+        fields.append(f"{k} = ?")
+        params.append(1 if (k == "is_default" and v is True) else 0 if (k == "is_default" and v is False) else v)
+    params.extend([address_id, user_id])
 
-    db.commit()
-    db.refresh(address)
-    return address
+    await d1.execute(f"UPDATE addresses SET {', '.join(fields)} WHERE id = ? AND user_id = ?", *params)
+    updated = await d1.fetch_one("SELECT * FROM addresses WHERE id = ?", address_id)
+    return AddressOut(**updated)
 
 
 @router.put("/{address_id}/set-default", response_model=AddressOut)
-def set_default_address(
+async def set_default_address(
     address_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    address = db.query(Address).filter(
-        Address.id == address_id,
-        Address.user_id == current_user.id
-    ).first()
-
+    user_id = current_user["id"]
+    address = await d1.fetch_one(
+        "SELECT * FROM addresses WHERE id = ? AND user_id = ?",
+        address_id, user_id
+    )
     if not address:
         raise HTTPException(status_code=404, detail="Address not found.")
 
-    db.query(Address).filter(Address.user_id == current_user.id).update({"is_default": False})
-    address.is_default = True
-    db.commit()
-    db.refresh(address)
-    return address
+    await d1.execute("UPDATE addresses SET is_default = 0 WHERE user_id = ?", user_id)
+    await d1.execute("UPDATE addresses SET is_default = 1 WHERE id = ?", address_id)
+    updated = await d1.fetch_one("SELECT * FROM addresses WHERE id = ?", address_id)
+    return AddressOut(**updated)
 
 
 @router.delete("/{address_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_address(
+async def delete_address(
     address_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    address = db.query(Address).filter(
-        Address.id == address_id,
-        Address.user_id == current_user.id
-    ).first()
-
+    user_id = current_user["id"]
+    address = await d1.fetch_one(
+        "SELECT * FROM addresses WHERE id = ? AND user_id = ?",
+        address_id, user_id
+    )
     if not address:
         raise HTTPException(status_code=404, detail="Address not found.")
 
-    was_default = address.is_default
-    db.delete(address)
-    db.commit()
+    was_default = bool(address.get("is_default"))
+    await d1.execute("DELETE FROM addresses WHERE id = ? AND user_id = ?", address_id, user_id)
 
-    # If it was default, assign default to another address if exists
     if was_default:
-        next_addr = db.query(Address).filter(Address.user_id == current_user.id).first()
+        next_addr = await d1.fetch_one("SELECT id FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1", user_id)
         if next_addr:
-            next_addr.is_default = True
-            db.commit()
+            await d1.execute("UPDATE addresses SET is_default = 1 WHERE id = ?", next_addr["id"])
 
     return None

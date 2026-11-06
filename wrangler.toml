@@ -4,13 +4,11 @@ main = "entry.py"
 compatibility_date = "2026-11-05"
 compatibility_flags = ["python_workers"]
 
-# Cloudflare Hyperdrive binding for global PostgreSQL connection pooling and query acceleration
-# To link your Hyperdrive configuration:
-# 1. Run: npx wrangler hyperdrive create sri-adithya-db --connection-string="postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require"
-# 2. Uncomment the block below and paste your returned Hyperdrive ID:
-# [[hyperdrive]]
-# binding = "HYPERDRIVE"
-# id = "<YOUR_HYPERDRIVE_ID>"
+# Cloudflare D1 Database Binding
+[[d1_databases]]
+binding = "DB"
+database_name = "sri-adithya-db"
+database_id = "sri-adithya-db"
 
 [vars]
 ENVIRONMENT = "production"
@@ -21,6 +19,3 @@ DEFAULT_MIN_ORDER_AMOUNT = "99.0"
 DEFAULT_FREE_DELIVERY_THRESHOLD = "499.0"
 DEFAULT_STANDARD_DELIVERY_FEE = "39.0"
 DEFAULT_EXPRESS_DELIVERY_FEE = "59.0"
-DATABASE_URL = "postgresql+pg8000://postgres.gahduzexqmmlahshsyre:%23lakshman%402005%23@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
-
-

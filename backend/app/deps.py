@@ -1,17 +1,15 @@
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from sqlalchemy.orm import Session
-from backend.app.database import get_db
-from backend.app.models import User
+from backend.app.d1 import D1Database, get_d1
 from backend.app.security import decode_access_token
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/token", auto_error=False)
 
-def get_current_user(
-    db: Session = Depends(get_db),
+async def get_current_user(
+    d1: D1Database = Depends(get_d1),
     token: Optional[str] = Depends(oauth2_scheme)
-) -> User:
+) -> Dict[str, Any]:
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -35,8 +33,8 @@ def get_current_user(
             detail="Invalid token payload."
         )
 
-    user = db.query(User).filter(User.id == user_id).first()
-    if not user or not user.is_active:
+    user = await d1.fetch_one("SELECT * FROM users WHERE id = ? AND is_active = 1", user_id)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User account not found or has been deactivated."
@@ -45,10 +43,10 @@ def get_current_user(
     return user
 
 
-def get_optional_user(
-    db: Session = Depends(get_db),
+async def get_optional_user(
+    d1: D1Database = Depends(get_d1),
     token: Optional[str] = Depends(oauth2_scheme)
-) -> Optional[User]:
+) -> Optional[Dict[str, Any]]:
     if not token:
         return None
     try:
@@ -56,15 +54,15 @@ def get_optional_user(
         if not user_id_str:
             return None
         user_id = int(user_id_str)
-        return db.query(User).filter(User.id == user_id, User.is_active == True).first()
+        return await d1.fetch_one("SELECT * FROM users WHERE id = ? AND is_active = 1", user_id)
     except Exception:
         return None
 
 
-def get_current_admin(
-    current_user: User = Depends(get_current_user)
-) -> User:
-    if getattr(current_user, "role", "customer") != "admin":
+async def get_current_admin(
+    current_user: Dict[str, Any] = Depends(get_current_user)
+) -> Dict[str, Any]:
+    if current_user.get("role") != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Administrator access required for this operation."

@@ -2,19 +2,16 @@ import re
 import json
 import urllib.parse
 import datetime
-from typing import List, Optional, Any
+from typing import List, Optional, Any, Dict
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload, selectinload
-from sqlalchemy import or_, desc, asc
 from backend.app.config import settings
-from backend.app.database import get_db
-from backend.app.models import Order, OrderItem, Cart, CartItem, Product, ProductVariant, Address, User, DeliverySetting, InventoryLog
+from backend.app.d1 import D1Database, get_d1
 from backend.app.schemas import (
-    OrderCreate, OrderOut, OrderStatusUpdate,
+    OrderCreate, OrderOut, OrderItemOut, OrderStatusUpdate,
     WhatsAppOrderCreate, WhatsAppOrderResponse, WhatsAppOrderItemInput
 )
 from backend.app.deps import get_current_user, get_optional_user, get_current_admin
-from backend.app.pricing import compute_financials, to_decimal
+from backend.app.pricing import compute_financials
 from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
@@ -27,7 +24,8 @@ def generate_order_number() -> str:
 
 
 def format_whatsapp_order_message(
-    order: Order,
+    order_dict: Dict[str, Any],
+    items: List[Dict[str, Any]],
     customer_name: str,
     customer_phone: str,
     address_dict: Optional[dict] = None
@@ -46,9 +44,9 @@ def format_whatsapp_order_message(
             f"PIN: {address_dict.get('postal_code')}" if address_dict.get('postal_code') else None
         ]
         addr_line = ", ".join([str(p).strip() for p in parts if p and str(p).strip()])
-    elif order.delivery_address_json:
+    elif order_dict.get("delivery_address_json"):
         try:
-            parsed = json.loads(order.delivery_address_json)
+            parsed = json.loads(order_dict["delivery_address_json"])
             parts = [
                 parsed.get("house_number"),
                 parsed.get("apartment"),
@@ -61,26 +59,34 @@ def format_whatsapp_order_message(
             ]
             addr_line = ", ".join([str(p).strip() for p in parts if p and str(p).strip()])
         except Exception:
-            addr_line = str(order.delivery_address_json)
+            addr_line = str(order_dict.get("delivery_address_json"))
 
     item_lines = []
-    if hasattr(order, "items") and order.items:
-        for it in order.items:
-            item_lines.append(f"• {it.product_name} ({it.variant_name or 'Standard Pack'}) x {it.quantity} = ₹{it.total_price:.2f}")
+    for it in items:
+        p_name = it.get("product_name") or "Organic Item"
+        v_name = it.get("variant_name") or "Standard Pack"
+        qty = it.get("quantity") or 1
+        tot = float(it.get("total_price") or 0.0)
+        item_lines.append(f"• {p_name} ({v_name}) x {qty} = ₹{tot:.2f}")
 
     items_block = "\n".join(item_lines) if item_lines else "• Fresh Wood-Pressed Produce / Certified Organics"
+
+    subtotal = float(order_dict.get("subtotal") or 0.0)
+    del_fee = float(order_dict.get("delivery_fee") or 0.0)
+    tot_amt = float(order_dict.get("total_amount") or 0.0)
+    slot = order_dict.get("delivery_slot") or "Standard Express Delivery"
 
     msg = (
         f"🌿 *SRI ADITHYA ORGANICS — ORDER CONFIRMATION* 🌿\n\n"
         f"Namaste! Thank you for choosing pure, chemical-free cold-pressed produce.\n\n"
-        f"*Order Number:* #{order.order_number}\n"
+        f"*Order Number:* #{order_dict.get('order_number')}\n"
         f"*Customer Name:* {customer_name}\n"
         f"*Phone:* {customer_phone}\n\n"
         f"*Items Ordered:*\n{items_block}\n\n"
-        f"*Subtotal:* ₹{order.subtotal:.2f}\n"
-        f"*Delivery Fee:* ₹{order.delivery_fee:.2f}\n"
-        f"*Total Payable:* ₹{order.total_amount:.2f}\n"
-        f"*Delivery Slot:* {order.delivery_slot or 'Standard Express Delivery'}\n"
+        f"*Subtotal:* ₹{subtotal:.2f}\n"
+        f"*Delivery Fee:* ₹{del_fee:.2f}\n"
+        f"*Total Payable:* ₹{tot_amt:.2f}\n"
+        f"*Delivery Slot:* {slot}\n"
         f"*Payment Method:* Cash on Delivery / UPI upon arrival\n\n"
         f"*Delivery Destination:*\n{addr_line}\n\n"
         f"Please reply to this message to confirm dispatch. Our fulfillment team is preparing your fresh order!"
@@ -88,90 +94,187 @@ def format_whatsapp_order_message(
     return msg
 
 
-@router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
-def checkout(
-    order_in: OrderCreate,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    # Idempotency Protection: If order was already submitted with this idempotency key, return it immediately
-    if order_in.idempotency_key:
-        existing_order = db.query(Order).options(selectinload(Order.items)).filter(
-            Order.payment_id == f"IDEM-{order_in.idempotency_key}"
-        ).first()
-        if existing_order:
-            return existing_order
+async def load_order_with_items(d1: D1Database, order_id_or_number: Any) -> Optional[OrderOut]:
+    if str(order_id_or_number).isdigit():
+        order = await d1.fetch_one("SELECT * FROM orders WHERE id = ?", int(order_id_or_number))
+    else:
+        order = await d1.fetch_one("SELECT * FROM orders WHERE order_number = ?", str(order_id_or_number))
+    
+    if not order:
+        return None
+        
+    items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ? ORDER BY id ASC", order["id"])
+    return OrderOut(
+        id=order["id"],
+        order_number=order["order_number"],
+        user_id=order.get("user_id"),
+        status=order["status"],
+        subtotal=float(order["subtotal"]),
+        discount=float(order.get("discount") or 0.0),
+        delivery_fee=float(order.get("delivery_fee") or 0.0),
+        tax=float(order.get("tax") or 0.0),
+        total_amount=float(order["total_amount"]),
+        delivery_slot=order.get("delivery_slot") or "Standard Delivery",
+        delivery_address_json=order.get("delivery_address_json") or "{}",
+        notes=order.get("notes"),
+        admin_notes=order.get("admin_notes"),
+        payment_method=order.get("payment_method") or "cod",
+        payment_status=order.get("payment_status") or "pending",
+        payment_id=order.get("payment_id"),
+        created_at=order["created_at"],
+        updated_at=order["updated_at"],
+        items=[
+            OrderItemOut(
+                id=it["id"],
+                product_id=it["product_id"],
+                variant_id=it["variant_id"],
+                product_name=it["product_name"],
+                variant_name=it.get("variant_name") or "Standard Pack",
+                unit_price=float(it["unit_price"]),
+                mrp=float(it.get("mrp") or it["unit_price"]),
+                quantity=it["quantity"],
+                total_price=float(it["total_price"]),
+                image_url=None
+            ) for it in items
+        ]
+    )
 
-    # 1. Validate Address with strict ownership check
-    address = db.query(Address).filter(
-        Address.id == order_in.address_id,
-        Address.user_id == current_user.id
-    ).first()
+
+async def load_orders_with_items(d1: D1Database, orders: List[Dict[str, Any]]) -> List[OrderOut]:
+    if not orders:
+        return []
+    order_ids = [o["id"] for o in orders]
+    placeholders = ",".join("?" * len(order_ids))
+    items = await d1.fetch_all(f"SELECT * FROM order_items WHERE order_id IN ({placeholders}) ORDER BY id ASC", *order_ids)
+    items_by_order: Dict[int, List[Dict[str, Any]]] = {}
+    for it in items:
+        items_by_order.setdefault(it["order_id"], []).append(it)
+    
+    res = []
+    for order in orders:
+        order_items = items_by_order.get(order["id"], [])
+        res.append(OrderOut(
+            id=order["id"],
+            order_number=order["order_number"],
+            user_id=order.get("user_id"),
+            status=order["status"],
+            subtotal=float(order["subtotal"]),
+            discount=float(order.get("discount") or 0.0),
+            delivery_fee=float(order.get("delivery_fee") or 0.0),
+            tax=float(order.get("tax") or 0.0),
+            total_amount=float(order["total_amount"]),
+            delivery_slot=order.get("delivery_slot") or "Standard Delivery",
+            delivery_address_json=order.get("delivery_address_json") or "{}",
+            notes=order.get("notes"),
+            admin_notes=order.get("admin_notes"),
+            payment_method=order.get("payment_method") or "cod",
+            payment_status=order.get("payment_status") or "pending",
+            payment_id=order.get("payment_id"),
+            created_at=order["created_at"],
+            updated_at=order["updated_at"],
+            items=[
+                OrderItemOut(
+                    id=it["id"],
+                    product_id=it["product_id"],
+                    variant_id=it["variant_id"],
+                    product_name=it["product_name"],
+                    variant_name=it.get("variant_name") or "Standard Pack",
+                    unit_price=float(it["unit_price"]),
+                    mrp=float(it.get("mrp") or it["unit_price"]),
+                    quantity=it["quantity"],
+                    total_price=float(it["total_price"]),
+                    image_url=None
+                ) for it in order_items
+            ]
+        ))
+    return res
+
+
+@router.post("", response_model=OrderOut, status_code=status.HTTP_201_CREATED)
+async def checkout(
+    order_in: OrderCreate,
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
+):
+    user_id = current_user["id"]
+    # Idempotency Protection
+    if order_in.idempotency_key:
+        idem_token = f"IDEM-{order_in.idempotency_key}"
+        existing = await d1.fetch_one("SELECT id FROM orders WHERE payment_id = ?", idem_token)
+        if existing:
+            return await load_order_with_items(d1, existing["id"])
+
+    # 1. Validate Address
+    address = await d1.fetch_one(
+        "SELECT * FROM addresses WHERE id = ? AND user_id = ?",
+        order_in.address_id, user_id
+    )
     if not address:
         raise HTTPException(status_code=400, detail="Please select a valid delivery address belonging to your account.")
 
     address_snapshot = {
-        "label": address.label,
-        "recipient_name": address.recipient_name,
-        "phone": address.phone,
-        "house_number": address.house_number,
-        "street": address.street,
-        "apartment": address.apartment,
-        "locality": address.locality,
-        "landmark": address.landmark,
-        "city": address.city,
-        "state": address.state,
-        "postal_code": address.postal_code,
-        "latitude": address.latitude,
-        "longitude": address.longitude,
-        "accuracy_meters": address.accuracy_meters,
-        "formatted_address": address.formatted_address,
+        "label": address.get("label"),
+        "recipient_name": address.get("recipient_name"),
+        "phone": address.get("phone"),
+        "house_number": address.get("house_number"),
+        "street": address.get("street"),
+        "apartment": address.get("apartment"),
+        "locality": address.get("locality"),
+        "landmark": address.get("landmark"),
+        "city": address.get("city"),
+        "state": address.get("state"),
+        "postal_code": address.get("postal_code"),
+        "latitude": address.get("latitude"),
+        "longitude": address.get("longitude"),
+        "accuracy_meters": address.get("accuracy_meters"),
+        "formatted_address": address.get("formatted_address"),
     }
 
-    # 2. Get User Cart with items and products in single query
-    cart = db.query(Cart).options(
-        joinedload(Cart.items).joinedload(CartItem.variant).joinedload(ProductVariant.product)
-    ).filter(Cart.user_id == current_user.id).first()
-
-    if not cart or not cart.items:
+    # 2. Get User Cart & Items
+    cart = await d1.fetch_one("SELECT id FROM carts WHERE user_id = ?", user_id)
+    if not cart:
         raise HTTPException(status_code=400, detail="Your cart is empty. Add items before checking out.")
 
-    # 3. Check delivery settings
-    from backend.app.routers.cart import get_cached_delivery_settings
-    free_threshold, standard_delivery = get_cached_delivery_settings(db)
+    cart_items = await d1.fetch_all("SELECT * FROM cart_items WHERE cart_id = ?", cart["id"])
+    if not cart_items:
+        raise HTTPException(status_code=400, detail="Your cart is empty. Add items before checking out.")
 
-    # 4. Atomic Row Lock & Stock validation in a single batch
-    variant_ids = [item.variant_id for item in cart.items]
-    locked_variants = db.query(ProductVariant).options(
-        joinedload(ProductVariant.product)
-    ).filter(
-        ProductVariant.id.in_(variant_ids)
-    ).with_for_update().all()
-    locked_variant_map = {v.id: v for v in locked_variants}
+    # 3. Delivery Settings
+    from backend.app.routers.cart import get_cached_delivery_settings
+    free_threshold, standard_delivery = await get_cached_delivery_settings(d1)
+
+    # 4. Validate Variants & Stock
+    variant_ids = [it["variant_id"] for it in cart_items]
+    v_ph = ",".join("?" * len(variant_ids))
+    variants = await d1.fetch_all(f"SELECT * FROM product_variants WHERE id IN ({v_ph})", *variant_ids)
+    var_map = {v["id"]: v for v in variants}
+
+    product_ids = [it["product_id"] for it in cart_items]
+    p_ph = ",".join("?" * len(product_ids))
+    products = await d1.fetch_all(f"SELECT * FROM products WHERE id IN ({p_ph})", *product_ids)
+    prod_map = {p["id"]: p for p in products}
 
     raw_fin_items = []
-    for item in cart.items:
-        variant = locked_variant_map.get(item.variant_id)
-        if not variant or not variant.product or not variant.product.is_active:
-            raise HTTPException(
-                status_code=400,
-                detail="An item in your cart is no longer available."
-            )
+    for it in cart_items:
+        v = var_map.get(it["variant_id"])
+        p = prod_map.get(it["product_id"])
+        if not v or not p or not p.get("is_active"):
+            raise HTTPException(status_code=400, detail="An item in your cart is no longer available.")
 
-        if variant.stock < item.quantity:
+        if v["stock"] < it["quantity"]:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient stock for {variant.product.name}. Only {variant.stock} available."
+                detail=f"Insufficient stock for {p['name']}. Only {v['stock']} available."
             )
 
         raw_fin_items.append({
-            "product_id": variant.product.id,
-            "variant_id": variant.id,
-            "product_name": variant.product.name,
-            "variant_name": variant.pack_size or variant.unit or "Standard Pack",
-            "unit_price": variant.price,
-            "mrp": variant.mrp,
-            "quantity": item.quantity
+            "product_id": p["id"],
+            "variant_id": v["id"],
+            "product_name": p["name"],
+            "variant_name": v.get("pack_size") or v.get("unit") or "Standard Pack",
+            "unit_price": v["price"],
+            "mrp": v.get("mrp"),
+            "quantity": it["quantity"]
         })
 
     fin = compute_financials(
@@ -181,73 +284,79 @@ def checkout(
     )
 
     # 5. Create Order
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
     payment_token = f"IDEM-{order_in.idempotency_key}" if order_in.idempotency_key else order_in.payment_id
-    new_order = Order(
-        order_number=generate_order_number(),
-        user_id=current_user.id,
-        status="pending",
-        subtotal=fin.subtotal,
-        discount=fin.discount,
-        delivery_fee=fin.delivery_fee,
-        tax=fin.tax,
-        total_amount=fin.total_amount,
-        delivery_slot=order_in.delivery_slot or "Standard Delivery",
-        delivery_address_json=json.dumps(address_snapshot),
-        notes=order_in.notes,
-        payment_method=order_in.payment_method or "cod",
-        payment_status="pending",
-        payment_id=payment_token
+    order_num = generate_order_number()
+
+    sql_order = """
+        INSERT INTO orders (
+            order_number, user_id, status, subtotal, discount, delivery_fee,
+            tax, total_amount, delivery_slot, delivery_address_json, notes,
+            payment_method, payment_status, payment_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    new_order_id = await d1.execute_insert(
+        sql_order,
+        order_num,
+        user_id,
+        "pending",
+        fin.subtotal,
+        fin.discount,
+        fin.delivery_fee,
+        fin.tax,
+        fin.total_amount,
+        order_in.delivery_slot or "Standard Delivery",
+        json.dumps(address_snapshot),
+        order_in.notes,
+        order_in.payment_method or "cod",
+        "pending",
+        payment_token,
+        now,
+        now
     )
-    db.add(new_order)
-    db.flush()
 
-    # 6. Create Order Items & Decrement Stock atomically without secondary re-queries
-    for calc_item in fin.items:
-        order_item = OrderItem(
-            order_id=new_order.id,
-            product_id=calc_item.product_id,
-            variant_id=calc_item.variant_id,
-            product_name=calc_item.product_name,
-            variant_name=calc_item.variant_name,
-            unit_price=calc_item.unit_price,
-            mrp=calc_item.mrp,
-            quantity=calc_item.quantity,
-            total_price=calc_item.total_price
+    # 6. Insert Order Items & Decrement Stock
+    for item in fin.items:
+        await d1.execute_insert(
+            """
+            INSERT INTO order_items (
+                order_id, product_id, variant_id, product_name, variant_name,
+                unit_price, mrp, quantity, total_price
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            new_order_id, item.product_id, item.variant_id, item.product_name, item.variant_name,
+            item.unit_price, item.mrp, item.quantity, item.total_price
         )
-        db.add(order_item)
 
-        variant = locked_variant_map.get(calc_item.variant_id)
-        if variant:
-            prev_stock = variant.stock
-            variant.stock = max(0, variant.stock - calc_item.quantity)
-            log_entry = InventoryLog(
-                product_id=calc_item.product_id,
-                previous_stock=prev_stock,
-                changed_stock=-calc_item.quantity,
-                new_stock=variant.stock,
-                reason=f"Order #{new_order.order_number}"
+        v = var_map.get(item.variant_id)
+        if v:
+            prev_stock = v["stock"]
+            new_stock = max(0, prev_stock - item.quantity)
+            await d1.execute("UPDATE product_variants SET stock = ? WHERE id = ?", new_stock, v["id"])
+            await d1.execute_insert(
+                """
+                INSERT INTO inventory_logs (product_id, previous_stock, changed_stock, new_stock, reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                item.product_id, prev_stock, -item.quantity, new_stock, f"Order #{order_num}", now
             )
-            db.add(log_entry)
 
-    # 7. Clear User Cart & Commit
-    db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
-    db.commit()
-    db.refresh(new_order)
+    # 7. Clear User Cart
+    await d1.execute("DELETE FROM cart_items WHERE cart_id = ?", cart["id"])
 
     # Real-Time Event Broadcast
-    broadcaster.publish("ORDER_CREATED", {"order_id": new_order.id, "order_number": new_order.order_number})
+    broadcaster.publish("ORDER_CREATED", {"order_id": new_order_id, "order_number": order_num})
     broadcaster.publish("INVENTORY_UPDATED")
 
-    return new_order
+    return await load_order_with_items(d1, new_order_id)
 
 
 @router.post("/whatsapp", response_model=WhatsAppOrderResponse)
-def create_whatsapp_order(
+async def create_whatsapp_order(
     order_in: WhatsAppOrderCreate,
-    db: Session = Depends(get_db),
-    optional_user: Optional[User] = Depends(get_optional_user)
+    d1: D1Database = Depends(get_d1),
+    optional_user: Optional[Dict[str, Any]] = Depends(get_optional_user)
 ):
-    # 1. Validate Customer Details
     customer_name = order_in.customer_name.strip()
     customer_phone = order_in.customer_phone.strip()
     if not customer_name:
@@ -257,27 +366,28 @@ def create_whatsapp_order(
     if len(clean_digits) < 10:
         raise HTTPException(status_code=400, detail="Please enter a valid 10-digit mobile number.")
 
-    # 2. Prevent Duplicate Order Creation via Idempotency Token
+    # Idempotency Token
     if order_in.idempotency_key:
-        recent_order = db.query(Order).options(joinedload(Order.items)).filter(
-            Order.payment_id == f"WA-{order_in.idempotency_key}"
-        ).first()
-        if recent_order:
-            settings_db = db.query(DeliverySetting).first()
-            raw_whatsapp_num = (settings_db.whatsapp_number if settings_db and settings_db.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
+        idem_key = f"WA-{order_in.idempotency_key}"
+        recent = await d1.fetch_one("SELECT * FROM orders WHERE payment_id = ?", idem_key)
+        if recent:
+            items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ?", recent["id"])
+            settings_db = await d1.fetch_one("SELECT whatsapp_number FROM delivery_settings LIMIT 1")
+            raw_whatsapp_num = (settings_db.get("whatsapp_number") if settings_db and settings_db.get("whatsapp_number") else settings.WHATSAPP_NUMBER).strip()
             whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
             if len(whatsapp_num) == 10:
                 whatsapp_num = f"91{whatsapp_num}"
-            msg = format_whatsapp_order_message(recent_order, customer_name, customer_phone)
+            msg = format_whatsapp_order_message(recent, items, customer_name, customer_phone)
             encoded_msg = urllib.parse.quote(msg)
+            order_out = await load_order_with_items(d1, recent["id"])
             return WhatsAppOrderResponse(
-                order=recent_order,
+                order=order_out,
                 whatsapp_url=f"https://wa.me/{whatsapp_num}?text={encoded_msg}",
                 whatsapp_message=msg,
                 whatsapp_number=whatsapp_num
             )
 
-    # 3. Resolve & Validate Delivery Address with strict IDOR prevention
+    # Address snapshot
     address_snapshot = {}
     if order_in.address_id:
         if not optional_user:
@@ -285,31 +395,25 @@ def create_whatsapp_order(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Authentication required to use a saved account address. Or provide delivery address inline."
             )
-        addr = db.query(Address).filter(
-            Address.id == order_in.address_id,
-            Address.user_id == optional_user.id
-        ).first()
+        addr = await d1.fetch_one("SELECT * FROM addresses WHERE id = ? AND user_id = ?", order_in.address_id, optional_user["id"])
         if not addr:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Selected saved address not found in your account."
-            )
+            raise HTTPException(status_code=404, detail="Selected saved address not found in your account.")
         address_snapshot = {
-            "label": addr.label,
-            "recipient_name": addr.recipient_name,
-            "phone": addr.phone,
-            "house_number": addr.house_number,
-            "street": addr.street,
-            "apartment": addr.apartment,
-            "locality": addr.locality,
-            "landmark": addr.landmark,
-            "city": addr.city,
-            "state": addr.state,
-            "postal_code": addr.postal_code,
-            "latitude": addr.latitude,
-            "longitude": addr.longitude,
-            "accuracy_meters": addr.accuracy_meters,
-            "formatted_address": addr.formatted_address,
+            "label": addr.get("label"),
+            "recipient_name": addr.get("recipient_name"),
+            "phone": addr.get("phone"),
+            "house_number": addr.get("house_number"),
+            "street": addr.get("street"),
+            "apartment": addr.get("apartment"),
+            "locality": addr.get("locality"),
+            "landmark": addr.get("landmark"),
+            "city": addr.get("city"),
+            "state": addr.get("state"),
+            "postal_code": addr.get("postal_code"),
+            "latitude": addr.get("latitude"),
+            "longitude": addr.get("longitude"),
+            "accuracy_meters": addr.get("accuracy_meters"),
+            "formatted_address": addr.get("formatted_address"),
         }
 
     if not address_snapshot and order_in.delivery_address:
@@ -345,80 +449,78 @@ def create_whatsapp_order(
     if not address_snapshot:
         raise HTTPException(status_code=400, detail="Delivery address is required to proceed with order.")
 
-    # 4. Resolve Items & Validate Stock
     items_to_process = list(order_in.items) if order_in.items else []
     if not items_to_process and optional_user:
-        user_cart = db.query(Cart).filter(Cart.user_id == optional_user.id).first()
-        if user_cart and user_cart.items:
+        cart = await d1.fetch_one("SELECT id FROM carts WHERE user_id = ?", optional_user["id"])
+        if cart:
+            c_items = await d1.fetch_all("SELECT * FROM cart_items WHERE cart_id = ?", cart["id"])
             items_to_process = [
                 WhatsAppOrderItemInput(
-                    product_id=ci.product_id,
-                    variant_id=ci.variant_id,
-                    quantity=ci.quantity
-                ) for ci in user_cart.items
+                    product_id=ci["product_id"],
+                    variant_id=ci["variant_id"],
+                    quantity=ci["quantity"]
+                ) for ci in c_items
             ]
 
     if not items_to_process:
         raise HTTPException(status_code=400, detail="Please select at least one organic product.")
 
-    # 4. Atomic Row Lock & Stock validation in a single batch
     variant_ids = [it.variant_id for it in items_to_process if it.variant_id]
     product_ids_no_var = [it.product_id for it in items_to_process if not it.variant_id]
 
     if product_ids_no_var:
-        def_vars = db.query(ProductVariant).filter(
-            ProductVariant.product_id.in_(product_ids_no_var),
-            ProductVariant.is_default == True
-        ).all()
+        p_ph = ",".join("?" * len(product_ids_no_var))
+        def_vars = await d1.fetch_all(f"SELECT * FROM product_variants WHERE product_id IN ({p_ph}) AND is_default = 1", *product_ids_no_var)
         for dv in def_vars:
-            variant_ids.append(dv.id)
+            variant_ids.append(dv["id"])
 
-    locked_variants = db.query(ProductVariant).options(
-        joinedload(ProductVariant.product)
-    ).filter(
-        ProductVariant.id.in_(variant_ids)
-    ).with_for_update().all()
-    locked_variant_map = {v.id: v for v in locked_variants}
+    v_ph = ",".join("?" * len(variant_ids))
+    variants = await d1.fetch_all(f"SELECT * FROM product_variants WHERE id IN ({v_ph})", *variant_ids)
+    var_map = {v["id"]: v for v in variants}
+
+    all_prod_ids = list({v["product_id"] for v in variants})
+    ap_ph = ",".join("?" * len(all_prod_ids))
+    products = await d1.fetch_all(f"SELECT * FROM products WHERE id IN ({ap_ph})", *all_prod_ids)
+    prod_map = {p["id"]: p for p in products}
 
     raw_fin_items = []
     for item_req in items_to_process:
         vid = item_req.variant_id
         if not vid:
-            for v in locked_variants:
-                if v.product_id == item_req.product_id:
-                    vid = v.id
+            for v in variants:
+                if v["product_id"] == item_req.product_id:
+                    vid = v["id"]
                     break
-        if not vid or vid not in locked_variant_map:
+        if not vid or vid not in var_map:
             continue
 
-        variant = locked_variant_map[vid]
-        product = variant.product
-        if not product or not product.is_active:
+        variant = var_map[vid]
+        product = prod_map.get(variant["product_id"])
+        if not product or not product.get("is_active"):
             continue
 
         qty = max(1, item_req.quantity)
-        if variant.stock < qty:
+        if variant["stock"] < qty:
             raise HTTPException(
                 status_code=400,
-                detail=f"Insufficient stock for {product.name}. Only {variant.stock} available."
+                detail=f"Insufficient stock for {product['name']}. Only {variant['stock']} available."
             )
 
         raw_fin_items.append({
-            "product_id": product.id,
-            "variant_id": variant.id,
-            "product_name": product.name,
-            "variant_name": variant.pack_size or variant.unit or "Standard Pack",
-            "unit_price": variant.price,
-            "mrp": variant.mrp,
+            "product_id": product["id"],
+            "variant_id": variant["id"],
+            "product_name": product["name"],
+            "variant_name": variant.get("pack_size") or variant.get("unit") or "Standard Pack",
+            "unit_price": variant["price"],
+            "mrp": variant.get("mrp"),
             "quantity": qty
         })
 
     if not raw_fin_items:
         raise HTTPException(status_code=400, detail="Could not resolve any valid items for this order.")
 
-    # 5. Pricing & Delivery Fee (via central Decimal arithmetic & cached settings)
     from backend.app.routers.cart import get_cached_delivery_settings
-    free_threshold, standard_delivery = get_cached_delivery_settings(db)
+    free_threshold, standard_delivery = await get_cached_delivery_settings(d1)
 
     fin = compute_financials(
         raw_fin_items,
@@ -426,75 +528,80 @@ def create_whatsapp_order(
         standard_delivery_fee=standard_delivery
     )
 
-    # 6. Create WhatsApp Order
-    user_id = optional_user.id if optional_user else None
-    new_order = Order(
-        order_number=generate_order_number(),
-        user_id=user_id,
-        status="pending_whatsapp",
-        subtotal=fin.subtotal,
-        discount=fin.discount,
-        delivery_fee=fin.delivery_fee,
-        tax=fin.tax,
-        total_amount=fin.total_amount,
-        delivery_slot=order_in.delivery_slot or "Standard Express Delivery",
-        delivery_address_json=json.dumps(address_snapshot),
-        notes=f"Customer: {customer_name} ({customer_phone})" + (f" | {order_in.notes}" if order_in.notes else ""),
-        payment_method="whatsapp_cod",
-        payment_status="pending",
-        payment_id=f"WA-{order_in.idempotency_key}" if order_in.idempotency_key else None
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    order_num = generate_order_number()
+    user_id = optional_user["id"] if optional_user else None
+
+    sql_order = """
+        INSERT INTO orders (
+            order_number, user_id, status, subtotal, discount, delivery_fee,
+            tax, total_amount, delivery_slot, delivery_address_json, notes,
+            payment_method, payment_status, payment_id, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """
+    new_order_id = await d1.execute_insert(
+        sql_order,
+        order_num,
+        user_id,
+        "pending_whatsapp",
+        fin.subtotal,
+        fin.discount,
+        fin.delivery_fee,
+        fin.tax,
+        fin.total_amount,
+        order_in.delivery_slot or "Standard Express Delivery",
+        json.dumps(address_snapshot),
+        f"Customer: {customer_name} ({customer_phone})" + (f" | {order_in.notes}" if order_in.notes else ""),
+        "whatsapp_cod",
+        "pending",
+        f"WA-{order_in.idempotency_key}" if order_in.idempotency_key else None,
+        now,
+        now
     )
-    db.add(new_order)
-    db.flush()
 
     for calc_it in fin.items:
-        oi = OrderItem(
-            order_id=new_order.id,
-            product_id=calc_it.product_id,
-            variant_id=calc_it.variant_id,
-            product_name=calc_it.product_name,
-            variant_name=calc_it.variant_name,
-            unit_price=calc_it.unit_price,
-            mrp=calc_it.mrp,
-            quantity=calc_it.quantity,
-            total_price=calc_it.total_price
+        await d1.execute_insert(
+            """
+            INSERT INTO order_items (
+                order_id, product_id, variant_id, product_name, variant_name,
+                unit_price, mrp, quantity, total_price
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            new_order_id, calc_it.product_id, calc_it.variant_id, calc_it.product_name, calc_it.variant_name,
+            calc_it.unit_price, calc_it.mrp, calc_it.quantity, calc_it.total_price
         )
-        db.add(oi)
 
-        # Atomic inventory deduction on already locked variant object
-        variant = locked_variant_map.get(calc_it.variant_id)
-        if variant:
-            prev = variant.stock
-            variant.stock = max(0, variant.stock - calc_it.quantity)
-            log_entry = InventoryLog(
-                product_id=calc_it.product_id,
-                previous_stock=prev,
-                changed_stock=-calc_it.quantity,
-                new_stock=variant.stock,
-                reason=f"WhatsApp Order #{new_order.order_number}"
+        v = var_map.get(calc_it.variant_id)
+        if v:
+            prev = v["stock"]
+            new_stock = max(0, prev - calc_it.quantity)
+            await d1.execute("UPDATE product_variants SET stock = ? WHERE id = ?", new_stock, v["id"])
+            await d1.execute_insert(
+                """
+                INSERT INTO inventory_logs (product_id, previous_stock, changed_stock, new_stock, reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                calc_it.product_id, prev, -calc_it.quantity, new_stock, f"WhatsApp Order #{order_num}", now
             )
-            db.add(log_entry)
 
-    db.commit()
-    db.refresh(new_order)
-
-    # Real-Time Event Broadcast
-    broadcaster.publish("ORDER_CREATED", {"order_id": new_order.id, "order_number": new_order.order_number})
+    broadcaster.publish("ORDER_CREATED", {"order_id": new_order_id, "order_number": order_num})
     broadcaster.publish("INVENTORY_UPDATED")
 
-    # WhatsApp Redirection
-    settings_rec = db.query(DeliverySetting).first()
-    raw_whatsapp_num = (settings_rec.whatsapp_number if settings_rec and settings_rec.whatsapp_number else settings.WHATSAPP_NUMBER).strip()
+    settings_rec = await d1.fetch_one("SELECT whatsapp_number FROM delivery_settings LIMIT 1")
+    raw_whatsapp_num = (settings_rec.get("whatsapp_number") if settings_rec and settings_rec.get("whatsapp_number") else settings.WHATSAPP_NUMBER).strip()
     whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
     if len(whatsapp_num) == 10:
         whatsapp_num = f"91{whatsapp_num}"
 
-    msg = format_whatsapp_order_message(new_order, customer_name, customer_phone, address_snapshot)
+    created_order = await d1.fetch_one("SELECT * FROM orders WHERE id = ?", new_order_id)
+    created_items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ?", new_order_id)
+    msg = format_whatsapp_order_message(created_order, created_items, customer_name, customer_phone, address_snapshot)
     encoded_msg = urllib.parse.quote(msg)
     wa_url = f"https://wa.me/{whatsapp_num}?text={encoded_msg}"
 
+    order_out = await load_order_with_items(d1, new_order_id)
     return WhatsAppOrderResponse(
-        order=new_order,
+        order=order_out,
         whatsapp_url=wa_url,
         whatsapp_message=msg,
         whatsapp_number=whatsapp_num
@@ -502,142 +609,131 @@ def create_whatsapp_order(
 
 
 @router.get("", response_model=List[OrderOut])
-def get_user_orders(
+async def get_user_orders(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     status_filter: Optional[str] = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    query = db.query(Order).options(
-        selectinload(Order.items)
-    ).filter(
-        Order.user_id == current_user.id
-    )
-
+    user_id = current_user["id"]
     if status_filter and status_filter.strip() and status_filter != "all":
-        query = query.filter(Order.status == status_filter.strip())
-
-    orders = query.order_by(Order.created_at.desc()).offset(offset).limit(limit).all()
-    return orders
+        orders = await d1.fetch_all(
+            "SELECT * FROM orders WHERE user_id = ? AND status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            user_id, status_filter.strip(), limit, offset
+        )
+    else:
+        orders = await d1.fetch_all(
+            "SELECT * FROM orders WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            user_id, limit, offset
+        )
+    return await load_orders_with_items(d1, orders)
 
 
 @router.get("/admin/all", response_model=List[OrderOut])
-def get_all_orders_admin(
+async def get_all_orders_admin(
     status_filter: Optional[str] = None,
     search: Optional[str] = None,
     date_from: Optional[str] = None,
     date_to: Optional[str] = None,
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
+    d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
-    query = db.query(Order).options(selectinload(Order.items))
-    
+    clauses = ["1=1"]
+    params = []
+
     if status_filter and status_filter.strip() and status_filter != "all":
-        query = query.filter(Order.status == status_filter.strip())
-        
+        clauses.append("status = ?")
+        params.append(status_filter.strip())
+
     if search and search.strip():
         term = f"%{search.strip().lower()}%"
-        query = query.filter(
-            or_(
-                Order.order_number.ilike(term),
-                Order.delivery_address_json.ilike(term),
-                Order.notes.ilike(term),
-                Order.payment_id.ilike(term)
-            )
-        )
-        
+        clauses.append("(LOWER(order_number) LIKE ? OR LOWER(delivery_address_json) LIKE ? OR LOWER(notes) LIKE ? OR LOWER(payment_id) LIKE ?)")
+        params.extend([term, term, term, term])
+
     if date_from and date_from.strip():
-        try:
-            df = datetime.datetime.strptime(date_from.strip(), "%Y-%m-%d")
-            query = query.filter(Order.created_at >= df)
-        except ValueError:
-            pass
-            
+        clauses.append("created_at >= ?")
+        params.append(f"{date_from.strip()} 00:00:00")
+
     if date_to and date_to.strip():
-        try:
-            dt = datetime.datetime.strptime(date_to.strip(), "%Y-%m-%d") + datetime.timedelta(days=1)
-            query = query.filter(Order.created_at < dt)
-        except ValueError:
-            pass
-            
-    query = query.order_by(Order.created_at.desc()).offset(offset).limit(limit)
-    return query.all()
+        clauses.append("created_at <= ?")
+        params.append(f"{date_to.strip()} 23:59:59")
+
+    sql = f"SELECT * FROM orders WHERE {' AND '.join(clauses)} ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    orders = await d1.fetch_all(sql, *params)
+    return await load_orders_with_items(d1, orders)
 
 
 @router.get("/{order_id}", response_model=OrderOut)
-def get_order_details(
+async def get_order_details(
     order_id: Any,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    d1: D1Database = Depends(get_d1),
+    current_user: Dict[str, Any] = Depends(get_current_user)
 ):
-    order = db.query(Order).options(
-        selectinload(Order.items)
-    ).filter(
-        (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
-    ).first()
-
+    order = await load_order_with_items(d1, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
-    # Authorization: only order owner or admin can view
-    if order.user_id != current_user.id and current_user.role != "admin":
+    if order.user_id != current_user["id"] and current_user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Access denied.")
 
     return order
 
 
 @router.put("/{order_id}/status", response_model=OrderOut)
-def update_order_status(
+async def update_order_status(
     order_id: Any,
     status_in: OrderStatusUpdate,
-    db: Session = Depends(get_db),
+    d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
-    order = db.query(Order).options(
-        joinedload(Order.items)
-    ).filter(
-        (Order.id == int(order_id)) if str(order_id).isdigit() else (Order.order_number == str(order_id))
-    ).first()
+    if str(order_id).isdigit():
+        order = await d1.fetch_one("SELECT * FROM orders WHERE id = ?", int(order_id))
+    else:
+        order = await d1.fetch_one("SELECT * FROM orders WHERE order_number = ?", str(order_id))
 
     if not order:
         raise HTTPException(status_code=404, detail="Order not found.")
 
-    old_status = order.status
-    if status_in.status:
-        order.status = status_in.status
-    if status_in.admin_notes:
-        order.admin_notes = status_in.admin_notes
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    old_status = order["status"]
+    new_status = status_in.status or old_status
+    admin_notes = status_in.admin_notes if status_in.admin_notes is not None else order.get("admin_notes")
+    payment_status = status_in.payment_status or order.get("payment_status", "pending")
 
-    # If cancelling, restock inventory and log audit
-    if status_in.status == "cancelled" and old_status != "cancelled":
-        for it in order.items:
-            variant = db.query(ProductVariant).filter(ProductVariant.id == it.variant_id).first()
-            if variant:
-                prev_stk = variant.stock
-                variant.stock += it.quantity
-                log_entry = InventoryLog(
-                    product_id=it.product_id,
-                    previous_stock=prev_stk,
-                    changed_stock=it.quantity,
-                    new_stock=variant.stock,
-                    reason=f"Status Cancelled #{order.order_number}"
+    # If cancelling, restock inventory
+    if new_status == "cancelled" and old_status != "cancelled":
+        items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ?", order["id"])
+        for it in items:
+            v = await d1.fetch_one("SELECT * FROM product_variants WHERE id = ?", it["variant_id"])
+            if v:
+                prev_stk = v["stock"]
+                new_stk = prev_stk + it["quantity"]
+                await d1.execute("UPDATE product_variants SET stock = ? WHERE id = ?", new_stk, v["id"])
+                await d1.execute_insert(
+                    """
+                    INSERT INTO inventory_logs (product_id, previous_stock, changed_stock, new_stock, reason, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    it["product_id"], prev_stk, it["quantity"], new_stk, f"Status Cancelled #{order['order_number']}", now
                 )
-                db.add(log_entry)
 
-    db.commit()
-    db.refresh(order)
+    await d1.execute(
+        "UPDATE orders SET status = ?, admin_notes = ?, payment_status = ?, updated_at = ? WHERE id = ?",
+        new_status, admin_notes, payment_status, now, order["id"]
+    )
 
-    # Real-time event broadcasting
     broadcaster.publish("ORDER_UPDATED", {
-        "order_id": order.id,
-        "order_number": order.order_number,
-        "status": order.status,
-        "payment_status": order.payment_status
+        "order_id": order["id"],
+        "order_number": order["order_number"],
+        "status": new_status,
+        "payment_status": payment_status
     })
-    if status_in.status == "cancelled" and old_status != "cancelled":
+    if new_status == "cancelled" and old_status != "cancelled":
         broadcaster.publish("INVENTORY_UPDATED")
 
-    return order
+    return await load_order_with_items(d1, order["id"])

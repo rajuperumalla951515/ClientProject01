@@ -1,9 +1,8 @@
 import re
+import datetime
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
 from backend.app.config import settings as app_settings
-from backend.app.database import get_db
-from backend.app.models import DeliverySetting
+from backend.app.d1 import D1Database, get_d1
 from backend.app.schemas import DeliverySettingOut, DeliverySettingUpdate
 from backend.app.deps import get_current_admin
 from backend.app.events import broadcaster
@@ -11,32 +10,36 @@ from backend.app.events import broadcaster
 router = APIRouter(prefix="/settings", tags=["Store Settings"])
 
 @router.get("", response_model=DeliverySettingOut)
-def get_store_settings(db: Session = Depends(get_db)):
-    setting = db.query(DeliverySetting).first()
+async def get_store_settings(d1: D1Database = Depends(get_d1)):
+    setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
     if not setting:
-        setting = DeliverySetting(
-            min_order_amount=99.0,
-            free_delivery_threshold=499.0,
-            standard_delivery_fee=39.0,
-            express_delivery_fee=59.0,
-            active_slots_json='["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
-            announcement_text="Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
-            whatsapp_number="919515159006"
+        sid = await d1.execute_insert(
+            """
+            INSERT INTO delivery_settings (
+                min_order_amount, free_delivery_threshold, standard_delivery_fee, express_delivery_fee,
+                active_slots_json, announcement_text, whatsapp_number, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            99.0, 499.0, 39.0, 59.0,
+            '["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
+            "Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
+            "919515159006",
+            now, now
         )
-        db.add(setting)
-        db.commit()
-        db.refresh(setting)
-    elif not getattr(setting, "whatsapp_number", None) or setting.whatsapp_number in ["919876543210", "9876543210"]:
-        setting.whatsapp_number = "919515159006"
-        db.commit()
-        db.refresh(setting)
-    return setting
+        setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
+    elif not setting.get("whatsapp_number") or setting.get("whatsapp_number") in ["919876543210", "9876543210"]:
+        await d1.execute("UPDATE delivery_settings SET whatsapp_number = '919515159006', updated_at = ? WHERE id = ?", now, setting["id"])
+        setting["whatsapp_number"] = "919515159006"
+
+    return DeliverySettingOut(**setting)
 
 
 @router.put("", response_model=DeliverySettingOut)
-def update_store_settings(
+async def update_store_settings(
     setting_in: DeliverySettingUpdate,
-    db: Session = Depends(get_db),
+    d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
     update_data = setting_in.model_dump(exclude_unset=True)
@@ -46,31 +49,40 @@ def update_store_settings(
             cleaned = f"91{cleaned}"
         update_data["whatsapp_number"] = cleaned
 
-    setting = db.query(DeliverySetting).first()
-    if not setting:
-        setting = DeliverySetting(**update_data)
-        db.add(setting)
-    else:
-        for field, val in update_data.items():
-            setattr(setting, field, val)
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    update_data["updated_at"] = now
 
-    db.commit()
-    db.refresh(setting)
+    setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+    if not setting:
+        cols = list(update_data.keys())
+        placeholders = ",".join("?" * len(cols))
+        vals = [update_data[c] for c in cols]
+        sid = await d1.execute_insert(f"INSERT INTO delivery_settings ({', '.join(cols)}) VALUES ({placeholders})", *vals)
+        setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
+    else:
+        fields = []
+        params = []
+        for k, v in update_data.items():
+            fields.append(f"{k} = ?")
+            params.append(v)
+        params.append(setting["id"])
+        await d1.execute(f"UPDATE delivery_settings SET {', '.join(fields)} WHERE id = ?", *params)
+        setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", setting["id"])
 
     # Invalidate cart settings cache
     try:
         from backend.app.routers import cart
         cart._settings_cache = (
-            float(setting.free_delivery_threshold if setting.free_delivery_threshold is not None else 499.0),
-            float(setting.standard_delivery_fee if setting.standard_delivery_fee is not None else 39.0)
+            float(setting.get("free_delivery_threshold") if setting.get("free_delivery_threshold") is not None else 499.0),
+            float(setting.get("standard_delivery_fee") if setting.get("standard_delivery_fee") is not None else 39.0)
         )
     except Exception:
         pass
 
     broadcaster.publish("SETTINGS_UPDATED", {
-        "min_order_amount": float(setting.min_order_amount) if setting.min_order_amount is not None else None,
-        "free_delivery_threshold": float(setting.free_delivery_threshold) if setting.free_delivery_threshold is not None else None,
-        "standard_delivery_fee": float(setting.standard_delivery_fee) if setting.standard_delivery_fee is not None else None,
-        "whatsapp_number": setting.whatsapp_number
+        "min_order_amount": float(setting.get("min_order_amount")) if setting.get("min_order_amount") is not None else None,
+        "free_delivery_threshold": float(setting.get("free_delivery_threshold")) if setting.get("free_delivery_threshold") is not None else None,
+        "standard_delivery_fee": float(setting.get("standard_delivery_fee")) if setting.get("standard_delivery_fee") is not None else None,
+        "whatsapp_number": setting.get("whatsapp_number")
     })
-    return setting
+    return DeliverySettingOut(**setting)

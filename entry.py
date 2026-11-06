@@ -20,6 +20,7 @@ for p in (str(root_dir), str(backend_dir)):
         sys.path.insert(0, p)
 
 from backend.main import app
+from backend.app.d1 import D1Database
 
 # Official Cloudflare Workers ASGI entrypoint integration with env-variable synchronization
 try:
@@ -38,19 +39,9 @@ try:
                 except Exception:
                     pass
                 
-                # 2. Bridge Cloudflare Hyperdrive accelerated PostgreSQL edge connection
-                if hasattr(self.env, "HYPERDRIVE"):
-                    try:
-                        hd = self.env.HYPERDRIVE
-                        conn_str = getattr(hd, "connectionString", getattr(hd, "connection_string", None))
-                        if conn_str:
-                            raw_str = str(conn_str)
-                            if "pg8000" not in raw_str:
-                                raw_str = raw_str.replace("postgresql://", "postgresql+pg8000://").replace("postgres://", "postgresql+pg8000://")
-                            os.environ["DATABASE_URL"] = raw_str
-                            os.environ["HYPERDRIVE"] = "1"
-                    except Exception:
-                        pass
+                # 2. Attach Cloudflare D1 database binding to FastAPI application state
+                if hasattr(self.env, "DB") and self.env.DB is not None:
+                    app.state.d1 = D1Database(binding=self.env.DB)
             
             if (request.headers.get("upgrade") or "").lower() == "websocket":
                 return await asgi.websocket(app, request, self.env)

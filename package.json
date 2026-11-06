@@ -9,3 +9,4 @@
     "build:admin": "npm run build --prefix admin"
   }
 }
+

@@ -1,10 +1,6 @@
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-from backend.app.config import settings
-from backend.app.database import get_db
-from backend.app.models import Category, Product
+from backend.app.d1 import D1Database, get_d1
 from backend.app.schemas import CategoryOut, CategoryCreate, CategoryUpdate
 from backend.app.deps import get_current_admin
 from backend.app.events import broadcaster
@@ -12,83 +8,63 @@ from backend.app.events import broadcaster
 router = APIRouter(prefix="/categories", tags=["Categories"])
 
 @router.get("", response_model=List[CategoryOut])
-def list_categories(db: Session = Depends(get_db)):
+async def list_categories(d1: D1Database = Depends(get_d1)):
     """
-    Optimized category list with single-query LEFT JOIN and GROUP BY.
-    Eliminates N+1 query bottlenecks across all client page loads.
+    Optimized category list with single-query LEFT JOIN and GROUP BY against Cloudflare D1.
     """
-    rows = db.query(
-        Category,
-        func.coalesce(func.count(Product.id), 0).label("product_count")
-    ).outerjoin(
-        Product,
-        (Product.category_id == Category.id) & (Product.is_active == True)
-    ).filter(
-        Category.is_active == True
-    ).group_by(
-        Category.id
-    ).order_by(
-        Category.display_order.asc(),
-        Category.name.asc()
-    ).all()
-
-    results = []
-    for cat, count in rows:
-        cat_out = CategoryOut.model_validate(cat)
-        cat_out.product_count = int(count)
-        results.append(cat_out)
-    return results
+    rows = await d1.fetch_all("""
+        SELECT c.*, COALESCE(COUNT(p.id), 0) AS product_count
+        FROM categories c
+        LEFT JOIN products p ON p.category_id = c.id AND p.is_active = 1
+        WHERE c.is_active = 1
+        GROUP BY c.id
+        ORDER BY c.display_order ASC, c.name ASC
+    """)
+    return [CategoryOut.model_validate(r) for r in rows]
 
 
 @router.get("/{slug}", response_model=CategoryOut)
-def get_category_by_slug(slug: str, db: Session = Depends(get_db)):
-    category = db.query(Category).filter(Category.slug == slug.lower()).first()
-    if not category:
+async def get_category_by_slug(slug: str, d1: D1Database = Depends(get_d1)):
+    row = await d1.fetch_one("""
+        SELECT c.*, COALESCE(COUNT(p.id), 0) AS product_count
+        FROM categories c
+        LEFT JOIN products p ON p.category_id = c.id AND p.is_active = 1
+        WHERE c.slug = ?
+        GROUP BY c.id
+    """, slug.lower().strip())
+    if not row:
         raise HTTPException(status_code=404, detail="Category not found.")
-    
-    count = db.query(func.count(Product.id)).filter(Product.category_id == category.id, Product.is_active == True).scalar() or 0
-    cat_out = CategoryOut.model_validate(category)
-    cat_out.product_count = count
-    return cat_out
+    return CategoryOut.model_validate(row)
 
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
-def create_category(cat_in: CategoryCreate, db: Session = Depends(get_db), admin=Depends(get_current_admin)):
+async def create_category(cat_in: CategoryCreate, d1: D1Database = Depends(get_d1), admin=Depends(get_current_admin)):
     clean_slug = (cat_in.slug or cat_in.name.lower().replace(" ", "-")).strip()
     
-    existing = db.query(Category).filter(Category.slug == clean_slug).first()
+    existing = await d1.fetch_one("SELECT id FROM categories WHERE slug = ?", clean_slug)
     if existing:
         raise HTTPException(status_code=400, detail="A category with this slug already exists.")
 
-    new_cat = Category(
-        name=cat_in.name.strip(),
-        slug=clean_slug,
-        description=cat_in.description,
-        image_url=cat_in.image_url,
-        icon=cat_in.icon,
-        display_order=cat_in.display_order,
-        is_active=cat_in.is_active
-    )
-    db.add(new_cat)
-    db.commit()
-    db.refresh(new_cat)
+    cat_id = await d1.execute_insert("""
+        INSERT INTO categories (name, slug, description, image_url, icon, display_order, is_active)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, cat_in.name.strip(), clean_slug, cat_in.description, cat_in.image_url, cat_in.icon, cat_in.display_order, 1 if cat_in.is_active else 0)
     
-    # Broadcast real-time change event
-    broadcaster.publish("CATEGORY_CREATED", {"category_id": new_cat.id, "slug": new_cat.slug})
-
-    cat_out = CategoryOut.model_validate(new_cat)
+    broadcaster.publish("CATEGORY_CREATED", {"category_id": cat_id, "slug": clean_slug})
+    cat = await d1.fetch_one("SELECT * FROM categories WHERE id = ?", cat_id)
+    cat_out = CategoryOut.model_validate(cat)
     cat_out.product_count = 0
     return cat_out
 
 
 @router.put("/{category_id}", response_model=CategoryOut)
-def update_category(
+async def update_category(
     category_id: int,
     cat_in: CategoryUpdate,
-    db: Session = Depends(get_db),
+    d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
-    category = db.query(Category).filter(Category.id == category_id).first()
+    category = await d1.fetch_one("SELECT * FROM categories WHERE id = ?", category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found.")
 
@@ -96,35 +72,37 @@ def update_category(
     if "slug" in update_data and update_data["slug"]:
         update_data["slug"] = update_data["slug"].strip().lower()
 
-    for field, val in update_data.items():
-        setattr(category, field, val)
+    fields = []
+    params = []
+    for f, v in update_data.items():
+        fields.append(f"{f} = ?")
+        params.append(1 if v is True else (0 if v is False else v))
+    if fields:
+        params.append(category_id)
+        await d1.execute(f"UPDATE categories SET {', '.join(fields)} WHERE id = ?", *params)
 
-    db.commit()
-    db.refresh(category)
+    broadcaster.publish("CATEGORY_UPDATED", {"category_id": category_id, "slug": update_data.get("slug", category["slug"])})
     
-    # Broadcast real-time change event
-    broadcaster.publish("CATEGORY_UPDATED", {"category_id": category.id, "slug": category.slug})
-
-    count = db.query(func.count(Product.id)).filter(Product.category_id == category.id, Product.is_active == True).scalar() or 0
-    cat_out = CategoryOut.model_validate(category)
-    cat_out.product_count = count
-    return cat_out
+    row = await d1.fetch_one("""
+        SELECT c.*, COALESCE(COUNT(p.id), 0) AS product_count
+        FROM categories c
+        LEFT JOIN products p ON p.category_id = c.id AND p.is_active = 1
+        WHERE c.id = ?
+        GROUP BY c.id
+    """, category_id)
+    return CategoryOut.model_validate(row)
 
 
 @router.delete("/{category_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_category(
+async def delete_category(
     category_id: int,
-    db: Session = Depends(get_db),
+    d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
-    category = db.query(Category).filter(Category.id == category_id).first()
+    category = await d1.fetch_one("SELECT id FROM categories WHERE id = ?", category_id)
     if not category:
         raise HTTPException(status_code=404, detail="Category not found.")
 
-    # Soft delete to preserve referential integrity
-    category.is_active = False
-    db.commit()
-
-    # Broadcast real-time change event
-    broadcaster.publish("CATEGORY_DELETED", {"category_id": category.id})
+    await d1.execute("UPDATE categories SET is_active = 0 WHERE id = ?", category_id)
+    broadcaster.publish("CATEGORY_DELETED", {"category_id": category_id})
     return None

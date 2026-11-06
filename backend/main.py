@@ -23,61 +23,24 @@ except (ImportError, ModuleNotFoundError):
     sys.modules["backend"] = backend_pkg
     sys.modules["backend.app"] = app
 
-from fastapi import FastAPI, Response, Request, status
+from fastapi import FastAPI, Response, Request, Depends, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy.exc import SQLAlchemyError, OperationalError
 from backend.app.config import settings
-from backend.app.database import (
-    engine, Base, is_db_configured, db_config_error, safe_db_url,
-    check_db_connection, get_safe_db_target, run_migrations
-)
+from backend.app.d1 import D1Database, get_d1
 from backend.app.routers import (
     auth, categories, products, cart, addresses, orders, wishlist, settings as settings_router, admin
 )
 from backend.app.events import router as events_router
-from backend.app.seed import seed_database
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup Phase
     print("=" * 70)
     print(f"[STARTUP] Starting {settings.PROJECT_NAME} (v{settings.VERSION})")
-    print(f"[ENV] Runtime Mode: {'Production (Render Cloud)' if settings.IS_PRODUCTION else 'Development'}")
-
-    if not is_db_configured:
-        print("=" * 70)
-        print("[WARNING] DATABASE CONFIGURATION NOTICE:")
-        print(f"   {db_config_error}")
-        print("   TO RESOLVE IN RENDER DASHBOARD:")
-        print("   1. Open Render Dashboard -> Go to your Sri Adithya backend Web Service.")
-        print("   2. Under 'Environment', set 'DATABASE_URL' to your Supabase Connection Pooler URL:")
-        print("      postgresql://postgres.gahduzexqmmlahshsyre:[PASSWORD]@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require")
-        print("=" * 70)
-        app.state.db_connected = False
-        app.state.db_error = db_config_error
-    else:
-        print(f"[DATABASE] Target Database: {safe_db_url}")
-        connected, conn_err = check_db_connection()
-        if connected:
-            print("[OK] Supabase PostgreSQL database connection verified successfully.")
-            app.state.db_connected = True
-            app.state.db_error = None
-            # Initialize schema safely
-            try:
-                Base.metadata.create_all(bind=engine)
-                run_migrations(engine)
-                print("[OK] Centralized database tables and schema verified.")
-            except Exception as exc:
-                print(f"[NOTICE] Database table synchronization notice: {exc}")
-        else:
-            print("=" * 70)
-            print(f"[WARNING] DATABASE CONNECTION WARNING: {conn_err}")
-            print("   The server will start so health endpoints can report status.")
-            print("   Please verify your DATABASE_URL in the Render Dashboard.")
-            print("=" * 70)
-            app.state.db_connected = False
-            app.state.db_error = conn_err
+    print(f"[DATABASE] Database Engine: Cloudflare D1 Serverless Edge SQL")
+    print(f"[ENV] Runtime Mode: {'Production (Cloudflare Workers)' if settings.IS_PRODUCTION else 'Development'}")
+    print("=" * 70)
 
     yield
 
@@ -87,7 +50,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title=settings.PROJECT_NAME,
     version=settings.VERSION,
-    description="Backend API for Sri Adithya Organics — Traditional Wood-Pressed Oils & Certified Organic Grocery Platform",
+    description="Backend API for Sri Adithya Organics — Traditional Wood-Pressed Oils & Certified Organic Grocery Platform powered by Cloudflare D1",
     lifespan=lifespan
 )
 
@@ -130,19 +93,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Global database exception handler (attaches proper CORS headers and HTTP 503 status)
-@app.exception_handler(OperationalError)
-@app.exception_handler(SQLAlchemyError)
-async def db_exception_handler(request: Request, exc: Exception):
-    print(f"⚠️ Database error on {request.method} {request.url.path}: {exc}")
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={
-            "detail": "Centralized Supabase PostgreSQL connection error. In Render Dashboard, please verify that DATABASE_URL is set to the Singapore pooler (aws-0-ap-southeast-1.pooler.supabase.com).",
-            "error_type": exc.__class__.__name__
-        }
-    )
-
 # Global catch-all handler for unhandled errors
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
@@ -159,6 +109,7 @@ def root():
         "service": settings.PROJECT_NAME,
         "version": settings.VERSION,
         "status": "online",
+        "database": "Cloudflare D1",
         "description": "Backend API for Sri Adithya Organics — Traditional Wood-Pressed Oils & Certified Organic Grocery Platform",
         "endpoints": {
             "docs": "/docs",
@@ -183,7 +134,7 @@ app.include_router(settings_router.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 
-# Liveness Check (Confirms FastAPI process is alive)
+# Liveness Check (Confirms Worker runtime is responding)
 @app.get("/health/live", tags=["Health"])
 def liveness():
     return {
@@ -192,83 +143,81 @@ def liveness():
         "version": settings.VERSION
     }
 
-# Readiness Check (Tests active Supabase database storage)
+# Readiness Check (Tests active Cloudflare D1 edge database connectivity)
 @app.get("/health/ready", tags=["Health"])
-def readiness(response: Response):
-    connected, conn_err = check_db_connection()
-    if not connected:
-        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+async def readiness(d1: D1Database = Depends(get_d1)):
+    try:
+        prod_count = await d1.fetch_one("SELECT count(*) as c FROM products WHERE is_active = 1")
+        cat_count = await d1.fetch_one("SELECT count(*) as c FROM categories WHERE is_active = 1")
         return {
-            "status": "not_ready",
+            "status": "ready",
             "service": settings.PROJECT_NAME,
             "database": {
-                "connected": False,
-                "target": get_safe_db_target(),
-                "error": conn_err or "Database connection failed",
-                "hint": "Set DATABASE_URL to your Supabase Connection Pooler URL in Render Dashboard"
+                "connected": True,
+                "type": "Cloudflare D1",
+                "products_count": prod_count["c"] if prod_count else 0,
+                "categories_count": cat_count["c"] if cat_count else 0
             }
         }
-    return {
-        "status": "ready",
-        "service": settings.PROJECT_NAME,
-        "database": {
-            "connected": True,
-            "target": get_safe_db_target()
-        }
-    }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "not_ready",
+                "service": settings.PROJECT_NAME,
+                "database": {
+                    "connected": False,
+                    "type": "Cloudflare D1",
+                    "error": str(exc)
+                }
+            }
+        )
 
+# Health Check (Reports Cloudflare D1 connectivity status)
 @app.get("/health", tags=["Health"])
 @app.get("/api/health", tags=["Health"])
-def health_check(response: Response = None):
-    # If app.state.db_connected was evaluated during lifespan, use it; otherwise test live
-    if hasattr(app.state, "db_connected"):
-        is_connected = app.state.db_connected
-        error_msg = getattr(app.state, "db_error", None)
-    else:
-        is_connected, error_msg = check_db_connection()
-
-    db_info = {
-        "connected": is_connected,
-        "target": get_safe_db_target()
-    }
-    
-    if not is_connected:
-        db_info["error"] = error_msg or "Database connection unverified"
-        db_info["hint"] = "Set DATABASE_URL to your Supabase Connection Pooler URL in Render Dashboard"
-        # Distinguish application health from database connectivity
-        if response:
-            response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE if settings.IS_PRODUCTION else status.HTTP_200_OK
+async def health_check(d1: D1Database = Depends(get_d1)):
+    try:
+        prod_count = await d1.fetch_one("SELECT count(*) as c FROM products WHERE is_active = 1")
+        cat_count = await d1.fetch_one("SELECT count(*) as c FROM categories WHERE is_active = 1")
         return {
-            "status": "unhealthy" if settings.IS_PRODUCTION else "degraded",
+            "status": "healthy",
             "service": settings.PROJECT_NAME,
             "version": settings.VERSION,
-            "database": db_info
+            "database": {
+                "connected": True,
+                "type": "Cloudflare D1",
+                "products_count": prod_count["c"] if prod_count else 0,
+                "categories_count": cat_count["c"] if cat_count else 0
+            }
         }
+    except Exception as exc:
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE if settings.IS_PRODUCTION else status.HTTP_200_OK,
+            content={
+                "status": "unhealthy" if settings.IS_PRODUCTION else "degraded",
+                "service": settings.PROJECT_NAME,
+                "version": settings.VERSION,
+                "database": {
+                    "connected": False,
+                    "type": "Cloudflare D1",
+                    "error": str(exc)
+                }
+            }
+        )
 
-    return {
-        "status": "healthy",
-        "service": settings.PROJECT_NAME,
-        "version": settings.VERSION,
-        "database": db_info
-    }
-
+# Seed Verification Endpoint
 @app.get("/api/seed", tags=["Admin"])
 @app.post("/api/seed", tags=["Admin"])
-def force_seed():
-    """Explicit endpoint to seed or verify Sri Adithya Organics catalogue."""
-    from backend.app.seed import seed_database
-    from backend.app.database import SessionLocal
-    from backend.app.models import Product, Category
-    seed_database()
-    db = SessionLocal()
-    try:
-        p_count = db.query(Product).count()
-        c_count = db.query(Category).count()
-        return {
-            "status": "seeded",
-            "products_count": p_count,
-            "categories_count": c_count,
-            "message": f"Successfully verified {p_count} products across {c_count} organic categories."
-        }
-    finally:
-        db.close()
+async def verify_seed(d1: D1Database = Depends(get_d1)):
+    p_count = await d1.fetch_one("SELECT count(*) as c FROM products")
+    c_count = await d1.fetch_one("SELECT count(*) as c FROM categories")
+    p_num = p_count["c"] if p_count else 0
+    c_num = c_count["c"] if c_count else 0
+    return {
+        "status": "verified",
+        "database": "Cloudflare D1",
+        "products_count": p_num,
+        "categories_count": c_num,
+        "message": f"Successfully verified {p_num} products across {c_num} organic categories in Cloudflare D1."
+    }
