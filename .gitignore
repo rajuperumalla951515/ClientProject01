@@ -8,11 +8,13 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+!python_modules/**/*.so
 .Python
 env/
 venv/
 ENV/
 .venv/
+.venv-workers/
 
 # Vite / React Build output
 dist/
