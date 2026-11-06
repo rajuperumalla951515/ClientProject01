@@ -8,6 +8,7 @@ import { WhatsAppIcon } from './WhatsAppIcon';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
+import { useStoreSettings } from '../context/SettingsContext';
 import { api } from '../services/api';
 import { Product, ProductVariant, WhatsAppOrderResponse } from '../types';
 
@@ -70,13 +71,14 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   if (!isOpen) return null;
 
   // Calculate pricing
+  const { freeDeliveryThreshold, standardDeliveryFee, minOrderAmount } = useStoreSettings();
   const isDirect = Boolean(directItem);
   const itemsCount = isDirect ? 1 : cart.items.length;
   const subtotal = isDirect
     ? round2(directItem!.variant.price * directItem!.quantity)
     : cart.subtotal;
-  const freeThreshold = 499.0;
-  const standardFee = 39.0;
+  const freeThreshold = freeDeliveryThreshold;
+  const standardFee = standardDeliveryFee;
   const deliveryFee = subtotal >= freeThreshold ? 0.0 : standardFee;
   const totalAmount = round2(subtotal + deliveryFee);
 
@@ -112,8 +114,8 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
       return;
     }
 
-    if (subtotal < 99.0) {
-      setErrorMessage('Minimum order amount is ₹99. Please add more items.');
+    if (subtotal < minOrderAmount) {
+      setErrorMessage(`Minimum order amount is ₹${minOrderAmount}. Please add more items.`);
       return;
     }
 

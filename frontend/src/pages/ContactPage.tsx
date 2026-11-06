@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Clock, MessageSquare, Send, CheckCircle2 } from 'lucide-react';
+import { useStoreSettings } from '../context/SettingsContext';
 
 export const ContactPage: React.FC = () => {
+  const { whatsappNumber } = useStoreSettings();
   const [submitted, setSubmitted] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -69,7 +71,7 @@ export const ContactPage: React.FC = () => {
           <div className="p-6 rounded-3xl bg-rootly-forest text-white shadow-card space-y-2">
             <h4 className="font-bold text-sm">Instant WhatsApp Assistance</h4>
             <p className="text-xs text-rootly-sagePale leading-relaxed">
-              Have an issue with delivery or produce quality? Send a quick photo to our WhatsApp line at <strong>+91 98450 12345</strong> for instant credit or replacement.
+              Have an issue with delivery or produce quality? Send a quick photo to our WhatsApp line at <strong>+{whatsappNumber.replace(/\D/g, '')}</strong> for instant credit or replacement.
             </p>
           </div>
         </div>

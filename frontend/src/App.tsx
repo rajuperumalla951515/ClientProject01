@@ -1,6 +1,7 @@
 import React, { useEffect, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { CartProvider } from './context/CartContext';
 import { LocationProvider } from './context/LocationContext';
 import { prewarmBackend } from './services/api';
@@ -104,11 +105,13 @@ export function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
-        <LocationProvider>
-          <CartProvider>
-            <AppLayout />
-          </CartProvider>
-        </LocationProvider>
+        <SettingsProvider>
+          <LocationProvider>
+            <CartProvider>
+              <AppLayout />
+            </CartProvider>
+          </LocationProvider>
+        </SettingsProvider>
       </AuthProvider>
     </BrowserRouter>
   );

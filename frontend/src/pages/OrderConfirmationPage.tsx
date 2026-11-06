@@ -2,12 +2,14 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
 import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle, Navigation } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { useStoreSettings } from '../context/SettingsContext';
 import { api } from '../services/api';
 import { Order } from '../types';
 
 export const OrderConfirmationPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
+  const { whatsappNumber } = useStoreSettings();
   const [order, setOrder] = useState<Order | null>((location.state as any)?.order || null);
   const [isLoading, setIsLoading] = useState(!order);
 
@@ -105,7 +107,7 @@ export const OrderConfirmationPage: React.FC = () => {
         {order.status === 'pending_whatsapp' && (
           <div className="pt-3">
             <a
-              href="https://wa.me/919515159006"
+              href={`https://wa.me/${whatsappNumber.replace(/\D/g, '')}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#20ba5a] text-white text-xs font-bold shadow-md transition-all active:scale-95"

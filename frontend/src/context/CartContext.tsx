@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { CartData, CartItem, Product, ProductVariant } from '../types';
 import { api } from '../services/api';
+import { useStoreSettings } from './SettingsContext';
 
 const defaultCart: CartData = {
   items: [],
@@ -15,11 +16,11 @@ const defaultCart: CartData = {
   amount_needed_for_free_delivery: 499,
 };
 
-function calculateCartTotals(items: CartItem[]): CartData {
+function calculateCartTotals(items: CartItem[], freeThreshold = 499, standardFee = 39): CartData {
   const subtotal = items.reduce((acc, i) => acc + (i.variant?.price || 0) * i.quantity, 0);
   const totalMrp = items.reduce((acc, i) => acc + (i.variant?.mrp || i.variant?.price || 0) * i.quantity, 0);
   const discount = Math.max(0, totalMrp - subtotal);
-  const delivery_fee = subtotal >= 499 || subtotal === 0 ? 0 : 39;
+  const delivery_fee = subtotal >= freeThreshold || subtotal === 0 ? 0 : standardFee;
   return {
     items,
     item_count: items.reduce((acc, i) => acc + i.quantity, 0),
@@ -28,9 +29,9 @@ function calculateCartTotals(items: CartItem[]): CartData {
     delivery_fee,
     taxes: 0,
     total_amount: Math.round((subtotal + delivery_fee) * 100) / 100,
-    free_delivery_threshold: 499,
-    free_delivery_progress: subtotal === 0 ? 0 : Math.min(100, Math.round((subtotal / 499) * 100)),
-    amount_needed_for_free_delivery: Math.max(0, Math.round((499 - subtotal) * 100) / 100),
+    free_delivery_threshold: freeThreshold,
+    free_delivery_progress: subtotal === 0 ? 0 : Math.min(100, Math.round((subtotal / freeThreshold) * 100)),
+    amount_needed_for_free_delivery: Math.max(0, Math.round((freeThreshold - subtotal) * 100) / 100),
   };
 }
 
@@ -58,6 +59,8 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { freeDeliveryThreshold, standardDeliveryFee } = useStoreSettings();
+
   // Instant hydration from local storage for 0ms initial cart display
   const [cart, setCart] = useState<CartData>(() => {
     try {
@@ -72,6 +75,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Debounce timers map to batch rapid clicks (+ + +) on the same item into 1 request
   const debounceTimers = useRef<Map<number, any>>(new Map());
+
+  // Dynamically recompute totals when delivery settings change
+  useEffect(() => {
+    setCart((prev) => calculateCartTotals(prev.items, freeDeliveryThreshold, standardDeliveryFee));
+  }, [freeDeliveryThreshold, standardDeliveryFee]);
 
   const refreshCart = async () => {
     try {
@@ -124,7 +132,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
           variant,
         });
       }
-      const updated = calculateCartTotals(newItems);
+      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}
@@ -159,7 +167,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
       }
-      const updated = calculateCartTotals(newItems);
+      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}
@@ -192,7 +200,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const removeFromCart = async (itemId: number) => {
     setCart((prev) => {
       const newItems = prev.items.filter((i) => i.id !== itemId);
-      const updated = calculateCartTotals(newItems);
+      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
       } catch {}

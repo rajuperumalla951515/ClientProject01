@@ -403,9 +403,12 @@ export const api = {
   },
 
   // Settings
-  async getSettings(): Promise<DeliverySetting> {
+  async getSettings(forceRefresh = false): Promise<DeliverySetting> {
+    if (forceRefresh) {
+      invalidateApiCache('/settings');
+    }
     try {
-      return await request('/settings', {}, true);
+      return await request('/settings', {}, !forceRefresh);
     } catch {
       return {
         id: 1,

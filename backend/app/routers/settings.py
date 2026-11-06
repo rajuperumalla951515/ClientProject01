@@ -83,6 +83,9 @@ async def update_store_settings(
         "min_order_amount": float(setting.get("min_order_amount")) if setting.get("min_order_amount") is not None else None,
         "free_delivery_threshold": float(setting.get("free_delivery_threshold")) if setting.get("free_delivery_threshold") is not None else None,
         "standard_delivery_fee": float(setting.get("standard_delivery_fee")) if setting.get("standard_delivery_fee") is not None else None,
-        "whatsapp_number": setting.get("whatsapp_number")
+        "express_delivery_fee": float(setting.get("express_delivery_fee")) if setting.get("express_delivery_fee") is not None else None,
+        "announcement_text": setting.get("announcement_text"),
+        "whatsapp_number": setting.get("whatsapp_number"),
+        "active_slots_json": setting.get("active_slots_json")
     })
     return DeliverySettingOut(**setting)
