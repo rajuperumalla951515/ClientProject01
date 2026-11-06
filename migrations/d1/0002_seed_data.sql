@@ -1,11 +1,14 @@
 -- Sri Adithya Organics: Cloudflare D1 Native SQLite Seed Data
 -- Migration 0002: Seed Data from Central Database Snapshot
 
--- 1. Users (Admin and Customer Accounts)
-INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (1, 'Sri Adithya Admin', 'admin@sriadithyaorganics.com', 'pbkdf2:sha256:100000$5c8fa249225ed8ca171e10d17912c98b$2fa78966609d51bd312c659ca95273a3e37bd4eb953d61f9b99830420946bb70', '919515159006', 'admin', 1);
-INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (2, 'Raju Perumalla', 'rajuperumallar@gmail.com', 'pbkdf2:sha256:100000$26ce5774a841ac739d9213e874ca90f2$dd000fb2957661d5177469037fea5ca0b3224547e9b35e2fb44cc85e2be159cc', '919515159006', 'admin', 1);
-INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (3, 'Arjun Sharma', 'arjun.sharma@example.com', 'pbkdf2:sha256:100000$2b1c7ce8ee4ceecb2c5d089a422e5d78$6c9c1c5e86060ed1dd7baec8811da4465f1de1c01755d8f4fc3fc4476ddbd9ce', '9876543210', 'customer', 1);
-INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (4, 'Customer Demo', 'customer@sriadithyaorganics.com', 'pbkdf2:sha256:100000$bfd5a1ebd6779a431dfbbc6dd6b18e9e$de6a23584255e02e747b5558e0b8ccfa38ecc8ee255fc57464b7b079802f2892', '9988776655', 'customer', 1);
+-- 1. Users (Admin and Customer Accounts with Edge-Optimized PBKDF2 Hashes)
+INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (1, 'Sri Adithya Admin', 'admin@sriadithyaorganics.com', 'pbkdf2:sha256:1000$c62af293a5135731db2cad4e8d2d9298$da13d62faed899762f551bc1c1b05cf6040ae1214425e162f3e26dc35b909d6e', '919515159006', 'admin', 1);
+INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (2, 'Raju Perumalla', 'rajuperumallar@gmail.com', 'pbkdf2:sha256:1000$a254ec2096cad95d4fffaa4fa1744f55$2ed2ebf9903b07f681a13e9f532a44b63b66cfe85ff5942a9324c10fe4ec6daa', '919515159006', 'admin', 1);
+INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (3, 'Arjun Sharma', 'arjun.sharma@example.com', 'pbkdf2:sha256:1000$6d5c736cf896b021ec8d0e19054d61cf$d2f4aa102072ca8366f78a833ec1b3d1055e87a9f22b34f210c1ad0faa561678', '9876543210', 'customer', 1);
+INSERT OR IGNORE INTO users (id, name, email, hashed_password, phone, role, is_active) VALUES (4, 'Customer Demo', 'customer@sriadithyaorganics.com', 'pbkdf2:sha256:1000$6d5c736cf896b021ec8d0e19054d61cf$d2f4aa102072ca8366f78a833ec1b3d1055e87a9f22b34f210c1ad0faa561678', '9988776655', 'customer', 1);
+UPDATE users SET hashed_password = 'pbkdf2:sha256:1000$c62af293a5135731db2cad4e8d2d9298$da13d62faed899762f551bc1c1b05cf6040ae1214425e162f3e26dc35b909d6e' WHERE id = 1;
+UPDATE users SET hashed_password = 'pbkdf2:sha256:1000$a254ec2096cad95d4fffaa4fa1744f55$2ed2ebf9903b07f681a13e9f532a44b63b66cfe85ff5942a9324c10fe4ec6daa' WHERE id = 2;
+UPDATE users SET hashed_password = 'pbkdf2:sha256:1000$6d5c736cf896b021ec8d0e19054d61cf$d2f4aa102072ca8366f78a833ec1b3d1055e87a9f22b34f210c1ad0faa561678' WHERE id IN (3, 4);
 
 -- 2. Categories
 INSERT OR IGNORE INTO categories (id, name, slug, description, image_url, icon, display_order, is_active) VALUES (1, 'Fresh Vegetables', 'fresh-vegetables', 'Daily harvested farm-fresh organic vegetables grown without synthetic chemicals.', 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&q=80&w=600', NULL, 1, 1);
