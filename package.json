@@ -1,0 +1,11 @@
+{
+  "name": "sri-adithya-organics",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sri Adithya Organics monorepo build runner",
+  "scripts": {
+    "build": "echo 'Backend Python worker ready for deployment'",
+    "build:frontend": "npm run build --prefix frontend",
+    "build:admin": "npm run build --prefix admin"
+  }
+}
