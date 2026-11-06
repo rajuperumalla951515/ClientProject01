@@ -3,7 +3,14 @@ import time
 import threading
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Any, Dict, Tuple
-from jose import jwt, JWTError
+
+try:
+    import jwt
+    TokenError = getattr(jwt, "PyJWTError", Exception)
+except ImportError:
+    from jose import jwt, JWTError
+    TokenError = JWTError
+
 from backend.app.config import settings
 
 # Thread-safe in-memory login rate limiter (protects against credential brute-forcing)
@@ -70,5 +77,5 @@ def decode_access_token(token: str) -> Optional[str]:
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload.get("sub")
-    except JWTError:
+    except (TokenError, Exception):
         return None

@@ -8,12 +8,8 @@ const getApiBase = (): string => {
   if (envUrl) {
     return `${envUrl.replace(/\/$/, '')}/api`;
   }
-  // In local development in browser, use relative /api (proxied by Vite)
-  if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
-    return '/api';
-  }
-  // In production, default to deployed Render backend URL
-  return 'https://clientproject01-tc3z.onrender.com/api';
+  // In development and preview environments, route via relative /api or same-origin gateway
+  return '/api';
 };
 export const API_BASE = getApiBase();
 

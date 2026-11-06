@@ -100,7 +100,11 @@ def normalize_db_url(raw_url: str) -> str:
             import psycopg2  # noqa: F401
             driver_suffix = "+psycopg2"
         except ImportError:
-            driver_suffix = ""
+            try:
+                import pg8000  # noqa: F401
+                driver_suffix = "+pg8000"
+            except ImportError:
+                driver_suffix = ""
 
     if clean.startswith("postgres://"):
         return clean.replace("postgres://", f"postgresql{driver_suffix}://", 1)
@@ -171,15 +175,33 @@ if is_db_configured:
     if final_db_url.startswith("sqlite"):
         connect_args["check_same_thread"] = False
     elif "postgresql" in final_db_url:
-        # Optimized connection pooling for Supabase PostgreSQL & Render
+        # Check if driver is pg8000 (Pure-Python driver for Cloudflare Workers / Pyodide)
+        if "pg8000" in final_db_url:
+            # Strip ?sslmode=... from URL to prevent pg8000 TypeError
+            if "?" in final_db_url:
+                final_db_url = final_db_url.split("?")[0]
+
+            is_hyperdrive = bool(os.getenv("HYPERDRIVE") or os.getenv("CLOUDFLARE_HYPERDRIVE") or "hyperdrive" in final_db_url.lower())
+            if is_hyperdrive:
+                # Hyperdrive terminates TLS at the edge; connection within worker isolate is plain TCP
+                connect_args["ssl_context"] = False
+            else:
+                import ssl
+                ctx = ssl.create_default_context()
+                ctx.check_hostname = False
+                ctx.verify_mode = ssl.CERT_NONE
+                connect_args["ssl_context"] = ctx
+        else:
+            # Enforce SSL requirement for Supabase remote PostgreSQL on psycopg/psycopg2
+            if "sslmode" not in final_db_url and ("supabase.co" in final_db_url or "supabase.com" in final_db_url):
+                connect_args["sslmode"] = "require"
+
+        # Optimized connection pooling for Supabase PostgreSQL & Cloudflare / Render
         engine_kwargs.update({
             "pool_size": 10,
             "max_overflow": 20,
             "pool_recycle": 300,
         })
-        # Enforce SSL requirement for Supabase remote PostgreSQL
-        if "sslmode" not in final_db_url and ("supabase.co" in final_db_url or "supabase.com" in final_db_url):
-            connect_args["sslmode"] = "require"
     engine = create_engine(
         final_db_url,
         connect_args=connect_args,

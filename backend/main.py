@@ -91,7 +91,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Allowed CORS origins for development and production
+# Allowed CORS origins for development, preview and production
 ALLOWED_ORIGINS = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
@@ -101,8 +101,12 @@ ALLOWED_ORIGINS = [
     "http://127.0.0.1:5175",
     "http://localhost:3000",
     "http://localhost:4173",
+    "https://sriadithyaorganics.pages.dev",
+    "https://adminsriadithyaorganics.pages.dev",
     "https://sriadithyaorganics.vercel.app",
     "https://adminsriadithyaorganics.vercel.app",
+    "https://sriadithyaorganics.com",
+    "https://www.sriadithyaorganics.com",
     "https://admin.sriadithyaorganics.com",
 ]
 frontend_url = os.getenv("FRONTEND_URL", "").strip()
@@ -116,11 +120,11 @@ if cors_origins:
         if o.strip() and o.strip() not in ALLOWED_ORIGINS:
             ALLOWED_ORIGINS.append(o.strip())
 
-# Enable CORS for web and mobile clients
+# Enable CORS for web, mobile and edge clients
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
-    allow_origin_regex=r"^https?:\/\/(localhost|127\.0\.0\.1|.*\.onrender\.com|.*\.vercel\.app|.*\.netlify\.app)(:\d+)?$",
+    allow_origin_regex=r"^https?:\/\/(localhost|127\.0\.0\.1|.*\.pages\.dev|.*\.workers\.dev|.*\.onrender\.com|.*\.vercel\.app|sriadithyaorganics\.com|.*\.sriadithyaorganics\.com)(:\d+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

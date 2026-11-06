@@ -38,6 +38,7 @@ class EventBroadcaster:
                 pass
             except Exception:
                 self._subscribers.discard(queue)
+        return event
 
     async def subscribe(self) -> asyncio.Queue:
         queue = asyncio.Queue(maxsize=100)
