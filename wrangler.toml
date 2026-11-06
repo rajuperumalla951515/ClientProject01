@@ -5,14 +5,10 @@ compatibility_date = "2026-11-05"
 compatibility_flags = ["python_workers"]
 
 # Cloudflare D1 Database Binding
-# Note: Bind your D1 database directly in Cloudflare Dashboard:
-# Go to Workers & Pages -> sriadithyaorganics -> Settings -> Bindings -> Add binding -> D1 database:
-# Variable name: DB -> D1 database: sri-adithya-db
-# Alternatively, if deploying via Wrangler CLI, uncomment the lines below and enter your database UUID:
-# [[d1_databases]]
-# binding = "DB"
-# database_name = "sri-adithya-db"
-# database_id = "<YOUR_D1_DATABASE_UUID>"
+[[d1_databases]]
+binding = "DB"
+database_name = "sri-adithya-db"
+database_id = "ba45ad6e-035c-4a3f-a9b6-77ec16e5a355"
 
 [vars]
 ENVIRONMENT = "production"
