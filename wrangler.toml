@@ -1,5 +1,5 @@
 # Sri Adithya Organics — Cloudflare Python Worker Configuration
-name = "sri-adithya-backend"
+name = "sriadithyaorganics"
 main = "entry.py"
 compatibility_date = "2026-11-05"
 compatibility_flags = ["python_workers"]
@@ -21,3 +21,4 @@ DEFAULT_MIN_ORDER_AMOUNT = "99.0"
 DEFAULT_FREE_DELIVERY_THRESHOLD = "499.0"
 DEFAULT_STANDARD_DELIVERY_FEE = "39.0"
 DEFAULT_EXPRESS_DELIVERY_FEE = "59.0"
+

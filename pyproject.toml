@@ -1,5 +1,5 @@
 [project]
-name = "sri-adithya-backend"
+name = "sriadithyaorganics"
 version = "1.0.0"
 description = "Sri Adithya Organics FastAPI Backend on Cloudflare Python Workers"
 readme = "README.md"
@@ -21,3 +21,4 @@ dev = [
     "workers-py",
     "workers-runtime-sdk"
 ]
+

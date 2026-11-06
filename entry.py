@@ -23,3 +23,4 @@ try:
 except (ImportError, ModuleNotFoundError):
     # Preserves backwards-compatibility for local Uvicorn / Pytest execution
     Default = app
+
