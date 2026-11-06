@@ -61,10 +61,46 @@ def clear_failed_login(key: str):
         if key in _login_attempts:
             del _login_attempts[key]
 
+def _pbkdf2_sha256(password: bytes, salt: bytes, iterations: int = 100_000, dklen: int = 32) -> bytes:
+    """PBKDF2-HMAC-SHA256 with fallback for WebAssembly/Pyodide runtimes without C OpenSSL bindings."""
+    if hasattr(hashlib, "pbkdf2_hmac"):
+        try:
+            return hashlib.pbkdf2_hmac("sha256", password, salt, iterations, dklen)
+        except Exception:
+            pass
+
+    import struct
+    trans_5c = bytes((x ^ 0x5c) for x in range(256))
+    trans_36 = bytes((x ^ 0x36) for x in range(256))
+    blocksize = 64
+    if len(password) > blocksize:
+        key = hashlib.sha256(password).digest()
+    else:
+        key = password
+    key = key.ljust(blocksize, b"\x00")
+    inner_pad = key.translate(trans_36)
+    outer_pad = key.translate(trans_5c)
+
+    dk = b""
+    block = 1
+    while len(dk) < dklen:
+        h_in = hashlib.sha256(inner_pad + salt + struct.pack(">I", block)).digest()
+        u = hashlib.sha256(outer_pad + h_in).digest()
+        t = bytearray(u)
+        for _ in range(iterations - 1):
+            h_in = hashlib.sha256(inner_pad + u).digest()
+            u = hashlib.sha256(outer_pad + h_in).digest()
+            for j in range(32):
+                t[j] ^= u[j]
+        dk += bytes(t)
+        block += 1
+    return dk[:dklen]
+
+
 def hash_pbkdf2(password: str, iterations: int = 100_000) -> str:
     """Standard NIST/OWASP PBKDF2-HMAC-SHA256 password hasher with zero C-dependencies."""
     salt = secrets.token_hex(16)
-    dk = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), iterations)
+    dk = _pbkdf2_sha256(password.encode("utf-8"), salt.encode("utf-8"), iterations)
     return f"pbkdf2:sha256:{iterations}${salt}${dk.hex()}"
 
 def verify_pbkdf2(plain_password: str, hashed_password: str) -> bool:
@@ -75,7 +111,7 @@ def verify_pbkdf2(plain_password: str, hashed_password: str) -> bool:
             return False
         algo_iter, salt, expected_hash = parts
         iterations = int(algo_iter.split(":")[-1])
-        dk = hashlib.pbkdf2_hmac("sha256", plain_password.encode("utf-8"), salt.encode("utf-8"), iterations)
+        dk = _pbkdf2_sha256(plain_password.encode("utf-8"), salt.encode("utf-8"), iterations)
         return hmac.compare_digest(dk.hex(), expected_hash)
     except Exception:
         return False

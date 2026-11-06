@@ -204,3 +204,4 @@ CREATE TABLE IF NOT EXISTS inventory_logs (
     created_at TEXT DEFAULT (datetime('now'))
 );
 CREATE INDEX IF NOT EXISTS idx_inventory_logs_prod ON inventory_logs(product_id);
+
