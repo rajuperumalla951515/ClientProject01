@@ -77,11 +77,8 @@ def resolve_raw_db_url() -> str:
         if val:
             return val
 
-    # In local development only, fallback to local SQLite database
-    if not settings.IS_PRODUCTION:
-        return "sqlite:///./sri_adithya.db"
-
-    return ""
+    # Production default: central persistent Supabase PostgreSQL
+    return "postgresql+pg8000://postgres.gahduzexqmmlahshsyre:%23lakshman%402005%23@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
 
 def normalize_db_url(raw_url: str) -> str:
     """

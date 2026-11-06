@@ -21,10 +21,27 @@ for p in (str(root_dir), str(backend_dir)):
 
 from backend.main import app
 
-# Official Cloudflare Workers ASGI entrypoint integration
+# Official Cloudflare Workers ASGI entrypoint integration with env-variable synchronization
 try:
-    from workers import asgi
-    Default = asgi.entrypoint(app)
+    from workers import WorkerEntrypoint, asgi
+    
+    class Default(WorkerEntrypoint):
+        async def fetch(self, request):
+            # Sync Cloudflare Worker environment variables/secrets to os.environ
+            if hasattr(self, "env") and self.env:
+                try:
+                    import js
+                    for key in js.Object.keys(self.env):
+                        val = getattr(self.env, str(key), None)
+                        if val is not None and isinstance(val, (str, int, float, bool)):
+                            os.environ[str(key)] = str(val)
+                except Exception:
+                    pass
+            
+            if (request.headers.get("upgrade") or "").lower() == "websocket":
+                return await asgi.websocket(app, request, self.env)
+            return await asgi.fetch(app, request, self.env, self.ctx)
+            
 except (ImportError, ModuleNotFoundError):
     # Preserves backwards-compatibility for local Uvicorn / Pytest execution
     Default = app

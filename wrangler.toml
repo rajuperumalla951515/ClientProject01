@@ -21,4 +21,6 @@ DEFAULT_MIN_ORDER_AMOUNT = "99.0"
 DEFAULT_FREE_DELIVERY_THRESHOLD = "499.0"
 DEFAULT_STANDARD_DELIVERY_FEE = "39.0"
 DEFAULT_EXPRESS_DELIVERY_FEE = "59.0"
+DATABASE_URL = "postgresql+pg8000://postgres.gahduzexqmmlahshsyre:%23lakshman%402005%23@aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres"
+
 
