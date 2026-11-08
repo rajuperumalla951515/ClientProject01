@@ -177,6 +177,96 @@ class BusinessIntelligenceAssistant:
         }
 
     @classmethod
+    async def get_application_overview(cls, d1) -> Dict[str, Any]:
+        """Comprehensive snapshot of the entire Sri Adithya Organics application."""
+        # 1. Database entity counts
+        prod_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM products")).get("c", 0)
+        active_prod_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM products WHERE is_active = 1")).get("c", 0)
+        cat_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM categories")).get("c", 0)
+        orders_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM orders")).get("c", 0)
+        users_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM users")).get("c", 0)
+        customers_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM users WHERE role = 'customer'")).get("c", 0)
+        admins_count = (await d1.fetch_one("SELECT COUNT(*) as c FROM users WHERE role = 'admin'")).get("c", 0)
+
+        # 2. Financial totals
+        fin_row = await d1.fetch_one("SELECT COALESCE(SUM(total_amount), 0.0) as rev FROM orders WHERE status != 'cancelled'")
+        lifetime_revenue = round(float(fin_row.get("rev", 0.0) if fin_row else 0.0), 2)
+
+        # 3. Warehouse valuation
+        inv_row = await d1.fetch_one("""
+            SELECT
+                COALESCE(SUM(v.stock), 0) as total_units,
+                COALESCE(SUM(v.stock * v.price), 0.0) as val
+            FROM product_variants v
+            JOIN products p ON v.product_id = p.id
+            WHERE p.is_active = 1
+        """)
+        total_units = inv_row.get("total_units", 0) if inv_row else 0
+        inventory_valuation = round(float(inv_row.get("val", 0.0) if inv_row else 0.0), 2)
+
+        # 4. Delivery & WhatsApp settings
+        deliv = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+        whatsapp = (deliv.get("whatsapp_number") if deliv and deliv.get("whatsapp_number") else "919515159006")
+        min_order = float(deliv.get("min_order_amount", 99.0)) if deliv else 99.0
+        free_deliv = float(deliv.get("free_delivery_threshold", 499.0)) if deliv else 499.0
+        std_fee = float(deliv.get("standard_delivery_fee", 39.0)) if deliv else 39.0
+        exp_fee = float(deliv.get("express_delivery_fee", 59.0)) if deliv else 59.0
+        announcement = deliv.get("announcement_text", "") if deliv else ""
+
+        # 5. AI Providers status
+        providers = await d1.fetch_all("SELECT provider_name, model_name, is_enabled, requests_today, last_success_at FROM ai_provider_config ORDER BY priority ASC")
+
+        # 6. Categories list
+        categories_rows = await d1.fetch_all("SELECT name FROM categories WHERE is_active = 1 ORDER BY display_order ASC")
+
+        return {
+            "application_name": "Sri Adithya Organics",
+            "version": "1.0.0",
+            "environment": "production",
+            "runtime": "Cloudflare Workers Python (Pyodide ASGI)",
+            "database": {
+                "engine": "Cloudflare D1 (Serverless Distributed SQLite)",
+                "database_name": "sri-adithya-db",
+                "database_id": "ba45ad6e-035c-4a3f-a9b6-77ec16e5a355",
+                "total_products": prod_count,
+                "active_products": active_prod_count,
+                "total_categories": cat_count,
+                "total_orders": orders_count,
+                "total_users": users_count,
+                "registered_customers": customers_count,
+                "administrators": admins_count,
+                "active_categories": [c["name"] for c in categories_rows]
+            },
+            "commerce_and_logistics": {
+                "whatsapp_business_ordering": f"+{whatsapp}",
+                "whatsapp_channel_url": f"https://wa.me/{whatsapp}",
+                "minimum_order_amount": min_order,
+                "free_delivery_threshold": free_deliv,
+                "standard_delivery_fee": std_fee,
+                "express_delivery_fee": exp_fee,
+                "delivery_speed": "Instant 15-30 Mins (Vaagai wood-pressed oils & fresh farm produce)",
+                "announcement_banner": announcement or "Fresh Wood-Pressed Oils & Organic Produce Daily"
+            },
+            "financial_summary": {
+                "lifetime_gross_revenue": lifetime_revenue,
+                "warehouse_units_in_stock": total_units,
+                "warehouse_retail_valuation": inventory_valuation
+            },
+            "ai_intelligence_system": {
+                "policy": "100% Zero-Cost Hard Quota Guard",
+                "primary_provider": "Cloudflare Workers AI (@cf/meta/llama-3.1-8b-instruct)",
+                "fallback_provider_1": "GroqCloud API (llama-3.3-70b-versatile)",
+                "fallback_provider_2": "Google Gemini API (gemini-flash-latest)",
+                "active_providers": [dict(p) for p in providers]
+            },
+            "architecture_endpoints": {
+                "customer_storefront": "https://sriadithyaorganics.pages.dev",
+                "admin_portal": "https://adminsriadithyaorganics.pages.dev",
+                "backend_worker": "https://sriadithyaorganics.devraj951515.workers.dev"
+            }
+        }
+
+    @classmethod
     async def ask(
         cls,
         d1,
@@ -193,34 +283,42 @@ class BusinessIntelligenceAssistant:
         tool_used = "general_business_report"
 
         # Determine tools to execute
+        if any(w in q_lower for w in ["entire application", "application details", "system architecture", "app details", "application overview", "about the app", "system details", "store details", "all details", "everything"]):
+            data_payload["entire_application_details"] = await cls.get_application_overview(d1)
+            tool_used = "application_details"
+
         if any(w in q_lower for w in ["today", "revenue", "sales", "month", "last week", "aov", "average order"]):
             data_payload["sales_summary_30d"] = await cls.get_sales_summary(d1, days=30)
             data_payload["sales_summary_7d"] = await cls.get_sales_summary(d1, days=7)
             data_payload["revenue_comparison"] = await cls.get_revenue_comparison(d1)
-            tool_used = "sales_summary"
+            if tool_used == "general_business_report":
+                tool_used = "sales_summary"
 
         if any(w in q_lower for w in ["top", "best seller", "selling", "popular", "fast"]):
             data_payload["top_selling_products"] = await cls.get_top_products(d1, limit=10)
-            tool_used = "top_products"
+            if tool_used == "general_business_report":
+                tool_used = "top_products"
 
         if any(w in q_lower for w in ["stock", "inventory", "low", "out of stock", "replenish", "warehouse"]):
             data_payload["low_stock_products"] = await cls.get_low_stock_products(d1, threshold=15)
             data_payload["inventory_summary"] = await cls.get_inventory_report(d1)
-            tool_used = "inventory_report"
+            if tool_used == "general_business_report":
+                tool_used = "inventory_report"
 
         if any(w in q_lower for w in ["pending", "unfulfilled", "order status", "dispatch"]):
             data_payload["pending_orders"] = await cls.get_pending_orders(d1)
-            tool_used = "pending_orders"
+            if tool_used == "general_business_report":
+                tool_used = "pending_orders"
 
         if any(w in q_lower for w in ["customer", "repeat", "retention", "shopper", "loyalty"]):
             data_payload["customer_statistics"] = await cls.get_customer_statistics(d1)
-            tool_used = "customer_statistics"
+            if tool_used == "general_business_report":
+                tool_used = "customer_statistics"
 
         # If question is broad, fetch high-level health overview
         if not data_payload:
-            data_payload["sales_summary_30d"] = await cls.get_sales_summary(d1, days=30)
-            data_payload["inventory_summary"] = await cls.get_inventory_report(d1)
-            data_payload["pending_orders_count"] = (await cls.get_pending_orders(d1)).get("count", 0)
+            data_payload["entire_application_details"] = await cls.get_application_overview(d1)
+            tool_used = "application_details"
 
         # Synthesize with AI
         prompt = f"""Admin User Question: "{question}"

@@ -517,6 +517,10 @@ class ApiClient {
     });
   }
 
+  async getSystemOverview(): Promise<any> {
+    return this.request<any>('/ai/assistant/system-overview');
+  }
+
   async getAIPendingApprovals(): Promise<AIActionApproval[]> {
     return this.request<AIActionApproval[]>('/ai/approvals');
   }
@@ -626,6 +630,8 @@ export const aiApi = {
       cached: (res as any).cached
     };
   },
+
+  getSystemOverview: () => api.getSystemOverview(),
 
   getApprovals: (_status?: string) => api.getAIPendingApprovals(),
 

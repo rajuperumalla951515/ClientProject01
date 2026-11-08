@@ -34,6 +34,10 @@ interface ChatMessage {
 
 const QUICK_PROMPTS = [
   {
+    label: "Entire Application Details",
+    prompt: "Provide a comprehensive breakdown of our entire application details, database state, system architecture, delivery logistics, and AI telemetry."
+  },
+  {
     label: "Today's Revenue & Orders",
     prompt: "What is today's revenue, order count, and average order value from Cloudflare D1?"
   },

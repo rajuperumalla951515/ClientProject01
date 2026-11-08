@@ -331,6 +331,18 @@ async def assistant_chat(
         raise HTTPException(status_code=502, detail=str(e))
 
 
+@router.get("/assistant/system-overview")
+async def get_system_overview(
+    d1: D1Database = Depends(get_d1),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """Direct API endpoint returning complete application details, database metrics, logistics, and AI telemetry."""
+    try:
+        return await bi_assistant.get_application_overview(d1)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
+
+
 # --- Action Approvals Queue ---
 
 @router.get("/approvals")
