@@ -38,6 +38,12 @@ try:
                             os.environ[str(key)] = str(val)
                 except Exception:
                     pass
+
+                # Explicitly sync critical AI secrets and credentials from Worker environment
+                for sec in ("GEMINI_API_KEY", "GROQ_API_KEY", "CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID", "SECRET_KEY"):
+                    val = getattr(self.env, sec, None)
+                    if val is not None and str(val).strip():
+                        os.environ[sec] = str(val).strip()
                 
                 # 2. Attach Cloudflare D1 database binding to FastAPI application state
                 if hasattr(self.env, "DB") and self.env.DB is not None:
