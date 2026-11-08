@@ -68,13 +68,20 @@ export const AIContentStudioPage: React.FC = () => {
     }
   };
 
+  const getCategoryName = (cat: any): string => {
+    if (!cat) return 'General';
+    if (typeof cat === 'string') return cat;
+    if (typeof cat === 'object' && cat.name) return String(cat.name);
+    return 'General';
+  };
+
   const handleProductSelect = (prodId: string) => {
     setSelectedProductId(prodId);
     if (!prodId) return;
     const prod = products.find(p => String(p.id) === prodId);
     if (prod) {
-      setProductName(prod.name);
-      if (prod.category) setCategory(prod.category);
+      setProductName(prod.name || '');
+      if (prod.category) setCategory(getCategoryName(prod.category));
       if (prod.description) {
         setTransformInput(prod.description);
       }
@@ -233,7 +240,7 @@ export const AIContentStudioPage: React.FC = () => {
               <option value="">-- Load from Existing Product --</option>
               {products.map(p => (
                 <option key={p.id} value={p.id}>
-                  {p.name} ({p.category || 'General'})
+                  {p.name} ({getCategoryName(p.category)})
                 </option>
               ))}
             </select>

@@ -54,12 +54,20 @@ export const AIBulkContentPage: React.FC = () => {
     }
   };
 
-  const categories = ['all', ...Array.from(new Set(products.map(p => p.category).filter(Boolean)))];
+  const getCategoryTitle = (cat: any): string => {
+    if (!cat) return 'General';
+    if (typeof cat === 'string') return cat;
+    if (typeof cat === 'object' && cat.name) return String(cat.name);
+    return 'General';
+  };
+
+  const categories = ['all', ...Array.from(new Set(products.map(p => getCategoryTitle(p.category)).filter(Boolean)))];
 
   const filteredProducts = products.filter(p => {
+    const catTitle = getCategoryTitle(p.category);
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       (p.description && p.description.toLowerCase().includes(searchQuery.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
+    const matchesCategory = selectedCategory === 'all' || catTitle === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
@@ -270,7 +278,7 @@ export const AIBulkContentPage: React.FC = () => {
                       </div>
                       <div className="min-w-0">
                         <p className="text-xs font-bold text-[#26352B] truncate">{p.name}</p>
-                        <p className="text-[10px] text-[#778176] truncate">{p.category || 'General'} • ₹{p.price ?? p.min_price}</p>
+                        <p className="text-[10px] text-[#778176] truncate">{getCategoryTitle(p.category)} • ₹{p.price ?? p.min_price}</p>
                       </div>
                     </div>
                   </div>
@@ -367,7 +375,7 @@ export const AIBulkContentPage: React.FC = () => {
                       <div className="flex items-start justify-between gap-2">
                         <div>
                           <span className="text-[10px] font-bold text-[#496B45] uppercase tracking-wider block">
-                            {draft.category || 'Product'}
+                            {getCategoryTitle(draft.category) || 'Product'}
                           </span>
                           <h3 className="text-sm font-bold text-[#26352B]">{draft.title}</h3>
                         </div>

@@ -81,15 +81,23 @@ class CloudflareWorkersAIProvider(BaseAIProvider):
                 res = await binding.run(self.model, run_payload)
                 content = ""
                 if isinstance(res, dict):
-                    content = res.get("response", "") or res.get("result", {}).get("response", "")
+                    raw_resp = res.get("response") or res.get("result", {}).get("response")
+                    if isinstance(raw_resp, dict):
+                        content = json.dumps(raw_resp)
+                    elif raw_resp:
+                        content = str(raw_resp)
                 elif hasattr(res, "response"):
-                    content = str(res.response)
+                    if isinstance(res.response, dict):
+                        content = json.dumps(res.response)
+                    else:
+                        content = str(res.response)
                 
+                content_str = str(content).strip()
                 latency_ms = int((time.time() - start_time) * 1000)
                 return {
-                    "content": content.strip(),
+                    "content": content_str,
                     "tokens_prompt": len(prompt) // 4,
-                    "tokens_completion": len(content) // 4,
+                    "tokens_completion": len(content_str) // 4,
                     "latency_ms": latency_ms,
                     "provider": self.name,
                     "model": self.model
@@ -129,18 +137,30 @@ class CloudflareWorkersAIProvider(BaseAIProvider):
 
         data = json.loads(text)
         result_obj = data.get("result", {})
-        content = result_obj.get("response", "")
-        if not content and "choices" in result_obj and result_obj["choices"]:
-            content = result_obj["choices"][0].get("message", {}).get("content", "")
-        if not content:
-            content = data.get("response", "")
-        if not content:
+        raw_resp = result_obj.get("response")
+        content = ""
+        if isinstance(raw_resp, dict):
+            content = json.dumps(raw_resp)
+        elif isinstance(raw_resp, str) and raw_resp.strip():
+            content = raw_resp
+        elif "choices" in result_obj and result_obj["choices"]:
+            choice_msg = result_obj["choices"][0].get("message", {}).get("content", "")
+            if isinstance(choice_msg, dict):
+                content = json.dumps(choice_msg)
+            else:
+                content = str(choice_msg)
+        else:
+            raw_d = data.get("response", "")
+            content = json.dumps(raw_d) if isinstance(raw_d, dict) else str(raw_d)
+
+        content_str = str(content).strip()
+        if not content_str:
             raise ValueError("Cloudflare AI returned empty content response.")
 
         return {
-            "content": content.strip(),
+            "content": content_str,
             "tokens_prompt": len(prompt) // 4,
-            "tokens_completion": len(content) // 4,
+            "tokens_completion": len(content_str) // 4,
             "latency_ms": latency_ms,
             "provider": self.name,
             "model": self.model

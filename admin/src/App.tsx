@@ -23,6 +23,7 @@ import { AIPromotionsPage } from './pages/ai/AIPromotionsPage';
 import { AIApprovalsPage } from './pages/ai/AIApprovalsPage';
 import { AIProvidersPage } from './pages/ai/AIProvidersPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
+import { ErrorBoundary } from './components/ui/ErrorBoundary';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAdminAuth();
@@ -54,7 +55,9 @@ export const App: React.FC = () => {
               path="/"
               element={
                 <ProtectedRoute>
-                  <AdminLayout />
+                  <ErrorBoundary fallbackTitle="Admin Portal Error">
+                    <AdminLayout />
+                  </ErrorBoundary>
                 </ProtectedRoute>
               }
             >
@@ -70,12 +73,12 @@ export const App: React.FC = () => {
               <Route path="reviews" element={<ReviewsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="ai/assistant" element={<AIAssistantPage />} />
-              <Route path="ai/content-studio" element={<AIContentStudioPage />} />
-              <Route path="ai/bulk-content" element={<AIBulkContentPage />} />
-              <Route path="ai/promotions" element={<AIPromotionsPage />} />
-              <Route path="ai/approvals" element={<AIApprovalsPage />} />
-              <Route path="ai/providers" element={<AIProvidersPage />} />
+              <Route path="ai/assistant" element={<ErrorBoundary fallbackTitle="AI Assistant Error"><AIAssistantPage /></ErrorBoundary>} />
+              <Route path="ai/content-studio" element={<ErrorBoundary fallbackTitle="AI Content Studio Error"><AIContentStudioPage /></ErrorBoundary>} />
+              <Route path="ai/bulk-content" element={<ErrorBoundary fallbackTitle="AI Bulk Studio Error"><AIBulkContentPage /></ErrorBoundary>} />
+              <Route path="ai/promotions" element={<ErrorBoundary fallbackTitle="AI Promotions Error"><AIPromotionsPage /></ErrorBoundary>} />
+              <Route path="ai/approvals" element={<ErrorBoundary fallbackTitle="AI Action Approvals Error"><AIApprovalsPage /></ErrorBoundary>} />
+              <Route path="ai/providers" element={<ErrorBoundary fallbackTitle="AI Providers Error"><AIProvidersPage /></ErrorBoundary>} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />

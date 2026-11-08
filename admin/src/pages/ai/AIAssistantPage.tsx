@@ -149,7 +149,7 @@ export const AIAssistantPage: React.FC = () => {
         {
           id: 'error_' + Date.now(),
           sender: 'assistant',
-          text: "I encountered an error querying the system. Please verify that your AI providers and Cloudflare D1 are reachable.",
+          text: `I encountered an issue processing that query: ${err.message || 'System error'}. Please verify that your AI providers and Cloudflare D1 are reachable.`,
           timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           provider: 'System Guard'
         }

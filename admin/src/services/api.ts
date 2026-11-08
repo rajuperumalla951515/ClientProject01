@@ -594,7 +594,7 @@ export const aiApi = {
     }),
 
   applyContentToProduct: (payload: { product_id: string | number; name?: string; description?: string; meta_title?: string; meta_description?: string; keywords?: string }) =>
-    api.request<any>(`/admin/products/${payload.product_id}`, {
+    api.request<any>(`/products/${payload.product_id}`, {
       method: 'PUT',
       body: JSON.stringify(payload)
     }),

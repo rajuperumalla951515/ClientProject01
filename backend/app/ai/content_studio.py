@@ -18,6 +18,26 @@ Strict Guidelines:
 4. Output strictly valid JSON without markdown wrapping when JSON format is requested.
 """
 
+def _safe_json_loads(content: Any) -> Dict[str, Any]:
+    if isinstance(content, dict):
+        return content
+    cleaned = str(content).strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    if cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+    try:
+        return json.loads(cleaned)
+    except Exception:
+        start = cleaned.find("{")
+        end = cleaned.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(cleaned[start:end+1])
+        raise
+
 class ContentStudio:
 
     @classmethod
@@ -47,7 +67,7 @@ Respond ONLY with a JSON object in this exact schema:
             json_mode=True,
             admin_id=admin_id
         )
-        data = json.loads(res["content"])
+        data = _safe_json_loads(res["content"])
         data["provider"] = res["provider"]
         data["model"] = res["model"]
         return data
@@ -94,7 +114,7 @@ Respond ONLY with a JSON object in this exact schema:
             json_mode=True,
             admin_id=admin_id
         )
-        data = json.loads(res["content"])
+        data = _safe_json_loads(res["content"])
         data["provider"] = res["provider"]
         data["model"] = res["model"]
         return data
@@ -126,7 +146,7 @@ Respond ONLY with a JSON object in this exact schema:
             json_mode=True,
             admin_id=admin_id
         )
-        data = json.loads(res["content"])
+        data = _safe_json_loads(res["content"])
         data["provider"] = res["provider"]
         data["model"] = res["model"]
         return data
@@ -174,7 +194,7 @@ Respond ONLY with a JSON object in this exact schema:
             json_mode=True,
             admin_id=admin_id
         )
-        data = json.loads(res["content"])
+        data = _safe_json_loads(res["content"])
         data["provider"] = res["provider"]
         data["model"] = res["model"]
         return data
