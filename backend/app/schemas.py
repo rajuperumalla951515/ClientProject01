@@ -401,20 +401,135 @@ class DashboardStatsOut(BaseModel):
     low_stock_products: int
     recent_orders: List[OrderOut] = []
 
+class SalesTrendPoint(BaseModel):
+    date: str
+    revenue: float
+    orders: int
+
 class EnhancedDashboardStatsOut(BaseModel):
     total_revenue: float
     today_revenue: float
+    filtered_revenue: float = 0.0
     total_orders: int
     today_orders: int
+    filtered_orders: int = 0
+    filtered_aov: float = 0.0
     total_products: int
     total_customers: int
     pending_orders: int
     delivered_orders: int
     cancelled_orders: int
     low_stock_products: int
+    out_of_stock_products: int = 0
+    inventory_valuation: float = 0.0
     order_status_counts: Dict[str, int] = {}
     top_products: List[TopProductStat] = []
     recent_orders: List[OrderOut] = []
+    sales_trend: List[SalesTrendPoint] = []
+    recent_stock_changes: List[Any] = []
+
+class CouponBase(BaseModel):
+    code: str
+    description: Optional[str] = None
+    discount_type: str = "percentage"  # 'percentage' or 'flat'
+    discount_value: float
+    min_order_amount: float = 0.0
+    max_discount_amount: Optional[float] = None
+    usage_limit: Optional[int] = 100
+    is_active: bool = True
+    valid_from: Optional[str] = None
+    valid_until: Optional[str] = None
+
+class CouponCreate(CouponBase):
+    pass
+
+class CouponUpdate(BaseModel):
+    code: Optional[str] = None
+    description: Optional[str] = None
+    discount_type: Optional[str] = None
+    discount_value: Optional[float] = None
+    min_order_amount: Optional[float] = None
+    max_discount_amount: Optional[float] = None
+    usage_limit: Optional[int] = None
+    is_active: Optional[bool] = None
+    valid_from: Optional[str] = None
+    valid_until: Optional[str] = None
+
+class CouponOut(CouponBase):
+    id: int
+    usage_count: int = 0
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+class ReviewOut(BaseModel):
+    id: int
+    product_id: int
+    product_name: Optional[str] = None
+    customer_name: str
+    rating: int
+    title: Optional[str] = None
+    comment: str
+    is_verified_buyer: bool = True
+    status: str = "approved"  # 'approved', 'pending', 'rejected'
+    created_at: str
+
+class ReviewStatusUpdate(BaseModel):
+    status: str  # 'approved', 'rejected', 'pending'
+
+class DeliveryZoneBase(BaseModel):
+    pincode: str
+    area_name: str
+    is_active: bool = True
+    delivery_fee: float = 39.0
+    estimated_delivery_time: str = "15-30 Mins"
+
+class DeliveryZoneCreate(DeliveryZoneBase):
+    pass
+
+class DeliveryZoneUpdate(BaseModel):
+    pincode: Optional[str] = None
+    area_name: Optional[str] = None
+    is_active: Optional[bool] = None
+    delivery_fee: Optional[float] = None
+    estimated_delivery_time: Optional[str] = None
+
+class DeliveryZoneOut(DeliveryZoneBase):
+    id: int
+    created_at: str
+
+    class Config:
+        from_attributes = True
+
+class CategoryAnalyticsItem(BaseModel):
+    category_id: int
+    category_name: str
+    units_sold: int
+    revenue: float
+    percentage_share: float
+
+class InventoryCategoryValuation(BaseModel):
+    category_id: int
+    category_name: str
+    sku_count: int
+    total_units: int
+    retail_valuation: float
+
+class AnalyticsReportOut(BaseModel):
+    period: str
+    date_from: Optional[str] = None
+    date_to: Optional[str] = None
+    total_revenue: float
+    total_orders: int
+    average_order_value: float
+    total_units_sold: int
+    sales_trend: List[SalesTrendPoint] = []
+    category_breakdown: List[CategoryAnalyticsItem] = []
+    top_selling_products: List[TopProductStat] = []
+    slow_moving_products: List[Dict[str, Any]] = []
+    inventory_by_category: List[InventoryCategoryValuation] = []
+    repeat_customer_rate: float = 0.0
 
 class InventoryAdjustRequest(BaseModel):
     product_id: int

@@ -4,11 +4,18 @@
 
 @layer base {
   body {
-    @apply font-sans antialiased bg-slate-50 text-slate-900;
+    @apply font-sans antialiased bg-[#F6F5EF] text-[#26352B];
+    background-color: #F6F5EF;
+    color: #26352B;
+  }
+
+  ::selection {
+    background-color: #D9E2CE;
+    color: #244B37;
   }
 }
 
-/* Custom scrollbars for data tables and side panels */
+/* Custom scrollbars for enterprise data tables and side panels */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -19,11 +26,11 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: #D3D5C5;
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #8A9B69;
 }
 

@@ -10,6 +10,11 @@ import { ProductsPage } from './pages/ProductsPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { InventoryPage } from './pages/InventoryPage';
 import { CustomersPage } from './pages/CustomersPage';
+import { AnalyticsPage } from './pages/AnalyticsPage';
+import { DiscountsPage } from './pages/DiscountsPage';
+import { DeliveryPage } from './pages/DeliveryPage';
+import { ReviewsPage } from './pages/ReviewsPage';
+import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
@@ -18,8 +23,8 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center">
-        <LoadingSpinner text="Checking administrator authorization..." size="lg" />
+      <div className="min-h-screen bg-[#F6F5EF] flex items-center justify-center">
+        <LoadingSpinner text="Verifying administrator session with Cloudflare D1..." size="lg" />
       </div>
     );
   }
@@ -53,6 +58,11 @@ export const App: React.FC = () => {
               <Route path="categories" element={<CategoriesPage />} />
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="customers" element={<CustomersPage />} />
+              <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="discounts" element={<DiscountsPage />} />
+              <Route path="delivery" element={<DeliveryPage />} />
+              <Route path="reviews" element={<ReviewsPage />} />
+              <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
 
@@ -65,4 +75,3 @@ export const App: React.FC = () => {
 };
 
 export default App;
-

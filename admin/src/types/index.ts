@@ -151,17 +151,101 @@ export interface TopProductStat {
 export interface DashboardStats {
   total_revenue: number;
   today_revenue: number;
+  filtered_revenue?: number;
   total_orders: number;
   today_orders: number;
+  filtered_orders?: number;
+  filtered_aov?: number;
   total_products: number;
   total_customers: number;
   pending_orders: number;
   delivered_orders: number;
   cancelled_orders: number;
   low_stock_products: number;
+  out_of_stock_products?: number;
+  inventory_valuation?: number;
   order_status_counts: Record<string, number>;
   top_products: TopProductStat[];
   recent_orders: Order[];
+  sales_trend?: { date: string; revenue: number; orders: number }[];
+  recent_stock_changes?: InventoryLog[];
+}
+
+export interface Coupon {
+  id: number;
+  code: string;
+  description?: string;
+  discount_type: 'percentage' | 'flat';
+  discount_value: number;
+  min_order_amount: number;
+  max_discount_amount?: number;
+  usage_limit?: number;
+  usage_count: number;
+  times_used?: number;
+  is_active: boolean;
+  valid_from?: string;
+  valid_until?: string;
+  created_at: string;
+}
+
+export interface Review {
+  id: number;
+  product_id: number;
+  product_name?: string;
+  customer_name: string;
+  rating: number;
+  title?: string;
+  comment: string;
+  is_verified_buyer: boolean;
+  verified_purchase?: boolean;
+  status: 'approved' | 'pending' | 'rejected';
+  created_at: string;
+}
+
+export interface DeliveryZone {
+  id: number;
+  pincode: string;
+  pincodes?: string;
+  area_name: string;
+  name?: string;
+  is_active: boolean;
+  delivery_fee: number;
+  extra_delivery_fee?: number;
+  estimated_delivery_time: string;
+  estimated_time?: string;
+  created_at?: string;
+}
+
+export interface CategoryAnalyticsItem {
+  category_id: number;
+  category_name: string;
+  units_sold: number;
+  revenue: number;
+  percentage_share: number;
+}
+
+export interface InventoryCategoryValuation {
+  category_id: number;
+  category_name: string;
+  sku_count: number;
+  total_units: number;
+  retail_valuation: number;
+}
+
+export interface AnalyticsReport {
+  period: string;
+  date_from?: string;
+  date_to?: string;
+  total_revenue: number;
+  total_orders: number;
+  average_order_value: number;
+  total_units_sold: number;
+  sales_trend: { date: string; revenue: number; orders: number }[];
+  category_breakdown: CategoryAnalyticsItem[];
+  top_selling_products: TopProductStat[];
+  slow_moving_products: { id: number; name: string; category_name: string; stock: number; price: number }[];
+  inventory_by_category: InventoryCategoryValuation[];
+  repeat_customer_rate: number;
 }
 
 export interface InventoryItem {

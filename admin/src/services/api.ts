@@ -9,7 +9,11 @@ import {
   InventoryLog,
   CustomerMetric,
   CustomerDetail,
-  StoreSettings
+  StoreSettings,
+  Coupon,
+  Review,
+  DeliveryZone,
+  AnalyticsReport
 } from '../types';
 
 const RAW_API_URL = (import.meta.env.VITE_API_URL || 'https://sriadithyaorganics.devraj951515.workers.dev').trim();
@@ -103,9 +107,37 @@ class ApiClient {
     return data;
   }
 
+  // --- Health & Diagnostic ---
+  async getHealth(): Promise<{ status: string; database?: { connected: boolean; type: string; products_count?: number } }> {
+    return this.request<{ status: string; database?: { connected: boolean; type: string; products_count?: number } }>('/health');
+  }
+
   // --- Dashboard Overview ---
-  async getDashboardStats(): Promise<DashboardStats> {
-    return this.request<DashboardStats>('/admin/dashboard-stats');
+  async getDashboardStats(params?: {
+    period?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<DashboardStats> {
+    const q = new URLSearchParams();
+    if (params?.period) q.append('period', params.period);
+    if (params?.date_from) q.append('date_from', params.date_from);
+    if (params?.date_to) q.append('date_to', params.date_to);
+    const queryStr = q.toString() ? `?${q.toString()}` : '';
+    return this.request<DashboardStats>(`/admin/dashboard-stats${queryStr}`);
+  }
+
+  // --- Analytics & Reports ---
+  async getAnalytics(params?: {
+    period?: string;
+    date_from?: string;
+    date_to?: string;
+  }): Promise<AnalyticsReport> {
+    const q = new URLSearchParams();
+    if (params?.period) q.append('period', params.period);
+    if (params?.date_from) q.append('date_from', params.date_from);
+    if (params?.date_to) q.append('date_to', params.date_to);
+    const queryStr = q.toString() ? `?${q.toString()}` : '';
+    return this.request<AnalyticsReport>(`/admin/analytics${queryStr}`);
   }
 
   // --- Orders ---
@@ -190,6 +222,26 @@ class ApiClient {
     });
   }
 
+  async updateVariant(productId: number, variantId: number, payload: any): Promise<Product> {
+    return this.request<Product>(`/products/${productId}/variants/${variantId}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async createVariant(productId: number, payload: any): Promise<Product> {
+    return this.request<Product>(`/products/${productId}/variants`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteVariant(productId: number, variantId: number): Promise<void> {
+    return this.request<void>(`/products/${productId}/variants/${variantId}`, {
+      method: 'DELETE',
+    });
+  }
+
   // --- Categories ---
   async getCategories(): Promise<Category[]> {
     return this.request<Category[]>('/categories');
@@ -269,6 +321,83 @@ class ApiClient {
 
   async updateSettings(payload: Partial<StoreSettings>): Promise<StoreSettings> {
     return this.request<StoreSettings>('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // --- Discounts & Coupons ---
+  async getCoupons(): Promise<Coupon[]> {
+    return this.request<Coupon[]>('/admin/coupons');
+  }
+
+  async createCoupon(payload: Partial<Coupon>): Promise<Coupon> {
+    return this.request<Coupon>('/admin/coupons', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateCoupon(id: number, payload: Partial<Coupon>): Promise<Coupon> {
+    return this.request<Coupon>(`/admin/coupons/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteCoupon(id: number): Promise<void> {
+    return this.request<void>(`/admin/coupons/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Reviews Moderation ---
+  async getReviews(statusFilter?: string): Promise<Review[]> {
+    const q = statusFilter && statusFilter !== 'all' ? `?status_filter=${statusFilter}` : '';
+    return this.request<Review[]>(`/admin/reviews${q}`);
+  }
+
+  async updateReviewStatus(id: number, status: 'approved' | 'rejected' | 'pending'): Promise<Review> {
+    return this.request<Review>(`/admin/reviews/${id}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status }),
+    });
+  }
+
+  async deleteReview(id: number): Promise<void> {
+    return this.request<void>(`/admin/reviews/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Delivery Zones ---
+  async getDeliveryZones(): Promise<DeliveryZone[]> {
+    return this.request<DeliveryZone[]>('/admin/delivery-zones');
+  }
+
+  async createDeliveryZone(payload: Partial<DeliveryZone>): Promise<DeliveryZone> {
+    return this.request<DeliveryZone>('/admin/delivery-zones', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateDeliveryZone(id: number, payload: Partial<DeliveryZone>): Promise<DeliveryZone> {
+    return this.request<DeliveryZone>(`/admin/delivery-zones/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteDeliveryZone(id: number): Promise<void> {
+    return this.request<void>(`/admin/delivery-zones/${id}`, {
+      method: 'DELETE',
+    });
+  }
+
+  // --- Admin Profile & Security ---
+  async updateProfile(payload: { name?: string; phone?: string; password?: string }): Promise<any> {
+    return this.request<any>('/auth/me', {
       method: 'PUT',
       body: JSON.stringify(payload),
     });

@@ -357,3 +357,48 @@ async def update_variant(
     prod = await d1.fetch_one("SELECT * FROM products WHERE id = ?", product_id)
     res = await batch_load_relations(d1, [prod])
     return res[0]
+
+
+@router.post("/{product_id}/variants", response_model=ProductOut, status_code=status.HTTP_201_CREATED)
+async def create_variant(
+    product_id: int,
+    variant_in: VariantUpdate,
+    d1: D1Database = Depends(get_d1),
+    admin=Depends(get_current_admin)
+):
+    product = await d1.fetch_one("SELECT id FROM products WHERE id = ?", product_id)
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found.")
+
+    unit = variant_in.unit or "1 Unit"
+    pack_size = variant_in.pack_size or "Standard Pack"
+    price = float(variant_in.price or 99.0)
+    mrp = float(variant_in.mrp or price)
+    stock = int(variant_in.stock or 50)
+    is_def = 1 if variant_in.is_default else 0
+
+    if is_def:
+        await d1.execute("UPDATE product_variants SET is_default = 0 WHERE product_id = ?", product_id)
+
+    await d1.execute("""
+        INSERT INTO product_variants (product_id, unit, pack_size, price, mrp, stock, is_default)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, product_id, unit, pack_size, price, mrp, stock, is_def)
+
+    broadcaster.publish("STOCK_UPDATED", {"product_id": product_id})
+    prod = await d1.fetch_one("SELECT * FROM products WHERE id = ?", product_id)
+    res = await batch_load_relations(d1, [prod])
+    return res[0]
+
+
+@router.delete("/{product_id}/variants/{variant_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_variant(
+    product_id: int,
+    variant_id: int,
+    d1: D1Database = Depends(get_d1),
+    admin=Depends(get_current_admin)
+):
+    await d1.execute("DELETE FROM product_variants WHERE id = ? AND product_id = ?", variant_id, product_id)
+    broadcaster.publish("STOCK_UPDATED", {"product_id": product_id})
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+

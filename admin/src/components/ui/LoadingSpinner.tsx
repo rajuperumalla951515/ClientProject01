@@ -11,12 +11,11 @@ export const LoadingSpinner: React.FC<{ size?: 'sm' | 'md' | 'lg'; text?: string
   };
 
   return (
-    <div className="flex flex-col items-center justify-center py-12 gap-3 text-slate-500">
+    <div className="flex flex-col items-center justify-center py-12 gap-3 text-[#778176]">
       <div
-        className={`${sizeMap[size]} border-brand-200 border-t-brand-700 rounded-full animate-spin`}
+        className={`${sizeMap[size]} border-[#D9E2CE] border-t-[#244B37] rounded-full animate-spin`}
       />
-      {text && <p className="text-xs font-medium text-slate-500 animate-pulse">{text}</p>}
+      {text && <p className="text-xs font-semibold text-[#778176]">{text}</p>}
     </div>
   );
 };
-

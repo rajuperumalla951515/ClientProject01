@@ -2,8 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { AdminUser } from '../types';
 import { api } from '../services/api';
 
-interface AdminAuthContextType {
+export interface AdminAuthContextType {
   admin: AdminUser | null;
+  user: AdminUser | null;
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
@@ -48,6 +49,7 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     <AdminAuthContext.Provider
       value={{
         admin,
+        user: admin,
         token,
         isAuthenticated: !!token && !!admin,
         isLoading,
@@ -60,11 +62,12 @@ export const AdminAuthProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   );
 };
 
-export const useAdminAuth = () => {
-  const ctx = useContext(AdminAuthContext);
-  if (!ctx) {
+export const useAdminAuth = (): AdminAuthContextType => {
+  const context = useContext(AdminAuthContext);
+  if (!context) {
     throw new Error('useAdminAuth must be used within an AdminAuthProvider');
   }
-  return ctx;
+  return context;
 };
 
+export default AdminAuthProvider;

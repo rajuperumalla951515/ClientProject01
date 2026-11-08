@@ -31,114 +31,105 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex flex-col justify-center items-center p-4 relative overflow-hidden font-sans">
-      {/* Subtle organic background glow */}
-      <div className="absolute top-1/4 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-brand-800/20 rounded-full blur-3xl pointer-events-none" />
-
+    <div className="min-h-screen bg-[#F6F5EF] flex flex-col justify-center items-center p-4 relative font-sans text-[#26352B]">
       <div className="w-full max-w-md relative z-10">
         {/* Brand Header */}
-        <div className="text-center mb-8">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center mb-2">
             <img
               src="/brand/sri-adithya-logo.png"
               alt="Sri Adithya Organics"
-              className="h-24 sm:h-28 w-auto object-contain select-none pointer-events-auto transform-none transition-none hover:scale-100 hover:opacity-100"
+              className="h-20 sm:h-24 w-auto object-contain select-none"
               loading="eager"
-              decoding="async"
               draggable={false}
             />
           </div>
-          <p className="text-xs font-semibold text-emerald-400 uppercase tracking-widest mt-1">
-            Administrative Management Console
+          <h1 className="text-xl font-bold text-[#244B37] tracking-tight">
+            Sri Adithya Organics
+          </h1>
+          <p className="text-xs font-semibold text-[#778176] tracking-wider mt-0.5">
+            Enterprise Management System
           </p>
         </div>
 
         {/* Login Card */}
-        <div className="bg-white rounded-3xl p-8 shadow-2xl border border-slate-100">
-          <div className="flex items-center justify-between mb-6 pb-4 border-b border-slate-100">
+        <div className="bg-white rounded-3xl p-7 sm:p-8 shadow-card border border-[#E6E7DD]">
+          <div className="flex items-center justify-between mb-6 pb-4 border-b border-[#E6E7DD]">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">Admin Sign In</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Enter your administrator credentials</p>
+              <h2 className="text-base font-bold text-[#26352B]">Sign In to Management</h2>
+              <p className="text-xs text-[#778176] mt-0.5">Enter your verified store credentials</p>
             </div>
-            <div className="w-9 h-9 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
-              <ShieldCheck className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-xl bg-[#F1F4EC] text-[#244B37] flex items-center justify-center">
+              <ShieldCheck className="w-4 h-4 text-[#496B45]" />
             </div>
           </div>
 
           {errorMsg && (
-            <div className="mb-5 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 flex items-start gap-2.5 text-xs animate-in fade-in duration-150">
-              <AlertCircle className="w-4 h-4 text-rose-600 flex-shrink-0 mt-0.5" />
+            <div className="mb-5 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-[#26352B] mb-1.5 uppercase tracking-wider">
                 Administrator Email
               </label>
               <div className="relative">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Mail className="w-4 h-4 text-[#778176] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="admin@sriadithyaorganics.com"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs sm:text-sm text-[#26352B] placeholder-[#778176] focus:outline-none focus:border-[#496B45] focus:bg-white transition-all font-medium"
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs font-semibold text-slate-700">Password</label>
-              </div>
+              <label className="block text-xs font-bold text-[#26352B] mb-1.5 uppercase tracking-wider">
+                Security Password
+              </label>
               <div className="relative">
-                <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <Lock className="w-4 h-4 text-[#778176] absolute left-3.5 top-1/2 -translate-y-1/2" />
                 <input
                   type="password"
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent transition-all"
+                  className="w-full pl-10 pr-4 py-2.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs sm:text-sm text-[#26352B] placeholder-[#778176] focus:outline-none focus:border-[#496B45] focus:bg-white transition-all font-medium"
                 />
               </div>
-            </div>
-
-            <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl text-[11px] text-slate-600 space-y-1">
-              <p className="font-semibold text-slate-700 flex items-center gap-1.5">
-                <ShieldCheck className="w-3.5 h-3.5 text-brand-700" />
-                Authorized Demo Credentials:
-              </p>
-              <p className="font-mono text-[11px] text-slate-700">admin@sriadithyaorganics.com / admin123</p>
             </div>
 
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-3 px-4 rounded-xl bg-brand-800 hover:bg-brand-900 text-white font-semibold text-sm flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 mt-2"
+              className="w-full mt-2 py-3 px-4 rounded-xl bg-[#244B37] hover:bg-[#1C3C2C] text-white font-bold text-xs uppercase tracking-wider shadow-xs hover:shadow-card-hover transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {isLoading ? (
-                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              ) : (
-                <>
-                  <span>Sign In to Dashboard</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
+              <span>{isLoading ? 'Authorizing Access...' : 'Sign In to Portal'}</span>
+              {!isLoading && <ArrowRight className="w-4 h-4" />}
             </button>
           </form>
+
+          {/* Quick Credential Hint */}
+          <div className="mt-5 p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] text-center">
+            <p className="text-[11px] text-[#778176]">
+              Store Administrator Account: <span className="font-bold text-[#26352B]">admin@sriadithyaorganics.com</span>
+            </p>
+          </div>
         </div>
 
-        {/* Database Status Info */}
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
-          <Database className="w-4 h-4 text-emerald-400" />
-          <span>Central Storage: Supabase PostgreSQL (Production Connected)</span>
+        {/* System Footnote */}
+        <div className="mt-6 text-center text-xs text-[#778176] flex items-center justify-center gap-2">
+          <Database className="w-3.5 h-3.5 text-[#496B45]" />
+          <span>Cloudflare D1 Serverless Edge SQL & FastAPIBase</span>
         </div>
       </div>
     </div>
   );
 };
-

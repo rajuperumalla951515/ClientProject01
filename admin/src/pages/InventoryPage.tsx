@@ -3,15 +3,17 @@ import {
   Boxes,
   AlertTriangle,
   CheckCircle2,
-  XCircle,
+  PackageX,
   Search,
   SlidersHorizontal,
   RefreshCw,
   History,
-  Database,
+  Download,
   ArrowUpRight,
   ArrowDownRight,
-  Filter
+  Filter,
+  IndianRupee,
+  Layers
 } from 'lucide-react';
 import { api } from '../services/api';
 import { InventoryItem, InventoryLog } from '../types';
@@ -22,14 +24,22 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useToast } from '../context/ToastContext';
 
+type StockStatusFilter = 'all' | 'healthy' | 'low' | 'out';
+
 export const InventoryPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'inventory' | 'logs'>('inventory');
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [logs, setLogs] = useState<InventoryLog[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Filters
   const [searchQuery, setSearchQuery] = useState('');
-  const [lowStockFilter, setLowStockFilter] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<StockStatusFilter>('all');
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [logSearchQuery, setLogSearchQuery] = useState('');
+
+  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 12;
 
@@ -37,26 +47,26 @@ export const InventoryPage: React.FC = () => {
   const [adjustItem, setAdjustItem] = useState<InventoryItem | null>(null);
   const [adjustMode, setAdjustMode] = useState<'add' | 'deduct' | 'set'>('add');
   const [adjustValue, setAdjustValue] = useState<number>(10);
-  const [adjustReason, setAdjustReason] = useState('Restock shipment received');
+  const [adjustReason, setAdjustReason] = useState('Farm Batch Restock (Harvest arrival)');
   const [adjustNotes, setAdjustNotes] = useState('');
   const [isAdjusting, setIsAdjusting] = useState(false);
 
   const { showSuccess, showError } = useToast();
 
-  const loadInventory = async (isManual = false) => {
+  const loadData = async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
     try {
       const [invData, logData] = await Promise.all([
-        api.getInventory({ low_stock_only: lowStockFilter }),
-        api.getInventoryLogs(100, 0),
+        api.getInventory(),
+        api.getInventoryLogs(150, 0),
       ]);
       setInventory(invData);
       setLogs(logData);
       if (isManual) {
-        showSuccess('Inventory levels and audit logs synced.', 'Updated');
+        showSuccess('Inventory levels and audit logs synchronized.', 'D1 Synchronized');
       }
     } catch (err: any) {
-      showError(err.message || 'Failed to load inventory data.');
+      showError(err.message || 'Failed to load inventory data from D1.');
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -64,146 +74,293 @@ export const InventoryPage: React.FC = () => {
   };
 
   useEffect(() => {
-    loadInventory();
-  }, [lowStockFilter]);
+    loadData();
+  }, []);
 
-  // Compute Summary Metrics
+  // Compute Metrics
   const metrics = useMemo(() => {
-    const total = inventory.length;
-    const healthy = inventory.filter((i) => i.stock >= 10).length;
-    const low = inventory.filter((i) => i.stock > 0 && i.stock < 10).length;
-    const out = inventory.filter((i) => i.stock <= 0).length;
-    return { total, healthy, low, out };
+    const totalSkus = inventory.length;
+    const totalUnits = inventory.reduce((sum, item) => sum + (item.stock || 0), 0);
+    const totalValuation = inventory.reduce((sum, item) => sum + (item.stock || 0) * (item.price || 0), 0);
+    const healthyCount = inventory.filter((i) => i.stock >= 10).length;
+    const lowStockCount = inventory.filter((i) => i.stock > 0 && i.stock < 10).length;
+    const outOfStockCount = inventory.filter((i) => i.stock <= 0).length;
+
+    return {
+      totalSkus,
+      totalUnits,
+      totalValuation,
+      healthyCount,
+      lowStockCount,
+      outOfStockCount,
+    };
   }, [inventory]);
 
-  // Filtered List
+  // Unique categories
+  const categoriesList = useMemo(() => {
+    const set = new Set<string>();
+    inventory.forEach((i) => {
+      if (i.category_name) set.add(i.category_name);
+    });
+    return Array.from(set);
+  }, [inventory]);
+
+  // Filtered Inventory
   const filteredInventory = useMemo(() => {
     return inventory.filter((item) => {
       const q = searchQuery.toLowerCase().trim();
-      return (
+      const matchesSearch =
         q === '' ||
         item.name.toLowerCase().includes(q) ||
         item.category_name?.toLowerCase().includes(q) ||
-        String(item.id) === q
-      );
-    });
-  }, [inventory, searchQuery]);
+        String(item.id) === q;
 
-  // Paginated List
+      let matchesStatus = true;
+      if (statusFilter === 'healthy') matchesStatus = item.stock >= 10;
+      if (statusFilter === 'low') matchesStatus = item.stock > 0 && item.stock < 10;
+      if (statusFilter === 'out') matchesStatus = item.stock <= 0;
+
+      const matchesCat =
+        selectedCategory === 'all' || item.category_name === selectedCategory;
+
+      return matchesSearch && matchesStatus && matchesCat;
+    });
+  }, [inventory, searchQuery, statusFilter, selectedCategory]);
+
+  // Paginated Inventory
   const paginatedInventory = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return filteredInventory.slice(start, start + pageSize);
-  }, [filteredInventory, currentPage]);
+  }, [filteredInventory, currentPage, pageSize]);
+
+  // Filtered Logs
+  const filteredLogs = useMemo(() => {
+    if (!logSearchQuery.trim()) return logs;
+    const q = logSearchQuery.toLowerCase().trim();
+    return logs.filter(
+      (l) =>
+        l.product_name?.toLowerCase().includes(q) ||
+        l.reason?.toLowerCase().includes(q) ||
+        String(l.product_id) === q
+    );
+  }, [logs, logSearchQuery]);
 
   const openAdjustModal = (item: InventoryItem) => {
     setAdjustItem(item);
     setAdjustMode('add');
     setAdjustValue(10);
-    setAdjustReason('Restock shipment received');
+    setAdjustReason('Farm Batch Restock (Harvest arrival)');
     setAdjustNotes('');
   };
 
   const handleAdjustSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!adjustItem) return;
-    setIsAdjusting(true);
 
-    try {
-      let payload: any = {
-        product_id: adjustItem.id,
-        reason: adjustReason,
-        notes: adjustNotes,
-      };
+    if (adjustValue <= 0) {
+      showError('Please enter a quantity greater than zero.');
+      return;
+    }
 
-      if (adjustMode === 'set') {
-        payload.new_stock = Math.max(0, adjustValue);
-      } else if (adjustMode === 'add') {
-        payload.delta = Math.abs(adjustValue);
-      } else if (adjustMode === 'deduct') {
-        payload.delta = -Math.abs(adjustValue);
+    let payload: any = {
+      product_id: adjustItem.id,
+      reason: adjustReason,
+      notes: adjustNotes.trim() || undefined,
+    };
+
+    if (adjustMode === 'add') {
+      payload.delta = adjustValue;
+    } else if (adjustMode === 'deduct') {
+      if (adjustItem.stock - adjustValue < 0) {
+        showError('Deduction would result in negative stock. Please adjust quantity.');
+        return;
       }
+      payload.delta = -adjustValue;
+    } else {
+      payload.new_stock = adjustValue;
+    }
 
-      const res = await api.adjustInventory(payload);
+    setIsAdjusting(true);
+    try {
+      await api.adjustInventory(payload);
       showSuccess(
-        `Stock for "${adjustItem.name}" updated to ${res.new_stock} units. Audit log recorded.`,
-        'Inventory Updated'
+        `Stock updated for "${adjustItem.name}".`,
+        'Inventory Saved'
       );
       setAdjustItem(null);
-      loadInventory();
+      loadData();
     } catch (err: any) {
-      showError(err.message || 'Failed to adjust inventory.');
+      showError(err.message || 'Failed to adjust stock in D1.');
     } finally {
       setIsAdjusting(false);
     }
   };
 
+  const handleExportInventoryCSV = () => {
+    if (inventory.length === 0) return;
+
+    const headers = [
+      'SKU ID',
+      'Product Name',
+      'Category',
+      'Unit',
+      'Stock Quantity',
+      'Unit Price (INR)',
+      'Total Valuation (INR)',
+      'Status'
+    ];
+
+    const rows = inventory.map((i) => {
+      const val = (i.stock || 0) * (i.price || 0);
+      const st = i.stock <= 0 ? 'Out of Stock' : i.stock < 10 ? 'Low Stock' : 'Healthy';
+      return [
+        i.id,
+        `"${i.name.replace(/"/g, '""')}"`,
+        `"${i.category_name || 'Organic Produce'}"`,
+        `"${i.unit || 'Standard'}"`,
+        i.stock,
+        i.price,
+        val,
+        st
+      ].join(',');
+    });
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `sri_adithya_inventory_valuation_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    showSuccess(`Exported inventory valuation report for ${inventory.length} SKUs.`, 'Export Downloaded');
+  };
+
+  if (isLoading) {
+    return <LoadingSpinner text="Connecting to D1 and auditing warehouse inventory levels..." size="lg" />;
+  }
+
+  // Pre-calculate target stock for modal preview
+  let previewStock = adjustItem?.stock || 0;
+  if (adjustItem) {
+    if (adjustMode === 'add') previewStock = adjustItem.stock + adjustValue;
+    if (adjustMode === 'deduct') previewStock = Math.max(0, adjustItem.stock - adjustValue);
+    if (adjustMode === 'set') previewStock = Math.max(0, adjustValue);
+  }
+
   return (
-    <div className="space-y-6">
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div className="space-y-5">
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-2xl border border-[#E6E7DD] shadow-card">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-bold text-[#26352B]">Inventory Control Center</h2>
+            <span className="px-2 py-0.5 rounded-full bg-[#E2E8D7] text-[#244B37] text-[11px] font-bold">
+              {metrics.totalSkus} SKUs Monitored
+            </span>
+          </div>
+          <p className="text-xs text-[#778176] mt-0.5">
+            Real-time warehouse stock tracking, audit movement logs, and inventory valuation
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Tab Switcher */}
+          <div className="flex items-center bg-[#FAF9F5] p-1 rounded-xl border border-[#E6E7DD]">
+            <button
+              onClick={() => setActiveTab('inventory')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'inventory'
+                  ? 'bg-[#244B37] text-white shadow-xs'
+                  : 'text-[#778176] hover:text-[#26352B]'
+              }`}
+            >
+              <Boxes className="w-3.5 h-3.5" />
+              <span>Live Stock</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('logs')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                activeTab === 'logs'
+                  ? 'bg-[#244B37] text-white shadow-xs'
+                  : 'text-[#778176] hover:text-[#26352B]'
+              }`}
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>Audit Trail</span>
+            </button>
+          </div>
+
+          <button
+            onClick={handleExportInventoryCSV}
+            className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E6E7DD] bg-white hover:bg-[#F6F5EF] text-[#26352B] text-xs font-semibold shadow-xs transition-colors"
+          >
+            <Download className="w-4 h-4 text-[#496B45]" />
+            <span>Valuation CSV</span>
+          </button>
+
+          <button
+            onClick={() => loadData(true)}
+            disabled={isRefreshing}
+            className="p-2 rounded-xl border border-[#E6E7DD] bg-white hover:bg-[#F6F5EF] text-[#26352B] transition-colors disabled:opacity-50"
+            title="Refresh database records"
+          >
+            <RefreshCw className={`w-4 h-4 text-[#496B45] ${isRefreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+      </div>
+
+      {/* Summary KPI Cards Grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <StatCard
-          title="Total Catalog SKUs"
-          value={metrics.total}
-          subtitle="Organic items tracked in central inventory"
+          title="Inventory Valuation"
+          value={`₹${metrics.totalValuation.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
+          subtitle="Total retail value of active stock"
+          icon={IndianRupee}
+          colorScheme="forest"
+        />
+
+        <StatCard
+          title="Total Stock Units"
+          value={metrics.totalUnits.toLocaleString('en-IN')}
+          subtitle={`Across ${metrics.totalSkus} organic SKUs`}
           icon={Boxes}
-          colorScheme="blue"
+          colorScheme="sage"
         />
-        <StatCard
-          title="Healthy Stock"
-          value={metrics.healthy}
-          subtitle=">= 10 units available"
-          icon={CheckCircle2}
-          colorScheme="green"
-        />
+
         <StatCard
           title="Low Stock Warning"
-          value={metrics.low}
-          subtitle="< 10 units remaining"
+          value={metrics.lowStockCount}
+          subtitle="SKUs with under 10 units"
           icon={AlertTriangle}
           colorScheme="amber"
-          onClick={() => setLowStockFilter(!lowStockFilter)}
+          onClick={() => {
+            setStatusFilter('low');
+            setActiveTab('inventory');
+          }}
         />
+
         <StatCard
           title="Out of Stock"
-          value={metrics.out}
-          subtitle="Immediate restocking needed"
-          icon={XCircle}
+          value={metrics.outOfStockCount}
+          subtitle="SKUs needing farm replenishment"
+          icon={PackageX}
           colorScheme="rose"
+          onClick={() => {
+            setStatusFilter('out');
+            setActiveTab('inventory');
+          }}
         />
       </div>
 
-      {/* Tabs and Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        {/* Tab Switcher */}
-        <div className="flex bg-slate-100 p-1 rounded-xl">
-          <button
-            onClick={() => setActiveTab('inventory')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all ${
-              activeTab === 'inventory'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Stock Overview
-          </button>
-          <button
-            onClick={() => setActiveTab('logs')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 ${
-              activeTab === 'logs'
-                ? 'bg-white text-slate-900 shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <History className="w-3.5 h-3.5 text-brand-700" />
-            <span>Audit Trail ({logs.length})</span>
-          </button>
-        </div>
-
-        {/* Search & Actions */}
-        {activeTab === 'inventory' && (
-          <div className="flex items-center gap-3 flex-1 sm:justify-end">
-            <div className="relative max-w-xs w-full">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+      {/* MAIN TAB 1: LIVE INVENTORY */}
+      {activeTab === 'inventory' && (
+        <div className="space-y-4">
+          {/* Filter Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E6E7DD] shadow-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex-1 max-w-md relative">
+              <Search className="w-4 h-4 text-[#778176] absolute left-3.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
@@ -211,229 +368,281 @@ export const InventoryPage: React.FC = () => {
                   setSearchQuery(e.target.value);
                   setCurrentPage(1);
                 }}
-                placeholder="Search stock by item name..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                placeholder="Search inventory by product, category or SKU..."
+                className="w-full pl-10 pr-4 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs font-medium text-[#26352B] placeholder-[#778176] focus:outline-none focus:border-[#496B45] focus:bg-white transition-all"
               />
             </div>
 
-            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-600 select-none whitespace-nowrap">
-              <input
-                type="checkbox"
-                checked={lowStockFilter}
-                onChange={(e) => setLowStockFilter(e.target.checked)}
-                className="rounded text-brand-700 focus:ring-brand-600 w-4 h-4"
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Category Filter */}
+              <select
+                value={selectedCategory}
+                onChange={(e) => {
+                  setSelectedCategory(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="px-3 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs font-medium text-[#26352B] focus:outline-none focus:border-[#496B45]"
+              >
+                <option value="all">All Categories</option>
+                {categoriesList.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat}
+                  </option>
+                ))}
+              </select>
+
+              {/* Status Chips */}
+              <div className="flex items-center bg-[#FAF9F5] p-1 rounded-xl border border-[#E6E7DD] text-xs">
+                {(['all', 'healthy', 'low', 'out'] as StockStatusFilter[]).map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => {
+                      setStatusFilter(st);
+                      setCurrentPage(1);
+                    }}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition-all ${
+                      statusFilter === st
+                        ? 'bg-[#244B37] text-white shadow-2xs'
+                        : 'text-[#778176] hover:text-[#26352B]'
+                    }`}
+                  >
+                    {st === 'all' && 'All'}
+                    {st === 'healthy' && 'Healthy'}
+                    {st === 'low' && 'Low'}
+                    {st === 'out' && 'Out'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Inventory Table */}
+          <div className="bg-white rounded-2xl border border-[#E6E7DD] shadow-card overflow-hidden">
+            {paginatedInventory.length === 0 ? (
+              <EmptyState
+                icon={Boxes}
+                title="No inventory records matched your filter"
+                description="Try clearing search filters to view your complete warehouse stock."
               />
-              <span>Low Stock Only</span>
-            </label>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAF9F5] border-b border-[#E6E7DD] text-[11px] font-bold text-[#778176] uppercase tracking-wider">
+                      <th className="p-4">Product & Category</th>
+                      <th className="p-4">Unit / Pack</th>
+                      <th className="p-4">Unit Price</th>
+                      <th className="p-4">Total Value</th>
+                      <th className="p-4">Stock Level</th>
+                      <th className="p-4">Status Indicator</th>
+                      <th className="p-4 text-right">Adjust Stock</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E6E7DD] text-xs">
+                    {paginatedInventory.map((item) => {
+                      const itemValuation = (item.stock || 0) * (item.price || 0);
+                      const isLow = item.stock > 0 && item.stock < 10;
+                      const isOut = item.stock <= 0;
 
-            <button
-              onClick={() => loadInventory(true)}
-              disabled={isRefreshing}
-              className="p-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
-              title="Refresh inventory"
-            >
-              <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-700' : ''}`} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Main Tab Content */}
-      {activeTab === 'inventory' ? (
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
-          {isLoading ? (
-            <LoadingSpinner text="Reading real-time inventory..." />
-          ) : filteredInventory.length === 0 ? (
-            <EmptyState
-              icon={Boxes}
-              title="No Inventory Matches"
-              description="No items match your search or filter."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/70 text-slate-400 font-semibold uppercase tracking-wider">
-                    <th className="py-3.5 px-4">Organic Product</th>
-                    <th className="py-3.5 px-4">Category</th>
-                    <th className="py-3.5 px-4">Price / Pack</th>
-                    <th className="py-3.5 px-4">Stock Level</th>
-                    <th className="py-3.5 px-4">Stock Health</th>
-                    <th className="py-3.5 px-4 text-right">Quick Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {paginatedInventory.map((item) => {
-                    const isOut = item.stock <= 0;
-                    const isLow = item.stock < 10 && !isOut;
-                    // Visual stock bar calculation (max 100)
-                    const percent = Math.min(100, Math.max(0, (item.stock / 50) * 100));
-
-                    return (
-                      <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3.5 px-4">
-                          <div className="flex items-center gap-3">
-                            <img
-                              src={item.image_url || 'https://images.unsplash.com/photo-1542838132-92c53300491e?w=100'}
-                              alt={item.name}
-                              className="w-10 h-10 rounded-xl object-cover border border-slate-200/80 flex-shrink-0"
-                            />
-                            <div>
-                              <span className="font-bold text-slate-900 block truncate">{item.name}</span>
-                              <span className="text-[11px] text-slate-500 font-medium">SKU: SAO-{item.id.toString().padStart(4, '0')}</span>
+                      return (
+                        <tr key={item.id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-xl bg-[#F6F5EF] border border-[#E6E7DD] overflow-hidden shrink-0">
+                                {item.image_url ? (
+                                  <img
+                                    src={item.image_url}
+                                    alt={item.name}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : (
+                                  <Boxes className="w-5 h-5 text-[#778176] m-auto mt-2.5" />
+                                )}
+                              </div>
+                              <div>
+                                <p className="font-bold text-[#26352B] line-clamp-1">{item.name}</p>
+                                <p className="text-[11px] text-[#778176]">
+                                  {item.category_name} • SKU #{item.id}
+                                </p>
+                              </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-slate-600 font-medium">
-                          {item.category_name}
-                        </td>
-                        <td className="py-3.5 px-4 font-bold text-slate-900">
-                          ₹{item.price.toFixed(2)}
-                          <span className="text-[10px] text-slate-400 font-normal block">{item.unit}</span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <span
-                            className={`text-sm font-bold ${
-                              isOut ? 'text-rose-600' : isLow ? 'text-amber-600' : 'text-slate-900'
-                            }`}
-                          >
-                            {item.stock} units
-                          </span>
-                        </td>
-                        <td className="py-3.5 px-4">
-                          <div className="w-32">
-                            <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
-                              <div
-                                style={{ width: `${percent}%` }}
-                                className={`h-full rounded-full transition-all ${
-                                  isOut ? 'bg-rose-500' : isLow ? 'bg-amber-500' : 'bg-emerald-500'
-                                }`}
-                              />
-                            </div>
-                            <span className="text-[10px] text-slate-400 mt-0.5 block">
-                              {isOut ? 'Out of Stock' : isLow ? 'Reorder Warning' : 'Optimal'}
-                            </span>
-                          </div>
-                        </td>
-                        <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => openAdjustModal(item)}
-                            className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-700 hover:bg-brand-50 hover:border-brand-200 hover:text-brand-900 text-xs font-semibold transition-all inline-flex items-center gap-1.5"
-                          >
-                            <SlidersHorizontal className="w-3.5 h-3.5 text-brand-700" />
-                            <span>Adjust Stock</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
+                          </td>
 
-          <Pagination
-            currentPage={currentPage}
-            totalItems={filteredInventory.length}
-            pageSize={pageSize}
-            onPageChange={setCurrentPage}
-          />
-        </div>
-      ) : (
-        /* Inventory Logs Audit Trail Table */
-        <div className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900">Inventory Audit Logs</h3>
-              <p className="text-xs text-slate-500">Authoritative audit ledger of all stock mutations</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs text-emerald-800 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-200">
-              <Database className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Synced with Central Database</span>
-            </div>
-          </div>
+                          <td className="p-4 font-semibold text-[#26352B]">{item.unit}</td>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="border-b border-slate-100 text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Log #</th>
-                  <th className="py-3 px-4">Timestamp</th>
-                  <th className="py-3 px-4">Product Name</th>
-                  <th className="py-3 px-4">Previous Stock</th>
-                  <th className="py-3 px-4">Change</th>
-                  <th className="py-3 px-4">New Stock</th>
-                  <th className="py-3 px-4">Reason / Reference</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {logs.length > 0 ? (
-                  logs.map((log) => {
-                    const isPositive = log.changed_stock > 0;
-                    return (
-                      <tr key={log.log_id} className="hover:bg-slate-50/70 transition-colors">
-                        <td className="py-3 px-4 font-mono font-bold text-slate-700">#{log.log_id}</td>
-                        <td className="py-3 px-4 text-slate-500">
-                          {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : 'Recent'}
-                        </td>
-                        <td className="py-3 px-4 font-semibold text-slate-900">{log.product_name}</td>
-                        <td className="py-3 px-4 text-slate-600">{log.previous_stock}</td>
-                        <td className="py-3 px-4">
-                          <span
-                            className={`inline-flex items-center gap-1 font-bold text-xs px-2 py-0.5 rounded-full ${
-                              isPositive
-                                ? 'bg-emerald-50 text-emerald-700'
-                                : 'bg-rose-50 text-rose-700'
-                            }`}
-                          >
-                            {isPositive ? (
-                              <ArrowUpRight className="w-3 h-3" />
+                          <td className="p-4 font-bold text-[#26352B]">
+                            ₹{item.price.toLocaleString('en-IN')}
+                          </td>
+
+                          <td className="p-4 font-bold text-[#496B45]">
+                            ₹{itemValuation.toLocaleString('en-IN')}
+                          </td>
+
+                          <td className="p-4">
+                            <span className="font-bold text-sm text-[#26352B]">{item.stock}</span>
+                            <span className="text-[11px] text-[#778176] ml-1">units</span>
+                          </td>
+
+                          <td className="p-4">
+                            {isOut ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                                <span>Out of Stock</span>
+                              </span>
+                            ) : isLow ? (
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                                <span>Low Stock (&lt; 10)</span>
+                              </span>
                             ) : (
-                              <ArrowDownRight className="w-3 h-3" />
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-[#EBF3E8] text-[#2E6038] border border-[#A8C9A0]">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                                <span>Healthy Stock</span>
+                              </span>
                             )}
-                            {isPositive ? `+${log.changed_stock}` : log.changed_stock}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 font-bold text-slate-900">{log.new_stock}</td>
-                        <td className="py-3 px-4 text-slate-700 font-medium">{log.reason}</td>
-                      </tr>
-                    );
-                  })
-                ) : (
-                  <tr>
-                    <td colSpan={7} className="text-center py-8 text-slate-400">
-                      No inventory audit records recorded yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                          </td>
+
+                          <td className="p-4 text-right">
+                            <button
+                              onClick={() => openAdjustModal(item)}
+                              className="px-3 py-1.5 rounded-xl border border-[#E6E7DD] bg-white hover:bg-[#F6F5EF] hover:border-[#8A9B69] text-[#244B37] text-xs font-bold transition-all shadow-2xs"
+                            >
+                              Adjust Stock
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            <Pagination
+              currentPage={currentPage}
+              totalItems={filteredInventory.length}
+              pageSize={pageSize}
+              onPageChange={setCurrentPage}
+            />
           </div>
         </div>
       )}
 
-      {/* Adjust Stock Modal */}
+      {/* MAIN TAB 2: AUDIT TRAIL LOGS */}
+      {activeTab === 'logs' && (
+        <div className="space-y-4">
+          {/* Log Search Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-[#E6E7DD] shadow-card flex items-center justify-between gap-4">
+            <div className="flex-1 max-w-md relative">
+              <Search className="w-4 h-4 text-[#778176] absolute left-3.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={logSearchQuery}
+                onChange={(e) => setLogSearchQuery(e.target.value)}
+                placeholder="Search audit trail by product name or reason..."
+                className="w-full pl-10 pr-4 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs font-medium text-[#26352B] placeholder-[#778176] focus:outline-none focus:border-[#496B45]"
+              />
+            </div>
+            <span className="text-xs font-semibold text-[#778176]">
+              {filteredLogs.length} Stock Audit Records Logged in D1
+            </span>
+          </div>
+
+          {/* Audit Log Table */}
+          <div className="bg-white rounded-2xl border border-[#E6E7DD] shadow-card overflow-hidden">
+            {filteredLogs.length === 0 ? (
+              <EmptyState
+                icon={History}
+                title="No stock movements recorded"
+                description="Adjust stock levels in Live Stock to automatically record immutable audit log entries."
+              />
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-[#FAF9F5] border-b border-[#E6E7DD] text-[11px] font-bold text-[#778176] uppercase tracking-wider">
+                      <th className="p-4">Date & Time</th>
+                      <th className="p-4">Product Name</th>
+                      <th className="p-4">Movement Delta</th>
+                      <th className="p-4">Previous Stock</th>
+                      <th className="p-4">New Stock</th>
+                      <th className="p-4">Reason & Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E6E7DD] text-xs">
+                    {filteredLogs.map((log) => {
+                      const isPositive = log.changed_stock > 0;
+                      return (
+                        <tr key={log.log_id} className="hover:bg-[#FAF9F5] transition-colors">
+                          <td className="p-4 text-[#778176] font-mono text-[11px]">
+                            {log.created_at ? log.created_at.replace('T', ' ').slice(0, 19) : '—'}
+                          </td>
+
+                          <td className="p-4 font-bold text-[#26352B]">
+                            {log.product_name || `Product #${log.product_id}`}
+                          </td>
+
+                          <td className="p-4">
+                            <span
+                              className={`inline-flex items-center gap-1 font-bold px-2 py-0.5 rounded-full text-xs ${
+                                isPositive
+                                  ? 'bg-[#E2E8D7] text-[#244B37]'
+                                  : 'bg-rose-100 text-rose-800'
+                              }`}
+                            >
+                              {isPositive ? (
+                                <ArrowUpRight className="w-3.5 h-3.5" />
+                              ) : (
+                                <ArrowDownRight className="w-3.5 h-3.5" />
+                              )}
+                              <span>
+                                {isPositive ? `+${log.changed_stock}` : log.changed_stock} units
+                              </span>
+                            </span>
+                          </td>
+
+                          <td className="p-4 text-[#778176] font-semibold">{log.previous_stock}</td>
+
+                          <td className="p-4 font-bold text-[#26352B]">{log.new_stock} units</td>
+
+                          <td className="p-4 font-medium text-[#26352B]">
+                            {log.reason || 'Manual Adjustment'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Stock Adjustment Modal */}
       {adjustItem && (
         <Modal
           isOpen={!!adjustItem}
           onClose={() => setAdjustItem(null)}
-          title={`Adjust Stock: ${adjustItem.name}`}
-          subtitle={`Current stock in database: ${adjustItem.stock} units`}
+          title={`Adjust Stock — ${adjustItem.name}`}
+          subtitle={`Current warehouse stock: ${adjustItem.stock} units (${adjustItem.unit})`}
           maxWidth="md"
         >
           <form onSubmit={handleAdjustSubmit} className="space-y-4">
+            {/* Mode selection buttons */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+              <label className="block text-xs font-bold text-[#26352B] mb-2 uppercase tracking-wider">
                 Adjustment Action
               </label>
               <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setAdjustMode('add')}
-                  className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
                     adjustMode === 'add'
-                      ? 'bg-emerald-700 text-white border-emerald-700 shadow-xs'
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      ? 'bg-[#244B37] text-white shadow-xs'
+                      : 'bg-[#FAF9F5] text-[#778176] border border-[#E6E7DD] hover:text-[#26352B]'
                   }`}
                 >
                   + Add Stock
@@ -441,10 +650,10 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAdjustMode('deduct')}
-                  className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
                     adjustMode === 'deduct'
-                      ? 'bg-rose-700 text-white border-rose-700 shadow-xs'
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      ? 'bg-rose-700 text-white shadow-xs'
+                      : 'bg-[#FAF9F5] text-[#778176] border border-[#E6E7DD] hover:text-[#26352B]'
                   }`}
                 >
                   - Deduct Stock
@@ -452,22 +661,21 @@ export const InventoryPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setAdjustMode('set')}
-                  className={`py-2 text-xs font-semibold rounded-xl border transition-all ${
+                  className={`py-2 px-3 rounded-xl text-xs font-bold transition-all ${
                     adjustMode === 'set'
-                      ? 'bg-slate-800 text-white border-slate-800 shadow-xs'
-                      : 'border-slate-200 text-slate-700 hover:bg-slate-50'
+                      ? 'bg-[#496B45] text-white shadow-xs'
+                      : 'bg-[#FAF9F5] text-[#778176] border border-[#E6E7DD] hover:text-[#26352B]'
                   }`}
                 >
-                  = Set Exact Stock
+                  = Exact Count
                 </button>
               </div>
             </div>
 
+            {/* Quantity Input */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                {adjustMode === 'add' && 'Quantity to Add (Units) *'}
-                {adjustMode === 'deduct' && 'Quantity to Deduct (Units) *'}
-                {adjustMode === 'set' && 'New Total Stock (Units) *'}
+              <label className="block text-xs font-bold text-[#26352B] mb-1">
+                {adjustMode === 'set' ? 'New Total Quantity' : 'Units to Adjust'} *
               </label>
               <input
                 type="number"
@@ -475,65 +683,72 @@ export const InventoryPage: React.FC = () => {
                 required
                 value={adjustValue}
                 onChange={(e) => setAdjustValue(Math.max(0, parseInt(e.target.value) || 0))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-sm font-bold text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                className="w-full px-3.5 py-2.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-sm font-bold text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
-              <p className="text-[11px] text-slate-500 mt-1">
-                Resulting stock after adjustment:{' '}
-                <strong className="text-slate-900">
-                  {adjustMode === 'add'
-                    ? adjustItem.stock + adjustValue
-                    : adjustMode === 'deduct'
-                    ? Math.max(0, adjustItem.stock - adjustValue)
-                    : adjustValue}{' '}
-                  units
-                </strong>
-              </p>
             </div>
 
+            {/* Real-time Calculation Summary Box */}
+            <div className="p-3.5 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] flex items-center justify-between text-xs">
+              <span className="text-[#778176]">Resulting Warehouse Stock:</span>
+              <span className="font-bold text-[#244B37] text-sm">
+                {previewStock} units
+              </span>
+            </div>
+
+            {/* Audit Reason Selection */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Reason for Adjustment *
+              <label className="block text-xs font-bold text-[#26352B] mb-1">
+                Official Audit Reason *
               </label>
               <select
                 value={adjustReason}
                 onChange={(e) => setAdjustReason(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-800 bg-white focus:outline-none focus:ring-2 focus:ring-brand-600"
+                className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               >
-                <option value="Restock shipment received">Restock shipment received</option>
-                <option value="Physical count audit correction">Physical count audit correction</option>
-                <option value="Damaged / expired produce write-off">Damaged / expired produce write-off</option>
-                <option value="Returned customer order">Returned customer order</option>
-                <option value="Internal farm reallocation">Internal farm reallocation</option>
+                <option value="Farm Batch Restock (Harvest arrival)">
+                  Farm Batch Restock (Harvest arrival)
+                </option>
+                <option value="Customer Cancellation Restock">Customer Cancellation Restock</option>
+                <option value="Spoilage / Quality Control Removal">
+                  Spoilage / Quality Control Removal
+                </option>
+                <option value="Physical Stock Count Reconciliation">
+                  Physical Stock Count Reconciliation
+                </option>
+                <option value="Damaged / Leaked Oil Container">Damaged / Leaked Oil Container</option>
+                <option value="Manual Discrepancy Correction">Manual Discrepancy Correction</option>
               </select>
             </div>
 
+            {/* Notes */}
             <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Audit Notes / Reference (Optional)
+              <label className="block text-xs font-bold text-[#26352B] mb-1">
+                Internal Audit Notes (Optional)
               </label>
               <input
                 type="text"
                 value={adjustNotes}
                 onChange={(e) => setAdjustNotes(e.target.value)}
-                placeholder="e.g. Shipment invoice #4928, mill dispatch batch"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
+                placeholder="e.g. Batch #OG-2026-11 received from Mandya farm"
+                className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
             </div>
 
-            <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
+            {/* Actions */}
+            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#E6E7DD]">
               <button
                 type="button"
                 onClick={() => setAdjustItem(null)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                className="px-4 py-2 rounded-xl border border-[#E6E7DD] bg-white hover:bg-[#F6F5EF] text-[#26352B] text-xs font-semibold"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isAdjusting}
-                className="px-5 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
+                className="px-5 py-2 rounded-xl bg-[#244B37] hover:bg-[#1C3C2C] text-white text-xs font-bold shadow-xs hover:shadow-card-hover disabled:opacity-50"
               >
-                {isAdjusting ? 'Recording...' : 'Save & Record Audit'}
+                {isAdjusting ? 'Saving to D1...' : 'Confirm Stock Adjustment'}
               </button>
             </div>
           </form>

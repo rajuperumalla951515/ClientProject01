@@ -3,28 +3,28 @@ import { OrderStatus } from '../../types';
 
 interface BadgeProps {
   children: React.ReactNode;
-  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'purple';
+  variant?: 'default' | 'success' | 'warning' | 'danger' | 'info' | 'forest';
   size?: 'sm' | 'md';
 }
 
 export const Badge: React.FC<BadgeProps> = ({ children, variant = 'default', size = 'md' }) => {
   const variantStyles = {
-    default: 'bg-slate-100 text-slate-700 border-slate-200',
-    success: 'bg-emerald-50 text-emerald-700 border-emerald-200/80',
-    warning: 'bg-amber-50 text-amber-700 border-amber-200/80',
-    danger: 'bg-rose-50 text-rose-700 border-rose-200/80',
-    info: 'bg-blue-50 text-blue-700 border-blue-200/80',
-    purple: 'bg-indigo-50 text-indigo-700 border-indigo-200/80',
+    default: 'bg-[#F6F5EF] text-[#26352B] border-[#E6E7DD]',
+    forest: 'bg-[#E2E8D7] text-[#244B37] border-[#8A9B69]/40',
+    success: 'bg-[#EBF3E8] text-[#2E6038] border-[#A8C9A0]',
+    warning: 'bg-amber-50 text-amber-800 border-amber-200',
+    danger: 'bg-rose-50 text-rose-800 border-rose-200',
+    info: 'bg-sky-50 text-sky-800 border-sky-200',
   };
 
   const sizeStyles = {
     sm: 'text-[11px] px-2 py-0.5',
-    md: 'text-xs px-2.5 py-1',
+    md: 'text-xs px-2.5 py-0.5',
   };
 
   return (
     <span
-      className={`inline-flex items-center font-medium rounded-full border ${variantStyles[variant]} ${sizeStyles[size]}`}
+      className={`inline-flex items-center font-bold rounded-full border ${variantStyles[variant] || variantStyles.default} ${sizeStyles[size]}`}
     >
       {children}
     </span>
@@ -36,15 +36,15 @@ export const OrderStatusBadge: React.FC<{ status: OrderStatus | string }> = ({ s
 
   switch (norm) {
     case 'pending_whatsapp':
-      return <Badge variant="warning">Pending WhatsApp</Badge>;
+      return <Badge variant="warning">WhatsApp Pending</Badge>;
     case 'pending':
-      return <Badge variant="warning">Pending</Badge>;
+      return <Badge variant="warning">Order Placed</Badge>;
     case 'confirmed':
       return <Badge variant="info">Confirmed</Badge>;
     case 'processing':
-      return <Badge variant="purple">Processing</Badge>;
+      return <Badge variant="forest">Processing</Badge>;
     case 'packed':
-      return <Badge variant="purple">Packed</Badge>;
+      return <Badge variant="forest">Packed</Badge>;
     case 'out_for_delivery':
       return <Badge variant="info">Out for Delivery</Badge>;
     case 'delivered':
@@ -55,4 +55,3 @@ export const OrderStatusBadge: React.FC<{ status: OrderStatus | string }> = ({ s
       return <Badge variant="default">{status}</Badge>;
   }
 };
-

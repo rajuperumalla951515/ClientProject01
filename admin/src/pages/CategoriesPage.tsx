@@ -1,5 +1,18 @@
-import React, { useEffect, useState } from 'react';
-import { Layers, Plus, Edit2, Trash2, RefreshCw, Package } from 'lucide-react';
+import React, { useEffect, useState, useMemo } from 'react';
+import {
+  Layers,
+  Plus,
+  Edit2,
+  Trash2,
+  RefreshCw,
+  Package,
+  Search,
+  CheckCircle,
+  XCircle,
+  FolderTree,
+  ExternalLink,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { api } from '../services/api';
 import { Category } from '../types';
 import { Modal } from '../components/ui/Modal';
@@ -12,11 +25,14 @@ export const CategoriesPage: React.FC = () => {
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [formName, setFormName] = useState('');
+  const [formSlug, setFormSlug] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
@@ -34,7 +50,7 @@ export const CategoriesPage: React.FC = () => {
       const data = await api.getCategories();
       setCategories(data);
       if (isManual) {
-        showSuccess('Categories synced.', 'Updated');
+        showSuccess('Categories synced from Cloudflare D1.', 'Synchronized');
       }
     } catch (err: any) {
       showError(err.message || 'Failed to load categories.');
@@ -51,6 +67,7 @@ export const CategoriesPage: React.FC = () => {
   const openAddModal = () => {
     setEditingCategory(null);
     setFormName('');
+    setFormSlug('');
     setFormDescription('');
     setFormImageUrl('https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600');
     setFormIsActive(true);
@@ -60,29 +77,49 @@ export const CategoriesPage: React.FC = () => {
   const openEditModal = (cat: Category) => {
     setEditingCategory(cat);
     setFormName(cat.name);
+    setFormSlug(cat.slug || '');
     setFormDescription(cat.description || '');
     setFormImageUrl(cat.image_url || '');
     setFormIsActive(cat.is_active !== false);
     setIsModalOpen(true);
   };
 
+  // Generate slug automatically when name changes (if new category or slug not manually customized)
+  const handleNameChange = (val: string) => {
+    setFormName(val);
+    if (!editingCategory) {
+      setFormSlug(
+        val
+          .toLowerCase()
+          .replace(/[^\w\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .trim()
+      );
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formName.trim()) {
+      showError('Category name is required.');
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (editingCategory) {
         await api.updateCategory(editingCategory.id, {
-          name: formName,
-          description: formDescription,
-          image_url: formImageUrl,
+          name: formName.trim(),
+          description: formDescription.trim(),
+          image_url: formImageUrl.trim(),
           is_active: formIsActive,
         });
         showSuccess(`Category "${formName}" updated.`, 'Category Saved');
       } else {
         await api.createCategory({
-          name: formName,
-          description: formDescription,
-          image_url: formImageUrl,
+          name: formName.trim(),
+          description: formDescription.trim(),
+          image_url: formImageUrl.trim(),
         });
         showSuccess(`Category "${formName}" created.`, 'Category Created');
       }
@@ -110,29 +147,120 @@ export const CategoriesPage: React.FC = () => {
     }
   };
 
+  // Filtered categories
+  const filteredCategories = useMemo(() => {
+    return categories.filter((cat) => {
+      const matchesSearch =
+        cat.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (cat.description && cat.description.toLowerCase().includes(searchQuery.toLowerCase())) ||
+        (cat.slug && cat.slug.toLowerCase().includes(searchQuery.toLowerCase()));
+
+      const matchesStatus =
+        statusFilter === 'all'
+          ? true
+          : statusFilter === 'active'
+          ? cat.is_active !== false
+          : cat.is_active === false;
+
+      return matchesSearch && matchesStatus;
+    });
+  }, [categories, searchQuery, statusFilter]);
+
+  const activeCount = useMemo(() => categories.filter((c) => c.is_active !== false).length, [categories]);
+  const totalProducts = useMemo(
+    () => categories.reduce((sum, c) => sum + (c.product_count || 0), 0),
+    [categories]
+  );
+
   return (
     <div className="space-y-6">
-      {/* Top Controls Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex items-center justify-between gap-4">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">Organic Produce Categories</h2>
-          <p className="text-xs text-slate-500">
-            Manage product collections, display banners, and catalog taxonomies
-          </p>
+      {/* Top Banner / Metrics */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white rounded-2xl p-4 border border-[#E6E7DD] shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-[#778176] uppercase tracking-wider">Total Categories</p>
+            <p className="text-2xl font-bold text-[#26352B] mt-1 font-serif">{categories.length}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-[#F6F5EF] text-[#244B37] flex items-center justify-center">
+            <Layers className="w-5 h-5" />
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="bg-white rounded-2xl p-4 border border-[#E6E7DD] shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-[#778176] uppercase tracking-wider">Active Taxonomies</p>
+            <p className="text-2xl font-bold text-[#244B37] mt-1 font-serif">{activeCount}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-700 flex items-center justify-center">
+            <CheckCircle className="w-5 h-5" />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl p-4 border border-[#E6E7DD] shadow-sm flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-semibold text-[#778176] uppercase tracking-wider">Categorized Products</p>
+            <p className="text-2xl font-bold text-[#26352B] mt-1 font-serif">{totalProducts}</p>
+          </div>
+          <div className="w-10 h-10 rounded-xl bg-[#F6F5EF] text-[#496B45] flex items-center justify-center">
+            <Package className="w-5 h-5" />
+          </div>
+        </div>
+      </div>
+
+      {/* Controls Bar */}
+      <div className="bg-white p-4 rounded-2xl border border-[#E6E7DD] shadow-sm flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
+        <div className="flex-1 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#778176]" />
+            <input
+              type="text"
+              placeholder="Search category name, description, or slug..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3.5 py-2 rounded-xl border border-[#E6E7DD] bg-[#F6F5EF]/40 text-xs text-[#26352B] placeholder:text-[#778176] focus:outline-none focus:ring-2 focus:ring-[#244B37] focus:bg-white transition-all"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 p-1 bg-[#F6F5EF] rounded-xl border border-[#E6E7DD]">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                statusFilter === 'all' ? 'bg-white text-[#244B37] shadow-xs' : 'text-[#778176] hover:text-[#26352B]'
+              }`}
+            >
+              All ({categories.length})
+            </button>
+            <button
+              onClick={() => setStatusFilter('active')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                statusFilter === 'active' ? 'bg-white text-emerald-800 shadow-xs' : 'text-[#778176] hover:text-[#26352B]'
+              }`}
+            >
+              Active ({activeCount})
+            </button>
+            <button
+              onClick={() => setStatusFilter('inactive')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                statusFilter === 'inactive' ? 'bg-white text-rose-800 shadow-xs' : 'text-[#778176] hover:text-[#26352B]'
+              }`}
+            >
+              Inactive ({categories.length - activeCount})
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2.5 justify-end">
           <button
             onClick={() => loadCategories(true)}
             disabled={isRefreshing}
-            className="p-2 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors"
+            className="p-2 rounded-xl border border-[#E6E7DD] text-[#778176] hover:text-[#26352B] hover:bg-[#F6F5EF] transition-colors"
             title="Refresh Categories"
           >
-            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-brand-700' : ''}`} />
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin text-[#244B37]' : ''}`} />
           </button>
           <button
             onClick={openAddModal}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-[#244B37] hover:bg-[#1b3829] text-white text-xs font-semibold shadow-xs transition-colors"
           >
             <Plus className="w-4 h-4" />
             <span>Add Category</span>
@@ -142,39 +270,61 @@ export const CategoriesPage: React.FC = () => {
 
       {/* Categories Grid */}
       {isLoading ? (
-        <LoadingSpinner text="Loading categories..." />
-      ) : categories.length === 0 ? (
+        <LoadingSpinner text="Reading category taxonomy from Cloudflare D1..." />
+      ) : filteredCategories.length === 0 ? (
         <EmptyState
           icon={Layers}
           title="No Categories Found"
-          description="Create your first organic produce category to organize items."
-          action={{ label: 'Add Category', onClick: openAddModal }}
+          description={
+            searchQuery
+              ? `No categories match "${searchQuery}". Clear your search query to see all collections.`
+              : 'Create your first organic produce category to organize harvest products.'
+          }
+          action={searchQuery ? undefined : { label: 'Add Category', onClick: openAddModal }}
         />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-          {categories.map((cat) => (
+          {filteredCategories.map((cat) => (
             <div
               key={cat.id}
-              className="bg-white rounded-2xl border border-slate-200/80 shadow-card overflow-hidden flex flex-col group hover:shadow-elevated transition-all"
+              className="bg-white rounded-2xl border border-[#E6E7DD] shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col group"
             >
-              <div className="h-36 relative overflow-hidden bg-slate-100">
+              <div className="h-36 relative overflow-hidden bg-[#F6F5EF]">
                 <img
                   src={cat.image_url || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600'}
                   alt={cat.name}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600';
+                  }}
                 />
-                <div className="absolute top-3 right-3 flex gap-1.5">
+                <div className="absolute top-2.5 left-2.5">
+                  {cat.is_active !== false ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/95 text-emerald-800 shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                      Active
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/95 text-rose-700 shadow-xs">
+                      <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
+                      Inactive
+                    </span>
+                  )}
+                </div>
+
+                <div className="absolute top-2.5 right-2.5 flex gap-1.5">
                   <button
                     onClick={() => openEditModal(cat)}
-                    className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-slate-700 hover:bg-white shadow-xs transition-colors"
-                    title="Edit"
+                    className="p-1.5 rounded-lg bg-white/95 backdrop-blur-sm text-[#26352B] hover:text-[#244B37] hover:bg-white shadow-xs transition-colors"
+                    title="Edit Category"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
                   </button>
                   <button
                     onClick={() => setCategoryToDelete(cat)}
-                    className="p-1.5 rounded-lg bg-white/90 backdrop-blur-sm text-rose-600 hover:bg-white shadow-xs transition-colors"
-                    title="Deactivate"
+                    className="p-1.5 rounded-lg bg-white/95 backdrop-blur-sm text-rose-700 hover:text-rose-900 hover:bg-white shadow-xs transition-colors"
+                    title="Deactivate Category"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -183,27 +333,29 @@ export const CategoriesPage: React.FC = () => {
 
               <div className="p-4 flex-1 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-900">{cat.name}</h3>
-                    <span className="text-[11px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full flex items-center gap-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-bold text-[#26352B] truncate">{cat.name}</h3>
+                    <span className="text-[11px] font-semibold text-[#496B45] bg-[#F6F5EF] px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
                       <Package className="w-3 h-3" />
-                      {cat.product_count ?? 0} items
+                      {cat.product_count ?? 0}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1 line-clamp-2">
-                    {cat.description || 'Certified organic harvest products.'}
+                  <p className="text-xs text-[#778176] mt-1.5 line-clamp-2 leading-relaxed">
+                    {cat.description || 'Certified traditional wood-pressed oils & natural harvest.'}
                   </p>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-400">
-                  <span className="font-mono">slug: {cat.slug}</span>
-                  {cat.is_active ? (
-                    <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Active
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">Inactive</span>
-                  )}
+                <div className="mt-4 pt-3 border-t border-[#E6E7DD] flex items-center justify-between text-[11px] text-[#778176]">
+                  <span className="font-mono text-[10px] text-[#778176]">/{cat.slug || cat.name.toLowerCase().replace(/\s+/g, '-')}</span>
+                  <a
+                    href={`https://sriadithyaorganics.pages.dev/?category=${cat.id}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-[#496B45] hover:text-[#244B37] hover:underline"
+                  >
+                    <span>Store View</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
                 </div>
               </div>
             </div>
@@ -212,100 +364,131 @@ export const CategoriesPage: React.FC = () => {
       )}
 
       {/* Add / Edit Category Modal */}
-      {isModalOpen && (
-        <Modal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          title={editingCategory ? `Edit Category: ${editingCategory.name}` : 'Add Organic Category'}
-          maxWidth="md"
-        >
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Category Name *
-              </label>
-              <input
-                type="text"
-                required
-                value={formName}
-                onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Cold-Pressed Oils, Fresh Vegetables"
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-              />
-            </div>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingCategory ? `Edit Category: ${editingCategory.name}` : 'Add New Organic Category'}
+        size="md"
+      >
+        <form onSubmit={handleSave} className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+              Category Name *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Wood-Pressed Oils, Organic Honey, Millets"
+              value={formName}
+              onChange={(e) => handleNameChange(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6E7DD] text-xs text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+            />
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Image URL
-              </label>
-              <input
-                type="url"
-                value={formImageUrl}
-                onChange={(e) => setFormImageUrl(e.target.value)}
-                placeholder="https://images.unsplash.com/photo-..."
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+              URL Slug
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. wood-pressed-oils"
+              value={formSlug}
+              onChange={(e) => setFormSlug(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#778176] bg-[#F6F5EF]/60 focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+            />
+            <p className="text-[10px] text-[#778176] mt-1">Used for catalog filtering and SEO routing.</p>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">
-                Description
-              </label>
-              <textarea
-                rows={3}
-                value={formDescription}
-                onChange={(e) => setFormDescription(e.target.value)}
-                placeholder="Category summary, origin, farming principles..."
-                className="w-full p-3 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-600"
-              />
-            </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+              Description
+            </label>
+            <textarea
+              rows={3}
+              placeholder="Brief summary of this category for customer navigation..."
+              value={formDescription}
+              onChange={(e) => setFormDescription(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-[#E6E7DD] text-xs text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+            />
+          </div>
 
-            <div className="pt-1">
-              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 select-none">
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+              Banner Image URL
+            </label>
+            <input
+              type="url"
+              placeholder="https://..."
+              value={formImageUrl}
+              onChange={(e) => setFormImageUrl(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-[#E6E7DD] text-xs text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+            />
+            {formImageUrl && (
+              <div className="mt-2.5 w-full h-24 rounded-xl border border-[#E6E7DD] overflow-hidden bg-[#F6F5EF]">
+                <img
+                  src={formImageUrl}
+                  alt="Preview"
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600';
+                  }}
+                />
+              </div>
+            )}
+          </div>
+
+          {editingCategory && (
+            <div className="pt-2 border-t border-[#E6E7DD] flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-[#26352B]">Catalog Status</p>
+                <p className="text-[11px] text-[#778176]">Hide or display this collection on customer storefront</p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
                 <input
                   type="checkbox"
                   checked={formIsActive}
                   onChange={(e) => setFormIsActive(e.target.checked)}
-                  className="rounded text-brand-700 focus:ring-brand-600 w-4 h-4"
+                  className="sr-only peer"
                 />
-                <span>Active Category</span>
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#244B37]"></div>
               </label>
             </div>
+          )}
 
-            <div className="flex gap-3 justify-end pt-3 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setIsModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={isSaving}
-                className="px-5 py-2 rounded-xl bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
-              >
-                {isSaving ? 'Saving...' : editingCategory ? 'Save Changes' : 'Create Category'}
-              </button>
-            </div>
-          </form>
-        </Modal>
-      )}
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-[#E6E7DD]">
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="px-5 py-2 rounded-xl bg-[#244B37] hover:bg-[#1b3829] text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-2"
+            >
+              {isSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              <span>{editingCategory ? 'Save Changes' : 'Create Category'}</span>
+            </button>
+          </div>
+        </form>
+      </Modal>
 
       {/* Delete / Deactivate Confirm Dialog */}
-      {categoryToDelete && (
-        <ConfirmDialog
-          isOpen={!!categoryToDelete}
-          onClose={() => setCategoryToDelete(null)}
-          onConfirm={handleDeleteConfirm}
-          title="Deactivate Category"
-          message={`Are you sure you want to deactivate "${categoryToDelete.name}"?`}
-          confirmLabel="Deactivate"
-          variant="danger"
-          isLoading={isDeleting}
-        />
-      )}
+      <ConfirmDialog
+        isOpen={!!categoryToDelete}
+        onClose={() => setCategoryToDelete(null)}
+        onConfirm={handleDeleteConfirm}
+        title="Deactivate Category?"
+        message={`Are you sure you want to deactivate "${categoryToDelete?.name}"? Products inside this category will remain in the database.`}
+        confirmText="Deactivate"
+        isDestructive
+        isLoading={isDeleting}
+      />
     </div>
   );
 };
 
+export default CategoriesPage;
