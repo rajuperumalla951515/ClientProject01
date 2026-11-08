@@ -73,10 +73,10 @@ export const DeliveryPage: React.FC = () => {
           Array.isArray(parsed) && parsed.length > 0
             ? parsed
             : [
-                'Express Delivery (15-30 Mins)',
-                'Morning Slot (7:00 AM - 9:30 AM)',
-                'Evening Slot (5:30 PM - 8:00 PM)',
-              ]
+              'Express Delivery (15-30 Mins)',
+              'Morning Slot (7:00 AM - 9:30 AM)',
+              'Evening Slot (5:30 PM - 8:00 PM)',
+            ]
         );
       } catch {
         setDeliverySlots([
@@ -462,11 +462,10 @@ export const DeliveryPage: React.FC = () => {
                     <td className="py-3 px-4 text-center">
                       <button
                         onClick={() => handleToggleZoneActive(zone)}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${
-                          zone.is_active
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all ${zone.is_active
                             ? 'bg-emerald-50 text-emerald-800 hover:bg-emerald-100'
                             : 'bg-rose-50 text-rose-800 hover:bg-rose-100'
-                        }`}
+                          }`}
                       >
                         {zone.is_active ? 'Active' : 'Disabled'}
                       </button>

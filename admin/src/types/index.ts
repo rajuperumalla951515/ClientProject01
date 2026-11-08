@@ -39,6 +39,9 @@ export interface Product {
   name: string;
   slug: string;
   category_id: number;
+  category?: string;
+  price?: number;
+  stock?: number;
   description: string;
   short_description?: string;
   brand?: string;
@@ -307,4 +310,147 @@ export interface ToastMessage {
   title?: string;
   message: string;
 }
+
+// --- Multi-Model AI Administration System Types ---
+
+export interface AIProviderConfig {
+  id: number;
+  provider?: string;
+  provider_name: 'cloudflare' | 'groq' | 'gemini' | string;
+  model_name: string;
+  is_enabled: boolean | number;
+  is_active?: boolean;
+  priority: number;
+  daily_request_limit: number;
+  daily_quota_limit?: number;
+  daily_token_limit: number;
+  requests_today: number;
+  tokens_today: number;
+  total_requests?: number;
+  consecutive_errors: number;
+  circuit_breaker_open?: boolean;
+  cooldown_until?: string | null;
+  last_success_at?: string | null;
+  last_error_at?: string | null;
+  last_error_message?: string | null;
+  has_credentials?: boolean;
+  provider_type?: string;
+  updated_at?: string;
+}
+
+export interface AIUsageLog {
+  id: number;
+  provider: string;
+  model: string;
+  task_type: string;
+  tokens_prompt: number;
+  prompt_tokens?: number;
+  tokens_completion: number;
+  completion_tokens?: number;
+  latency_ms: number;
+  status: 'success' | 'timeout' | 'rate_limit' | 'error' | string;
+  error_message?: string;
+  admin_id?: number;
+  created_at: string;
+}
+
+export interface AITitleResponse {
+  primary_title: string;
+  short_title: string;
+  seo_title: string;
+  alternatives: string[];
+  traditional_name?: string;
+  regional_telugu_name?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface AIDescriptionResponse {
+  short_description: string;
+  detailed_description: string;
+  highlights: string[];
+  usage_instructions?: string;
+  storage_instructions?: string;
+  packaging_details?: string;
+  faqs?: { question: string; answer: string }[];
+  provider?: string;
+  model?: string;
+}
+
+export interface AISEOResponse {
+  meta_title: string;
+  meta_description: string;
+  keywords: string[];
+  tags?: string[];
+  slug?: string;
+  slug_suggestion?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface AITransformResponse {
+  transformed_text: string;
+  mode: string;
+  notes?: string;
+  provider?: string;
+  model?: string;
+}
+
+export interface AIPromotion {
+  id: number;
+  title: string;
+  promo_type?: string;
+  product_id?: number;
+  category_id?: number;
+  original_price: number;
+  discounted_price?: number;
+  final_price?: number;
+  discount_percent?: number;
+  calculated_margin?: number;
+  calculated_margin_percent?: number;
+  was_margin_adjusted?: boolean;
+  min_order_value?: number;
+  reasoning?: string;
+  description?: string;
+  suggested_code?: string;
+  coupon_code?: string;
+  status: 'draft' | 'active' | 'paused' | 'expired' | 'rejected' | string;
+  start_date?: string;
+  end_date?: string;
+  created_at: string;
+  provider?: string;
+}
+
+export interface AIActionApproval {
+  id: number;
+  action_type: 'stock_adjustment' | 'price_update' | string;
+  target_id?: number;
+  entity_id?: string | number;
+  title?: string;
+  summary?: string;
+  reason?: string;
+  current_value?: any;
+  proposed_value?: any;
+  payload_json?: string;
+  preview_diff_json?: string;
+  preview_diff?: Record<string, any>;
+  status: 'pending' | 'approved' | 'rejected' | 'executed' | string;
+  idempotency_key: string;
+  created_at: string;
+  executed_at?: string;
+}
+
+export interface AIBulkDraftItem {
+  id?: number;
+  product_id: string;
+  title: string;
+  short_description: string;
+  detailed_description?: string;
+  highlights?: string[];
+  category?: string;
+  model?: string;
+  provider?: string;
+  status?: 'draft' | 'applied';
+}
+
 

@@ -58,6 +58,10 @@ try:
                                 print("[D1] Auto-initialized and seeded D1 schema and catalogue successfully.")
                             except Exception as e:
                                 print(f"[D1] Auto-initialization notice: {e}")
+
+                # 3. Attach Cloudflare Workers AI binding if present
+                if hasattr(self.env, "AI") and self.env.AI is not None:
+                    app.state.ai = self.env.AI
             
             if (request.headers.get("upgrade") or "").lower() == "websocket":
                 return await asgi.websocket(app, request, self.env)

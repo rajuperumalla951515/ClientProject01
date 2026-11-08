@@ -10,6 +10,10 @@ binding = "DB"
 database_name = "sri-adithya-db"
 database_id = "ba45ad6e-035c-4a3f-a9b6-77ec16e5a355"
 
+# Cloudflare Workers AI Binding
+[ai]
+binding = "AI"
+
 [vars]
 ENVIRONMENT = "production"
 PROJECT_NAME = "Sri Adithya Organics API"

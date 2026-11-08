@@ -26,11 +26,10 @@ class D1Database:
 
     def _init_local_db(self):
         """Initialize local SQLite database with migrations if not existing."""
-        is_memory = self.local_db_path == ":memory:"
-        db_file = Path(self.local_db_path)
-        needs_migration = is_memory or not db_file.exists()
+        is_memory = self.local_db_path == ":memory:" or "mode=memory" in self.local_db_path
+        needs_migration = is_memory or (not Path(self.local_db_path).exists())
         
-        conn = sqlite3.connect(self.local_db_path, timeout=5, check_same_thread=False)
+        conn = sqlite3.connect(self.local_db_path, timeout=5, check_same_thread=False, uri=True)
         conn.row_factory = sqlite3.Row
         self._local_conn = conn
         
@@ -176,9 +175,13 @@ async def get_d1(request: Request) -> D1Database:
     """FastAPI dependency injecting the active D1 database client."""
     # 1. Check if request state has D1 attached from entrypoint fetch()
     if hasattr(request.state, "d1") and request.state.d1 is not None:
-        return request.state.d1
+        d1 = request.state.d1
     # 2. Check if app.state has D1 attached
-    if hasattr(request.app.state, "d1") and request.app.state.d1 is not None:
-        return request.app.state.d1
+    elif hasattr(request.app.state, "d1") and request.app.state.d1 is not None:
+        d1 = request.app.state.d1
     # 3. Fallback to local D1 client
-    return get_local_d1()
+    else:
+        d1 = get_local_d1()
+
+    d1.ai_binding = getattr(request.app.state, "ai", None) or getattr(request.state, "ai", None)
+    return d1

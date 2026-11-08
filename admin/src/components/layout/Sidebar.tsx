@@ -18,7 +18,13 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
-  Database
+  Database,
+  Bot,
+  Sparkles,
+  Wand2,
+  TrendingUp,
+  CheckSquare,
+  Cpu
 } from 'lucide-react';
 import { useAdminAuth } from '../../context/AdminAuthContext';
 import { DashboardStats } from '../../types';
@@ -70,6 +76,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         { label: 'Delivery Management', to: '/delivery', icon: Truck },
         { label: 'Customer Reviews', to: '/reviews', icon: Star },
         { label: 'Reports & Export', to: '/reports', icon: FileSpreadsheet },
+      ]
+    },
+    {
+      heading: 'AI Intelligence',
+      items: [
+        { label: 'AI Business Assistant', to: '/ai/assistant', icon: Bot },
+        { label: 'Content Studio', to: '/ai/content-studio', icon: Sparkles },
+        { label: 'Bulk Batch Studio', to: '/ai/bulk-content', icon: Wand2 },
+        { label: 'Promotion Intelligence', to: '/ai/promotions', icon: TrendingUp },
+        { label: 'Action Approvals', to: '/ai/approvals', icon: CheckSquare },
+        { label: 'Provider Health & Quotas', to: '/ai/providers', icon: Cpu },
       ]
     },
     {

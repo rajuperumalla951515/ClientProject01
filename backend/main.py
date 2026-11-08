@@ -29,7 +29,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from backend.app.config import settings
 from backend.app.d1 import D1Database, get_d1
 from backend.app.routers import (
-    auth, categories, products, cart, addresses, orders, wishlist, settings as settings_router, admin
+    auth, categories, products, cart, addresses, orders, wishlist, settings as settings_router, admin, ai_admin
 )
 from backend.app.events import router as events_router
 
@@ -140,6 +140,7 @@ app.include_router(orders.router, prefix="/api")
 app.include_router(wishlist.router, prefix="/api")
 app.include_router(settings_router.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")
+app.include_router(ai_admin.router, prefix="/api")
 app.include_router(events_router, prefix="/api")
 
 # Liveness Check (Confirms Worker runtime is responding)

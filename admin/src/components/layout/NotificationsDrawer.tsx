@@ -170,3 +170,4 @@ export const NotificationsDrawer: React.FC<NotificationsDrawerProps> = ({ isOpen
     </div>
   );
 };
+

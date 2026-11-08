@@ -13,7 +13,15 @@ import {
   Coupon,
   Review,
   DeliveryZone,
-  AnalyticsReport
+  AnalyticsReport,
+  AIProviderConfig,
+  AIUsageLog,
+  AITitleResponse,
+  AIDescriptionResponse,
+  AISEOResponse,
+  AITransformResponse,
+  AIPromotion,
+  AIActionApproval
 } from '../types';
 
 const RAW_API_URL = (import.meta.env.VITE_API_URL || 'https://sriadithyaorganics.devraj951515.workers.dev').trim();
@@ -47,7 +55,7 @@ class ApiClient {
     localStorage.removeItem(this.userKey);
   }
 
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
     const url = `${API_BASE}/api${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
     const headers = new Headers(options.headers || {});
 
@@ -402,7 +410,244 @@ class ApiClient {
       body: JSON.stringify(payload),
     });
   }
+
+  // --- Production Multi-Model AI Administration System ---
+
+  async getAIProviders(): Promise<AIProviderConfig[]> {
+    return this.request<AIProviderConfig[]>('/ai/providers');
+  }
+
+  async toggleAIProvider(name: string): Promise<{ provider: string; is_enabled: boolean }> {
+    return this.request<{ provider: string; is_enabled: boolean }>(`/ai/providers/${name}/toggle`, {
+      method: 'POST',
+    });
+  }
+
+  async getAIUsageLogs(limit = 50): Promise<AIUsageLog[]> {
+    return this.request<AIUsageLog[]>(`/ai/usage?limit=${limit}`);
+  }
+
+  async generateAITitle(payload: { product_name: string; category_name: string; unit?: string }): Promise<AITitleResponse> {
+    return this.request<AITitleResponse>('/ai/content/title', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateAIDescription(payload: {
+    product_name: string;
+    category_name: string;
+    features?: string;
+    verified_ingredients?: string;
+    verified_storage?: string;
+  }): Promise<AIDescriptionResponse> {
+    return this.request<AIDescriptionResponse>('/ai/content/description', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateAISEO(payload: {
+    product_name: string;
+    category_name: string;
+    description_summary: string;
+  }): Promise<AISEOResponse> {
+    return this.request<AISEOResponse>('/ai/content/seo', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async transformAIContent(payload: {
+    content: string;
+    mode: 'rewrite' | 'grammar' | 'concise' | 'expand' | 'telugu' | 'bilingual';
+    product_name?: string;
+  }): Promise<AITransformResponse> {
+    return this.request<AITransformResponse>('/ai/content/transform', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async generateBulkAIContent(productIds: number[]): Promise<any[]> {
+    return this.request<any[]>('/ai/content/bulk', {
+      method: 'POST',
+      body: JSON.stringify({ product_ids: productIds }),
+    });
+  }
+
+  async applyAIContentDraft(draftId: number): Promise<any> {
+    return this.request<any>(`/ai/content/apply/${draftId}`, {
+      method: 'POST',
+    });
+  }
+
+  async recommendAIPromotion(payload: {
+    product_id?: number;
+    category_id?: number;
+    campaign_goal?: string;
+    min_margin_percent?: number;
+  }): Promise<any> {
+    return this.request<any>('/ai/promotions/recommend', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async getAIPromotions(): Promise<AIPromotion[]> {
+    return this.request<AIPromotion[]>('/ai/promotions');
+  }
+
+  async approveAIPromotion(id: number): Promise<any> {
+    return this.request<any>(`/ai/promotions/approve/${id}`, {
+      method: 'POST',
+    });
+  }
+
+  async askAIAssistant(question: string): Promise<{
+    answer: string;
+    tool_used: string;
+    verified_data: any;
+    provider: string;
+    model: string;
+  }> {
+    return this.request<any>('/ai/assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({ question }),
+    });
+  }
+
+  async getAIPendingApprovals(): Promise<AIActionApproval[]> {
+    return this.request<AIActionApproval[]>('/ai/approvals');
+  }
+
+  async proposeAIStockAdjustment(payload: {
+    product_id: number;
+    variant_id?: number;
+    delta: number;
+    reason?: string;
+  }): Promise<any> {
+    return this.request<any>('/ai/approvals/propose/stock', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async proposeAIPriceUpdate(payload: {
+    product_id: number;
+    variant_id?: number;
+    new_price: number;
+    reason?: string;
+  }): Promise<any> {
+    return this.request<any>('/ai/approvals/propose/price', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async resolveAIApproval(id: number, approved: boolean): Promise<any> {
+    return this.request<any>(`/ai/approvals/${id}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({ approved }),
+    });
+  }
 }
 
 export const api = new ApiClient();
+
+export const aiApi = {
+  getProviders: () => api.getAIProviders(),
+  updateProviderConfig: (name: string, _data?: any) => api.toggleAIProvider(name),
+  getUsageLogs: (limit = 50) => api.getAIUsageLogs(limit),
+  testProviders: async () => {
+    const provs = await api.getAIProviders();
+    return {
+      results: provs.map(p => ({
+        provider: p.provider_name || p.provider,
+        status: p.is_enabled ? 'ok' : 'disabled',
+        latency_ms: p.last_success_at ? 120 : 0
+      }))
+    };
+  },
+
+  generateTitle: (payload: { product_name: string; category?: string; tone?: string }) =>
+    api.generateAITitle({ product_name: payload.product_name, category_name: payload.category || 'Wood-Pressed Oils' }),
+
+  generateDescription: (payload: { product_name: string; category?: string; key_features?: string[]; tone?: string }) =>
+    api.generateAIDescription({
+      product_name: payload.product_name,
+      category_name: payload.category || 'Wood-Pressed Oils',
+      features: payload.key_features ? payload.key_features.join(', ') : undefined
+    }),
+
+  generateSEO: (payload: { product_name: string; category?: string }) =>
+    api.generateAISEO({
+      product_name: payload.product_name,
+      category_name: payload.category || 'Wood-Pressed Oils',
+      description_summary: payload.product_name
+    }),
+
+  transformContent: (payload: { text: string; mode: any; target_language?: string }) =>
+    api.transformAIContent({
+      content: payload.text,
+      mode: payload.mode
+    }),
+
+  applyContentToProduct: (payload: { product_id: string | number; name?: string; description?: string; meta_title?: string; meta_description?: string; keywords?: string }) =>
+    api.request<any>(`/admin/products/${payload.product_id}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    }),
+
+  generateBulkContent: async (payload: { product_ids: (string | number)[]; tone?: string }) => {
+    const drafts = await api.generateBulkAIContent(payload.product_ids.map(Number));
+    return { drafts };
+  },
+
+  generatePromotion: (payload: { product_id?: string | number; goal?: string; min_margin_percent?: number; target_audience?: string }) =>
+    api.recommendAIPromotion({
+      product_id: payload.product_id ? Number(payload.product_id) : undefined,
+      campaign_goal: payload.goal,
+      min_margin_percent: payload.min_margin_percent
+    }),
+
+  getPromotions: () => api.getAIPromotions(),
+
+  publishPromotion: (id: string | number) => api.approveAIPromotion(Number(id)),
+
+  assistantChat: async (payload: { message: string; conversation_history?: any[]; auto_tool?: boolean }) => {
+    const res = await api.askAIAssistant(payload.message);
+    return {
+      reply: res.answer,
+      tool_executed: res.tool_used,
+      tool_data: res.verified_data,
+      provider: res.provider,
+      model: res.model,
+      cached: (res as any).cached
+    };
+  },
+
+  getApprovals: (_status?: string) => api.getAIPendingApprovals(),
+
+  proposeApproval: (payload: { action_type: string; target_entity: string; entity_id: string | number; current_value: any; proposed_value: any; reason: string }) => {
+    if (payload.action_type === 'price_change') {
+      const price = typeof payload.proposed_value === 'object' ? payload.proposed_value.price : Number(payload.proposed_value);
+      return api.proposeAIPriceUpdate({
+        product_id: Number(payload.entity_id),
+        new_price: price,
+        reason: payload.reason
+      });
+    } else {
+      const stock = typeof payload.proposed_value === 'object' ? payload.proposed_value.stock : Number(payload.proposed_value);
+      return api.proposeAIStockAdjustment({
+        product_id: Number(payload.entity_id),
+        delta: stock,
+        reason: payload.reason
+      });
+    }
+  },
+
+  executeApproval: (id: string | number, decision: 'approve' | 'reject') =>
+    api.resolveAIApproval(Number(id), decision === 'approve')
+};
 

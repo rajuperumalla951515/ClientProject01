@@ -16,6 +16,12 @@ import { DeliveryPage } from './pages/DeliveryPage';
 import { ReviewsPage } from './pages/ReviewsPage';
 import { ReportsPage } from './pages/ReportsPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { AIAssistantPage } from './pages/ai/AIAssistantPage';
+import { AIContentStudioPage } from './pages/ai/AIContentStudioPage';
+import { AIBulkContentPage } from './pages/ai/AIBulkContentPage';
+import { AIPromotionsPage } from './pages/ai/AIPromotionsPage';
+import { AIApprovalsPage } from './pages/ai/AIApprovalsPage';
+import { AIProvidersPage } from './pages/ai/AIProvidersPage';
 import { LoadingSpinner } from './components/ui/LoadingSpinner';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -64,6 +70,12 @@ export const App: React.FC = () => {
               <Route path="reviews" element={<ReviewsPage />} />
               <Route path="reports" element={<ReportsPage />} />
               <Route path="settings" element={<SettingsPage />} />
+              <Route path="ai/assistant" element={<AIAssistantPage />} />
+              <Route path="ai/content-studio" element={<AIContentStudioPage />} />
+              <Route path="ai/bulk-content" element={<AIBulkContentPage />} />
+              <Route path="ai/promotions" element={<AIPromotionsPage />} />
+              <Route path="ai/approvals" element={<AIApprovalsPage />} />
+              <Route path="ai/providers" element={<AIProvidersPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
