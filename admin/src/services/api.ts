@@ -563,6 +563,27 @@ class ApiClient {
     });
   }
 
+  async searchUnsplashImages(query: string, category?: string, limit: number = 12): Promise<{
+    query: string;
+    category?: string;
+    count: number;
+    results: Array<{
+      id: string;
+      title: string;
+      category: string;
+      image_url: string;
+      thumbnail_url: string;
+      banner_url: string;
+      tags: string[];
+      alt_text: string;
+    }>;
+  }> {
+    return this.request<any>('/ai/images/unsplash-suggestions', {
+      method: 'POST',
+      body: JSON.stringify({ query, category, limit }),
+    });
+  }
+
   async suggestCategoryDetails(category_name: string): Promise<{
     description: string;
     short_summary: string;
@@ -704,6 +725,9 @@ export const aiApi = {
   validateImageUrl: (imageUrl: string) => api.validateAndImportImageUrl(imageUrl),
 
   suggestCategory: (categoryName: string) => api.suggestCategoryDetails(categoryName),
+
+  searchUnsplash: (query: string, category?: string, limit: number = 12) =>
+    api.searchUnsplashImages(query, category, limit),
 
   getSystemOverview: () => api.getSystemOverview(),
 

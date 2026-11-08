@@ -109,6 +109,13 @@ export const ProductsPage: React.FC = () => {
   const [aiOffersModalOpen, setAiOffersModalOpen] = useState(false);
   const [aiOffersData, setAiOffersData] = useState<any>(null);
 
+  // Unsplash AI Photo Picker State
+  const [unsplashModalOpen, setUnsplashModalOpen] = useState(false);
+  const [unsplashSearchQuery, setUnsplashSearchQuery] = useState('');
+  const [unsplashResults, setUnsplashResults] = useState<any[]>([]);
+  const [isLoadingUnsplash, setIsLoadingUnsplash] = useState(false);
+  const [selectedUnsplashUrls, setSelectedUnsplashUrls] = useState<string[]>([]);
+
   // Variant Management inside Edit Modal
   const [newVariantUnit, setNewVariantUnit] = useState('1 Litre Bottle');
   const [newVariantPrice, setNewVariantPrice] = useState<number>(190);
@@ -382,6 +389,82 @@ export const ProductsPage: React.FC = () => {
       }
       return next;
     });
+  };
+
+  // --- Unsplash AI Photo Picker Handlers ---
+
+  const handleOpenUnsplash = async (customQuery?: string) => {
+    const q = (customQuery || formName || categories.find(c => c.id === formCategoryId)?.name || 'wood pressed oil').trim();
+    setUnsplashSearchQuery(q);
+    setSelectedUnsplashUrls([]);
+    setUnsplashModalOpen(true);
+    setIsLoadingUnsplash(true);
+    try {
+      const cat = categories.find(c => c.id === formCategoryId)?.name;
+      const res = await aiApi.searchUnsplash(q, cat, 16);
+      setUnsplashResults(res.results || []);
+    } catch (err: any) {
+      showError(err.message || 'Failed to fetch Unsplash photos.');
+    } finally {
+      setIsLoadingUnsplash(false);
+    }
+  };
+
+  const handleSearchUnsplashSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!unsplashSearchQuery.trim()) return;
+    setIsLoadingUnsplash(true);
+    try {
+      const cat = categories.find(c => c.id === formCategoryId)?.name;
+      const res = await aiApi.searchUnsplash(unsplashSearchQuery.trim(), cat, 16);
+      setUnsplashResults(res.results || []);
+    } catch (err: any) {
+      showError(err.message || 'Failed to search Unsplash photos.');
+    } finally {
+      setIsLoadingUnsplash(false);
+    }
+  };
+
+  const toggleSelectUnsplashPhoto = (url: string) => {
+    setSelectedUnsplashUrls(prev =>
+      prev.includes(url) ? prev.filter(u => u !== url) : [...prev, url]
+    );
+  };
+
+  const handleApplySelectedUnsplashPhotos = (makePrimaryDirect = false, singleUrl?: string) => {
+    if (singleUrl) {
+      if (makePrimaryDirect) {
+        setFormImages(prev => [singleUrl, ...prev.filter(u => u !== singleUrl)]);
+        setFormImageUrl(singleUrl);
+        showSuccess('Photo set as primary image.');
+      } else {
+        setFormImages(prev => prev.includes(singleUrl) ? prev : [...prev, singleUrl]);
+        if (!formImageUrl) setFormImageUrl(singleUrl);
+        showSuccess('Photo added to gallery.');
+      }
+      setUnsplashModalOpen(false);
+      return;
+    }
+
+    if (selectedUnsplashUrls.length === 0) {
+      showError('Please select at least one photo.');
+      return;
+    }
+
+    setFormImages(prev => {
+      const combined = [...prev];
+      selectedUnsplashUrls.forEach(url => {
+        if (!combined.includes(url)) combined.push(url);
+      });
+      return combined;
+    });
+
+    if (!formImageUrl && selectedUnsplashUrls.length > 0) {
+      setFormImageUrl(selectedUnsplashUrls[0]);
+    }
+
+    showSuccess(`Added ${selectedUnsplashUrls.length} Unsplash photo(s) to product gallery.`);
+    setUnsplashModalOpen(false);
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -1251,15 +1334,27 @@ export const ProductsPage: React.FC = () => {
                     Upload local files (max 5MB) or import from public HTTPS image URLs with SSRF protection.
                   </p>
                 </div>
-                <label className="px-3 py-1.5 rounded-lg bg-white border border-[#E6E7DD] text-xs font-bold text-[#244B37] hover:bg-[#F6F5EF] cursor-pointer flex items-center gap-1.5 shadow-2xs">
-                  <Upload className="w-3.5 h-3.5 text-[#496B45]" /> Upload Local File
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenUnsplash()}
+                    className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-xs font-bold text-[#244B37] hover:bg-emerald-100 flex items-center gap-1.5 shadow-2xs transition-colors"
+                    title="Find high-resolution organic food and oil photos on Unsplash"
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-[#496B45]" />
+                    AI Find on Unsplash
+                  </button>
+
+                  <label className="px-3 py-1.5 rounded-lg bg-white border border-[#E6E7DD] text-xs font-bold text-[#244B37] hover:bg-[#F6F5EF] cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                    <Upload className="w-3.5 h-3.5 text-[#496B45]" /> Upload Local
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                    />
+                  </label>
+                </div>
               </div>
 
               {/* URL Import Input */}
@@ -1855,6 +1950,198 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
         )}
+      </Modal>
+      {/* 4. Unsplash AI Photo Picker Modal */}
+      <Modal
+        isOpen={unsplashModalOpen}
+        onClose={() => setUnsplashModalOpen(false)}
+        title="Unsplash High-Resolution Photo Library"
+        subtitle="Search and select verified organic produce, wood-pressed oils, and farm harvest photography"
+        maxWidth="3xl"
+      >
+        <div className="space-y-4">
+          {/* Search Bar & Quick Categories */}
+          <form onSubmit={handleSearchUnsplashSubmit} className="space-y-2.5">
+            <div className="flex gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-[#778176] absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={unsplashSearchQuery}
+                  onChange={(e) => setUnsplashSearchQuery(e.target.value)}
+                  placeholder="Search Unsplash (e.g. Groundnut Oil, Honey, Ghee, Millets, Spices)..."
+                  className="w-full pl-9 pr-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={isLoadingUnsplash || !unsplashSearchQuery.trim()}
+                className="px-4 py-2 rounded-xl bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+              >
+                {isLoadingUnsplash ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    Searching...
+                  </>
+                ) : (
+                  <>
+                    <Search className="w-3.5 h-3.5" />
+                    Search
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Quick Topic Chips */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 text-[11px]">
+              <span className="text-[10px] font-bold text-[#778176] uppercase tracking-wider shrink-0 flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-[#496B45]" /> Topics:
+              </span>
+              {[
+                'Groundnut Oil',
+                'Coconut Oil',
+                'Sesame Oil',
+                'Cow Ghee',
+                'Raw Honey',
+                'Millets',
+                'Lentils & Dal',
+                'Turmeric & Spices',
+                'Fresh Vegetables',
+                'Fresh Fruits',
+                'Nuts & Dry Fruits'
+              ].map((topic, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => {
+                    setUnsplashSearchQuery(topic);
+                    handleOpenUnsplash(topic);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-[#FAF9F5] hover:bg-emerald-50 text-[#244B37] border border-[#E6E7DD] hover:border-emerald-200 font-medium whitespace-nowrap shrink-0 transition-colors"
+                >
+                  {topic}
+                </button>
+              ))}
+            </div>
+          </form>
+
+          {/* Results Photo Grid */}
+          <div className="min-h-[280px] max-h-[420px] overflow-y-auto pr-1">
+            {isLoadingUnsplash ? (
+              <div className="h-64 flex flex-col items-center justify-center gap-3 text-xs text-[#778176]">
+                <RefreshCw className="w-6 h-6 animate-spin text-[#496B45]" />
+                <span>Searching curated Unsplash library...</span>
+              </div>
+            ) : unsplashResults.length === 0 ? (
+              <div className="h-64 flex flex-col items-center justify-center text-center p-6 text-xs text-[#778176]">
+                <ImageIcon className="w-8 h-8 text-[#8A9B69] mb-2 opacity-60" />
+                <p className="font-bold text-[#26352B]">No photos found for "{unsplashSearchQuery}"</p>
+                <p className="text-[11px] mt-1">Try one of the suggested topics above or a broader term like "oil" or "honey".</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                {unsplashResults.map((photo) => {
+                  const isSelected = selectedUnsplashUrls.includes(photo.image_url);
+                  return (
+                    <div
+                      key={photo.id}
+                      onClick={() => toggleSelectUnsplashPhoto(photo.image_url)}
+                      className={`group relative rounded-xl overflow-hidden border cursor-pointer transition-all shadow-2xs hover:shadow-card-hover ${
+                        isSelected
+                          ? 'border-[#244B37] ring-2 ring-[#244B37]/30'
+                          : 'border-[#E6E7DD] hover:border-[#8A9B69]'
+                      } bg-white flex flex-col`}
+                    >
+                      {/* Image Thumbnail */}
+                      <div className="relative h-28 bg-[#FAF9F5] overflow-hidden">
+                        <img
+                          src={photo.thumbnail_url}
+                          alt={photo.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                        />
+                        {/* Selected Checkbox */}
+                        <div className="absolute top-1.5 left-1.5">
+                          <span
+                            className={`w-5 h-5 rounded-md flex items-center justify-center shadow-xs transition-colors ${
+                              isSelected
+                                ? 'bg-[#244B37] text-white'
+                                : 'bg-white/80 backdrop-blur-xs text-transparent border border-black/10'
+                            }`}
+                          >
+                            <Check className="w-3.5 h-3.5" />
+                          </span>
+                        </div>
+                        {/* Category Tag */}
+                        <div className="absolute bottom-1 right-1">
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-black/60 text-white backdrop-blur-xs">
+                            {photo.category}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Photo Title & Actions */}
+                      <div className="p-2 flex-1 flex flex-col justify-between space-y-1.5">
+                        <p className="text-[11px] font-semibold text-[#26352B] line-clamp-2 leading-tight">
+                          {photo.title}
+                        </p>
+                        <div className="pt-1 flex items-center gap-1 border-t border-[#E6E7DD]/60">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApplySelectedUnsplashPhotos(true, photo.image_url);
+                            }}
+                            className="flex-1 py-1 rounded text-[10px] font-bold bg-[#244B37] text-white hover:bg-[#1b392a] transition-colors"
+                            title="Set directly as Primary Image"
+                          >
+                            Set Primary
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApplySelectedUnsplashPhotos(false, photo.image_url);
+                            }}
+                            className="px-2 py-1 rounded text-[10px] font-bold bg-emerald-50 text-[#244B37] hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                            title="Add to product gallery"
+                          >
+                            + Gallery
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Bottom Action Footer */}
+          <div className="flex items-center justify-between pt-3 border-t border-[#E6E7DD]">
+            <span className="text-xs text-[#778176]">
+              {selectedUnsplashUrls.length} photo(s) selected
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setUnsplashModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                disabled={selectedUnsplashUrls.length === 0}
+                onClick={() => handleApplySelectedUnsplashPhotos(false)}
+                className="px-4 py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] disabled:opacity-40 flex items-center gap-1.5 shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5" />
+                Add Selected ({selectedUnsplashUrls.length}) to Product
+              </button>
+            </div>
+          </div>
+        </div>
       </Modal>
     </div>
   );

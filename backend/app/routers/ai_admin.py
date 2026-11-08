@@ -95,6 +95,11 @@ class PricingOfferRequest(BaseModel):
 class ImageUrlImportRequest(BaseModel):
     image_url: str
 
+class UnsplashSearchRequest(BaseModel):
+    query: str
+    category: Optional[str] = None
+    limit: int = 12
+
 class CategorySuggestRequest(BaseModel):
     category_name: str
 
@@ -499,6 +504,28 @@ async def validate_image_import(
         "content_type": content_type or "image/jpeg",
         "size_kb": size_kb,
         "message": "Image verified successfully."
+    }
+
+
+@router.post("/images/unsplash-suggestions")
+async def get_unsplash_suggestions(
+    payload: UnsplashSearchRequest,
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Intelligently retrieves curated, high-resolution Unsplash photos for organic products and categories.
+    """
+    from backend.app.ai.unsplash_curation import search_unsplash_photos
+    results = search_unsplash_photos(
+        query=payload.query,
+        category=payload.category,
+        limit=payload.limit
+    )
+    return {
+        "query": payload.query,
+        "category": payload.category,
+        "count": len(results),
+        "results": results
     }
 
 

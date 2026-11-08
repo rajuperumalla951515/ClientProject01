@@ -50,6 +50,12 @@ export const CategoriesPage: React.FC = () => {
     keywords?: string[];
   } | null>(null);
 
+  // Unsplash Banner Picker State
+  const [unsplashModalOpen, setUnsplashModalOpen] = useState(false);
+  const [unsplashSearchQuery, setUnsplashSearchQuery] = useState('');
+  const [unsplashResults, setUnsplashResults] = useState<any[]>([]);
+  const [isLoadingUnsplash, setIsLoadingUnsplash] = useState(false);
+
   // Delete State
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -135,6 +141,41 @@ export const CategoriesPage: React.FC = () => {
           .trim()
       );
     }
+  };
+
+  const handleOpenUnsplashBanner = async () => {
+    const q = (formName || 'organic farm banner').trim();
+    setUnsplashSearchQuery(q);
+    setUnsplashModalOpen(true);
+    setIsLoadingUnsplash(true);
+    try {
+      const res = await aiApi.searchUnsplash(q, 'Category Banner', 12);
+      setUnsplashResults(res.results || []);
+    } catch (err: any) {
+      showError(err.message || 'Failed to fetch Unsplash banners.');
+    } finally {
+      setIsLoadingUnsplash(false);
+    }
+  };
+
+  const handleSearchUnsplashBannerSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!unsplashSearchQuery.trim()) return;
+    setIsLoadingUnsplash(true);
+    try {
+      const res = await aiApi.searchUnsplash(unsplashSearchQuery.trim(), 'Category Banner', 12);
+      setUnsplashResults(res.results || []);
+    } catch (err: any) {
+      showError(err.message || 'Failed to search Unsplash banners.');
+    } finally {
+      setIsLoadingUnsplash(false);
+    }
+  };
+
+  const handleSelectBanner = (url: string) => {
+    setFormImageUrl(url);
+    setUnsplashModalOpen(false);
+    showSuccess('Unsplash banner image applied.');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -519,9 +560,20 @@ export const CategoriesPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
-              Banner Image URL
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-[#26352B]">
+                Banner Image URL
+              </label>
+              <button
+                type="button"
+                onClick={handleOpenUnsplashBanner}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                title="Search and pick an Unsplash banner photo"
+              >
+                <Sparkles className="w-3 h-3 text-[#496B45]" />
+                AI Find on Unsplash
+              </button>
+            </div>
             <input
               type="url"
               placeholder="https://..."
@@ -593,6 +645,105 @@ export const CategoriesPage: React.FC = () => {
         isDestructive
         isLoading={isDeleting}
       />
+
+      {/* Unsplash Category Banner Modal */}
+      <Modal
+        isOpen={unsplashModalOpen}
+        onClose={() => setUnsplashModalOpen(false)}
+        title="Select Unsplash Category Banner"
+        subtitle="Choose a high-resolution authentic farm or organic harvest banner"
+        maxWidth="2xl"
+      >
+        <div className="space-y-4">
+          <form onSubmit={handleSearchUnsplashBannerSubmit} className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-[#778176] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={unsplashSearchQuery}
+                onChange={(e) => setUnsplashSearchQuery(e.target.value)}
+                placeholder="Search banners (e.g. farm harvest, oils, fruits, honey)..."
+                className="w-full pl-9 pr-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={isLoadingUnsplash || !unsplashSearchQuery.trim()}
+              className="px-4 py-2 rounded-xl bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+            >
+              {isLoadingUnsplash ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Searching...
+                </>
+              ) : (
+                <>
+                  <Search className="w-3.5 h-3.5" />
+                  Search
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Banner Grid */}
+          <div className="min-h-[240px] max-h-[380px] overflow-y-auto pr-1">
+            {isLoadingUnsplash ? (
+              <div className="h-56 flex flex-col items-center justify-center gap-3 text-xs text-[#778176]">
+                <RefreshCw className="w-6 h-6 animate-spin text-[#496B45]" />
+                <span>Loading Unsplash banners...</span>
+              </div>
+            ) : unsplashResults.length === 0 ? (
+              <div className="h-56 flex flex-col items-center justify-center text-center p-6 text-xs text-[#778176]">
+                <Package className="w-8 h-8 text-[#8A9B69] mb-2 opacity-60" />
+                <p className="font-bold text-[#26352B]">No banners found for "{unsplashSearchQuery}"</p>
+                <p className="text-[11px] mt-1">Try "farm", "harvest", "oil", or "fruits".</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {unsplashResults.map((photo) => (
+                  <div
+                    key={photo.id}
+                    onClick={() => handleSelectBanner(photo.image_url)}
+                    className="group relative rounded-xl overflow-hidden border border-[#E6E7DD] hover:border-[#244B37] hover:shadow-card-hover cursor-pointer transition-all bg-white"
+                  >
+                    <div className="h-28 bg-[#FAF9F5] overflow-hidden">
+                      <img
+                        src={photo.thumbnail_url}
+                        alt={photo.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="p-2 space-y-1">
+                      <p className="text-[11px] font-semibold text-[#26352B] truncate">{photo.title}</p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectBanner(photo.image_url);
+                        }}
+                        className="w-full py-1 rounded text-[10px] font-bold bg-[#244B37] text-white hover:bg-[#1b392a] flex items-center justify-center gap-1 shadow-xs"
+                      >
+                        <Check className="w-3 h-3" /> Select Banner
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="flex justify-end pt-2 border-t border-[#E6E7DD]">
+            <button
+              type="button"
+              onClick={() => setUnsplashModalOpen(false)}
+              className="px-4 py-1.5 rounded-lg border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
