@@ -12,9 +12,8 @@ import {
   StoreSettings
 } from '../types';
 
-const RAW_API_URL = import.meta.env.VITE_API_URL || '';
-// Empty VITE_API_URL routes to relative /api or same-origin gateway. In production, configure VITE_API_URL in Cloudflare Pages.
-export const API_BASE = RAW_API_URL ? RAW_API_URL.replace(/\/+$/, '') : '';
+const RAW_API_URL = (import.meta.env.VITE_API_URL || 'https://sriadithyaorganics.devraj951515.workers.dev').trim();
+export const API_BASE = RAW_API_URL.replace(/\/+$/, '');
 
 class ApiClient {
   private tokenKey = 'sri_adithya_admin_token';

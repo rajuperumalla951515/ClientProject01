@@ -97,9 +97,17 @@ app.add_middleware(
 @app.exception_handler(Exception)
 async def generic_exception_handler(request: Request, exc: Exception):
     print(f"⚠️ Unhandled error on {request.method} {request.url.path}: {exc}")
+    origin = request.headers.get("origin", "")
+    cors_headers = {
+        "Access-Control-Allow-Origin": origin if origin else "*",
+        "Access-Control-Allow-Credentials": "true",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD",
+        "Access-Control-Allow-Headers": "Authorization, Content-Type, X-Session-ID, Accept, Origin, User-Agent, DNT, Cache-Control, X-Mx-ReqToken, Keep-Alive, X-Requested-With, If-Modified-Since",
+    }
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-        content={"detail": f"Server processing error: {str(exc)[:200]}"}
+        content={"detail": f"Server processing error: {str(exc)[:200]}"},
+        headers=cors_headers
     )
 
 # Root Endpoint

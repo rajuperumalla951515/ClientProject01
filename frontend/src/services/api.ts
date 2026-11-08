@@ -8,8 +8,7 @@ const getApiBase = (): string => {
   if (envUrl) {
     return `${envUrl.replace(/\/$/, '')}/api`;
   }
-  // In development and preview environments, route via relative /api or same-origin gateway
-  return '/api';
+  return 'https://sriadithyaorganics.devraj951515.workers.dev/api';
 };
 export const API_BASE = getApiBase();
 

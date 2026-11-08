@@ -12,25 +12,23 @@ router = APIRouter(prefix="/settings", tags=["Store Settings"])
 @router.get("", response_model=DeliverySettingOut)
 async def get_store_settings(d1: D1Database = Depends(get_d1)):
     setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
 
     if not setting:
         sid = await d1.execute_insert(
             """
             INSERT INTO delivery_settings (
                 min_order_amount, free_delivery_threshold, standard_delivery_fee, express_delivery_fee,
-                active_slots_json, announcement_text, whatsapp_number, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                active_slots_json, announcement_text, whatsapp_number
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
             99.0, 499.0, 39.0, 59.0,
             '["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
             "Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
-            "919515159006",
-            now, now
+            "919515159006"
         )
         setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
     elif not setting.get("whatsapp_number") or setting.get("whatsapp_number") in ["919876543210", "9876543210"]:
-        await d1.execute("UPDATE delivery_settings SET whatsapp_number = '919515159006', updated_at = ? WHERE id = ?", now, setting["id"])
+        await d1.execute("UPDATE delivery_settings SET whatsapp_number = '919515159006' WHERE id = ?", setting["id"])
         setting["whatsapp_number"] = "919515159006"
 
     return DeliverySettingOut(**setting)
@@ -49,24 +47,33 @@ async def update_store_settings(
             cleaned = f"91{cleaned}"
         update_data["whatsapp_number"] = cleaned
 
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
-    update_data["updated_at"] = now
+    ALLOWED_SETTINGS_COLS = {
+        "min_order_amount",
+        "free_delivery_threshold",
+        "standard_delivery_fee",
+        "express_delivery_fee",
+        "active_slots_json",
+        "announcement_text",
+        "whatsapp_number"
+    }
+    valid_data = {k: v for k, v in update_data.items() if k in ALLOWED_SETTINGS_COLS}
 
     setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
     if not setting:
-        cols = list(update_data.keys())
+        cols = list(valid_data.keys())
         placeholders = ",".join("?" * len(cols))
-        vals = [update_data[c] for c in cols]
+        vals = [valid_data[c] for c in cols]
         sid = await d1.execute_insert(f"INSERT INTO delivery_settings ({', '.join(cols)}) VALUES ({placeholders})", *vals)
         setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
     else:
         fields = []
         params = []
-        for k, v in update_data.items():
+        for k, v in valid_data.items():
             fields.append(f"{k} = ?")
             params.append(v)
-        params.append(setting["id"])
-        await d1.execute(f"UPDATE delivery_settings SET {', '.join(fields)} WHERE id = ?", *params)
+        if fields:
+            params.append(setting["id"])
+            await d1.execute(f"UPDATE delivery_settings SET {', '.join(fields)} WHERE id = ?", *params)
         setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", setting["id"])
 
     # Invalidate cart settings cache
