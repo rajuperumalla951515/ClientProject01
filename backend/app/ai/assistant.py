@@ -88,10 +88,17 @@ class BusinessIntelligenceAssistant:
         """Returns details on pending, WhatsApp pending, and processing orders."""
         rows = await d1.fetch_all(
             """SELECT
-                id, order_number, customer_name, status, total_amount, delivery_slot, created_at
-               FROM orders
-               WHERE status IN ('pending', 'pending_whatsapp', 'processing')
-               ORDER BY created_at ASC"""
+                o.id,
+                o.order_number,
+                COALESCE(u.name, json_extract(o.delivery_address_json, '$.recipient_name'), 'Guest Customer') AS customer_name,
+                o.status,
+                o.total_amount,
+                o.delivery_slot,
+                o.created_at
+               FROM orders o
+               LEFT JOIN users u ON o.user_id = u.id
+               WHERE o.status IN ('pending', 'pending_whatsapp', 'processing')
+               ORDER BY o.created_at ASC"""
         )
         return {
             "count": len(rows),
