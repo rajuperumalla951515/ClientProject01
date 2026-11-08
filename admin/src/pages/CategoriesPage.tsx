@@ -186,10 +186,13 @@ export const CategoriesPage: React.FC = () => {
     }
 
     setIsSaving(true);
+    const cleanSlug = (formSlug.trim() || formName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')) || `cat-${Date.now()}`;
+
     try {
       if (editingCategory) {
         await api.updateCategory(editingCategory.id, {
           name: formName.trim(),
+          slug: cleanSlug,
           description: formDescription.trim(),
           image_url: formImageUrl.trim(),
           is_active: formIsActive,
@@ -198,8 +201,10 @@ export const CategoriesPage: React.FC = () => {
       } else {
         await api.createCategory({
           name: formName.trim(),
+          slug: cleanSlug,
           description: formDescription.trim(),
           image_url: formImageUrl.trim(),
+          is_active: formIsActive,
         });
         showSuccess(`Category "${formName}" created.`, 'Category Created');
       }

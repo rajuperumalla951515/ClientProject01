@@ -242,10 +242,15 @@ async def create_product(
     d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
-    clean_slug = (product_in.slug or product_in.name.lower().replace(" ", "-")).strip()
+    import re, time
+    slug_base = (product_in.slug or product_in.name).strip().lower()
+    clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_base).strip('-')
+    if not clean_slug:
+        clean_slug = f"product-{int(time.time())}"
+
     existing = await d1.fetch_one("SELECT id FROM products WHERE slug = ?", clean_slug)
     if existing:
-        raise HTTPException(status_code=400, detail="A product with this slug already exists.")
+        clean_slug = f"{clean_slug}-{int(time.time())}"
 
     prod_id = await d1.execute_insert("""
         INSERT INTO products (name, slug, category_id, description, short_description, brand, origin_farm,

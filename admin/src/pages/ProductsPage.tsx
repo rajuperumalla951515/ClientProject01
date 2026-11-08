@@ -469,36 +469,46 @@ export const ProductsPage: React.FC = () => {
 
   const handleSaveProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!formName.trim()) {
+      showError('Product name is required.');
+      return;
+    }
+
     setIsSaving(true);
+    const cleanSlug = formName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || `product-${Date.now()}`;
+    const imageList = formImages.length > 0
+      ? formImages
+      : (formImageUrl.trim() ? [formImageUrl.trim()] : ['https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800']);
 
     try {
       if (editingProduct) {
         // Update product master details
         await api.updateProduct(editingProduct.id, {
-          name: formName,
+          name: formName.trim(),
+          slug: cleanSlug,
           category_id: formCategoryId,
-          description: formDescription,
-          short_description: formShortDescription || formDescription.slice(0, 100),
-          brand: formBrand,
-          origin_farm: formOriginFarm,
-          certifications: formCertifications,
-          storage_instructions: formStorageInstructions,
+          description: formDescription.trim(),
+          short_description: formShortDescription.trim() || formDescription.slice(0, 100),
+          brand: formBrand.trim() || 'Sri Adithya Organics',
+          origin_farm: formOriginFarm.trim(),
+          certifications: formCertifications.trim(),
+          storage_instructions: formStorageInstructions.trim(),
           is_featured: formIsFeatured,
           is_fresh_today: formIsFreshToday,
           is_deal: formIsDeal,
           is_best_seller: formIsBestSeller,
           is_active: formIsActive,
-          images: formImageUrl ? [formImageUrl] : undefined,
+          images: imageList,
         });
 
         // Also update primary variant
         if (editingProduct.variants?.[0]?.id) {
           await api.updateVariant(editingProduct.id, editingProduct.variants[0].id, {
-            unit: formUnit,
-            pack_size: formWeight,
-            price: formPrice,
-            mrp: formMrp,
-            stock: formStock,
+            unit: formUnit.trim() || '1 Litre Bottle',
+            pack_size: formWeight.trim() || 'Standard Pack',
+            price: Number(formPrice) || 99,
+            mrp: Number(formMrp) || 120,
+            stock: Number(formStock) || 50,
           });
         }
 
@@ -506,14 +516,15 @@ export const ProductsPage: React.FC = () => {
       } else {
         // Create product with default variant
         await api.createProduct({
-          name: formName,
+          name: formName.trim(),
+          slug: cleanSlug,
           category_id: formCategoryId,
-          description: formDescription || formName,
-          short_description: formShortDescription || formName,
-          brand: formBrand,
-          origin_farm: formOriginFarm,
-          certifications: formCertifications,
-          storage_instructions: formStorageInstructions,
+          description: formDescription.trim() || formName.trim(),
+          short_description: formShortDescription.trim() || formName.trim(),
+          brand: formBrand.trim() || 'Sri Adithya Organics',
+          origin_farm: formOriginFarm.trim(),
+          certifications: formCertifications.trim() || '100% Certified Organic',
+          storage_instructions: formStorageInstructions.trim(),
           is_featured: formIsFeatured,
           is_fresh_today: formIsFreshToday,
           is_deal: formIsDeal,
@@ -521,16 +532,19 @@ export const ProductsPage: React.FC = () => {
           is_active: formIsActive,
           variants: [
             {
-              unit: formUnit,
-              pack_size: formWeight,
-              price: formPrice,
-              mrp: formMrp,
-              stock: formStock,
+              unit: formUnit.trim() || '1 Litre Bottle',
+              pack_size: formWeight.trim() || 'Standard Pack',
+              price: Number(formPrice) || 99,
+              mrp: Number(formMrp) || 120,
+              stock: Number(formStock) || 50,
             },
           ],
-          images: formImageUrl
-            ? [{ image_url: formImageUrl, alt_text: formName }]
-            : [],
+          images: imageList.map((url, i) => ({
+            image_url: url,
+            alt_text: `${formName} ${i + 1}`,
+            is_primary: i === 0,
+            display_order: i
+          })),
         });
         showSuccess(`Product "${formName}" added to D1 catalogue.`, 'Product Created');
       }

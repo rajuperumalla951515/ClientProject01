@@ -86,7 +86,20 @@ class ApiClient {
       let errorMsg = `Server error (${res.status})`;
       try {
         const errorData = await res.json();
-        errorMsg = errorData.detail || errorData.message || errorMsg;
+        if (typeof errorData.detail === 'string') {
+          errorMsg = errorData.detail;
+        } else if (Array.isArray(errorData.detail)) {
+          errorMsg = errorData.detail
+            .map((d: any) => {
+              const field = d.loc ? d.loc.filter((l: any) => l !== 'body').join('.') : 'field';
+              return `${field}: ${d.msg}`;
+            })
+            .join('; ');
+        } else if (errorData.message && typeof errorData.message === 'string') {
+          errorMsg = errorData.message;
+        } else if (errorData.detail && typeof errorData.detail === 'object') {
+          errorMsg = JSON.stringify(errorData.detail);
+        }
       } catch {
         // Non-JSON error
       }

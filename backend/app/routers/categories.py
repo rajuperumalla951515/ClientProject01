@@ -39,11 +39,15 @@ async def get_category_by_slug(slug: str, d1: D1Database = Depends(get_d1)):
 
 @router.post("", response_model=CategoryOut, status_code=status.HTTP_201_CREATED)
 async def create_category(cat_in: CategoryCreate, d1: D1Database = Depends(get_d1), admin=Depends(get_current_admin)):
-    clean_slug = (cat_in.slug or cat_in.name.lower().replace(" ", "-")).strip()
+    import re, time
+    slug_base = (cat_in.slug or cat_in.name).strip().lower()
+    clean_slug = re.sub(r'[^a-z0-9]+', '-', slug_base).strip('-')
+    if not clean_slug:
+        clean_slug = f"category-{int(time.time())}"
     
     existing = await d1.fetch_one("SELECT id FROM categories WHERE slug = ?", clean_slug)
     if existing:
-        raise HTTPException(status_code=400, detail="A category with this slug already exists.")
+        clean_slug = f"{clean_slug}-{int(time.time())}"
 
     cat_id = await d1.execute_insert("""
         INSERT INTO categories (name, slug, description, image_url, icon, display_order, is_active)

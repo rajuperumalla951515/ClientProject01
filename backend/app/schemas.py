@@ -98,7 +98,7 @@ class AddressOut(AddressBase):
 # --- Category Schemas ---
 class CategoryBase(BaseModel):
     name: str
-    slug: str
+    slug: Optional[str] = None
     description: Optional[str] = None
     image_url: Optional[str] = None
     icon: Optional[str] = None
@@ -174,11 +174,11 @@ class ProductImageCreate(BaseModel):
 # --- Product Schemas ---
 class ProductBase(BaseModel):
     name: str
-    slug: str
+    slug: Optional[str] = None
     category_id: int
     description: str
     short_description: Optional[str] = None
-    brand: str = "Rootly Organics"
+    brand: str = "Sri Adithya Organics"
     origin_farm: Optional[str] = None
     certifications: Optional[str] = None
     storage_instructions: Optional[str] = None
