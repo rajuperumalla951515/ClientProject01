@@ -128,7 +128,12 @@ class CloudflareWorkersAIProvider(BaseAIProvider):
             raise RuntimeError(f"Cloudflare AI Error ({status}): {text[:300]}")
 
         data = json.loads(text)
-        content = data.get("result", {}).get("response", "")
+        result_obj = data.get("result", {})
+        content = result_obj.get("response", "")
+        if not content and "choices" in result_obj and result_obj["choices"]:
+            content = result_obj["choices"][0].get("message", {}).get("content", "")
+        if not content:
+            content = data.get("response", "")
         if not content:
             raise ValueError("Cloudflare AI returned empty content response.")
 
@@ -256,14 +261,12 @@ class GeminiProvider(BaseAIProvider):
         if json_mode:
             generation_config["responseMimeType"] = "application/json"
 
+        full_prompt = f"System Context: {system_prompt}\n\nTask: {prompt}" if system_prompt else prompt
         payload = {
-            "systemInstruction": {
-                "parts": [{"text": system_prompt}]
-            },
             "contents": [
                 {
                     "role": "user",
-                    "parts": [{"text": prompt}]
+                    "parts": [{"text": full_prompt}]
                 }
             ],
             "generationConfig": generation_config

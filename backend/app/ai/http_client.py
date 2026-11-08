@@ -50,14 +50,12 @@ class AIHttpClient:
         # Strategy 2: Using httpx.AsyncClient if available
         try:
             import httpx
-            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            async with httpx.AsyncClient(timeout=min(timeout_seconds, 8.0)) as client:
                 resp = await client.post(url, headers=headers, json=payload)
                 return resp.status_code, resp.text
-        except ImportError:
+        except Exception:
+            # Fall back to standard library urllib below if httpx times out or fails
             pass
-        except Exception as e:
-            # Re-raise timeouts or network errors
-            raise e
 
         # Strategy 3: Standard library urllib executed in background thread
         import urllib.request
@@ -67,7 +65,7 @@ class AIHttpClient:
             data_bytes = json.dumps(payload).encode("utf-8")
             req = urllib.request.Request(url, data=data_bytes, headers=headers, method="POST")
             try:
-                with urllib.request.urlopen(req, timeout=timeout_seconds) as res:
+                with urllib.request.urlopen(req, timeout=min(timeout_seconds, 8.0)) as res:
                     return res.getcode(), res.read().decode("utf-8", errors="replace")
             except urllib.error.HTTPError as he:
                 return he.code, he.read().decode("utf-8", errors="replace")

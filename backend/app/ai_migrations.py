@@ -121,7 +121,7 @@ AI_SEED_STATEMENTS: List[str] = [
     """INSERT OR IGNORE INTO ai_provider_config (
         id, provider_name, model_name, is_enabled, priority, daily_request_limit, daily_token_limit
     ) VALUES (
-        3, 'gemini', 'gemini-1.5-flash', 1, 3, 1000, 250000
+        3, 'gemini', 'gemini-flash-latest', 1, 3, 1000, 250000
     );""",
 ]
 
@@ -130,5 +130,9 @@ async def ensure_ai_tables(d1) -> None:
     try:
         await d1.exec_statements(AI_SCHEMA_STATEMENTS)
         await d1.exec_statements(AI_SEED_STATEMENTS)
+        # Migrate deprecated Gemini model to active gemini-flash-latest
+        await d1.execute(
+            "UPDATE ai_provider_config SET model_name = 'gemini-flash-latest' WHERE provider_name = 'gemini' AND model_name != 'gemini-flash-latest'"
+        )
     except Exception as e:
         print(f"[AI D1 Schema] Initialization note: {e}")

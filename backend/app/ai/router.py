@@ -93,6 +93,13 @@ class AIRouter:
             if not cfg.get("is_enabled", 1):
                 continue
 
+            # Update model and replace deprecated names if needed
+            if cfg.get("model_name"):
+                if "gemini" in p_name and ("1.5" in cfg["model_name"] or "2.5" in cfg["model_name"] or "3.8" in cfg["model_name"]):
+                    provider.model = "gemini-flash-latest"
+                else:
+                    provider.model = cfg["model_name"]
+
             # Check credentials
             if not provider.is_configured():
                 # Allow Cloudflare if binding is attached
