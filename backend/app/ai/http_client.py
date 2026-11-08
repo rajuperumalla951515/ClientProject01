@@ -75,4 +75,67 @@ class AIHttpClient:
         loop = asyncio.get_event_loop()
         return await loop.run_in_executor(None, _sync_post)
 
+    @classmethod
+    async def fetch_head_or_get(
+        cls,
+        url: str,
+        timeout_seconds: float = 6.0
+    ) -> Tuple[int, Dict[str, str], int]:
+        """
+        Executes lightweight HEAD or GET to inspect Content-Type and size.
+        Returns: (status_code, headers_dict, size_bytes)
+        """
+        if sys.platform == "emscripten":
+            try:
+                import js
+                req_options = js.Object.new()
+                req_options.method = "HEAD"
+                resp = await js.fetch(url, req_options)
+                status_code = int(resp.status)
+                headers_dict: Dict[str, str] = {}
+                try:
+                    ctype = str(resp.headers.get("content-type") or "")
+                    clen = int(resp.headers.get("content-length") or 0)
+                    headers_dict["content-type"] = ctype
+                    headers_dict["content-length"] = str(clen)
+                except Exception:
+                    pass
+                return status_code, headers_dict, int(headers_dict.get("content-length") or 0)
+            except Exception:
+                pass
+
+        try:
+            import httpx
+            async with httpx.AsyncClient(timeout=timeout_seconds, follow_redirects=True) as client:
+                try:
+                    head_res = await client.head(url)
+                    headers_dict = {k.lower(): v for k, v in head_res.headers.items()}
+                    clen = int(headers_dict.get("content-length", 0))
+                    return head_res.status_code, headers_dict, clen
+                except Exception:
+                    get_res = await client.get(url, headers={"Range": "bytes=0-1024"})
+                    headers_dict = {k.lower(): v for k, v in get_res.headers.items()}
+                    clen = int(headers_dict.get("content-length", len(get_res.content)))
+                    return get_res.status_code, headers_dict, clen
+        except Exception:
+            pass
+
+        import urllib.request
+        def _sync_head():
+            req = urllib.request.Request(url, method="HEAD", headers={"User-Agent": "Mozilla/5.0 (Sri Adithya Image Check)"})
+            try:
+                with urllib.request.urlopen(req, timeout=timeout_seconds) as res:
+                    headers_dict = {k.lower(): v for k, v in res.getheaders()}
+                    clen = int(headers_dict.get("content-length", 0))
+                    return res.getcode(), headers_dict, clen
+            except Exception:
+                req_get = urllib.request.Request(url, method="GET", headers={"User-Agent": "Mozilla/5.0 (Sri Adithya Image Check)"})
+                with urllib.request.urlopen(req_get, timeout=timeout_seconds) as res_get:
+                    headers_dict = {k.lower(): v for k, v in res_get.getheaders()}
+                    clen = int(headers_dict.get("content-length", 0))
+                    return res_get.getcode(), headers_dict, clen
+
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, _sync_head)
+
 http_client = AIHttpClient()

@@ -504,7 +504,7 @@ class ApiClient {
     });
   }
 
-  async askAIAssistant(question: string): Promise<{
+  async askAIAssistant(question: string, conversation_history?: any[]): Promise<{
     answer: string;
     tool_used: string;
     verified_data: any;
@@ -513,7 +513,69 @@ class ApiClient {
   }> {
     return this.request<any>('/ai/assistant/chat', {
       method: 'POST',
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, conversation_history }),
+    });
+  }
+
+  async suggestPricingOffers(payload: {
+    product_name: string;
+    selling_price: number;
+    mrp?: number;
+    cost_price?: number;
+    min_margin_percent?: number;
+  }): Promise<{
+    product_name: string;
+    selling_price: number;
+    mrp: number;
+    cost_price: number;
+    min_margin_percent: number;
+    offers: Array<{
+      id: string;
+      name: string;
+      badge: string;
+      original_price: number;
+      mrp: number;
+      offer_price: number;
+      discount_amount: number;
+      discount_percent: number;
+      cost_price: number;
+      gross_margin_percent: number;
+      is_margin_safe: boolean;
+      rationale: string;
+    }>;
+  }> {
+    return this.request<any>('/ai/pricing/suggest-offers', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async validateAndImportImageUrl(image_url: string): Promise<{
+    valid: boolean;
+    image_url: string;
+    content_type: string;
+    size_kb: number;
+    message: string;
+  }> {
+    return this.request<any>('/ai/images/validate-import', {
+      method: 'POST',
+      body: JSON.stringify({ image_url }),
+    });
+  }
+
+  async suggestCategoryDetails(category_name: string): Promise<{
+    description: string;
+    short_summary: string;
+    slug: string;
+    seo_title: string;
+    seo_description: string;
+    keywords: string[];
+    provider?: string;
+    model?: string;
+  }> {
+    return this.request<any>('/ai/categories/suggest', {
+      method: 'POST',
+      body: JSON.stringify({ category_name }),
     });
   }
 
@@ -620,7 +682,7 @@ export const aiApi = {
   publishPromotion: (id: string | number) => api.approveAIPromotion(Number(id)),
 
   assistantChat: async (payload: { message: string; conversation_history?: any[]; auto_tool?: boolean }) => {
-    const res = await api.askAIAssistant(payload.message);
+    const res = await api.askAIAssistant(payload.message, payload.conversation_history);
     return {
       reply: res.answer,
       tool_executed: res.tool_used,
@@ -630,6 +692,18 @@ export const aiApi = {
       cached: (res as any).cached
     };
   },
+
+  suggestOffers: (payload: {
+    product_name: string;
+    selling_price: number;
+    mrp?: number;
+    cost_price?: number;
+    min_margin_percent?: number;
+  }) => api.suggestPricingOffers(payload),
+
+  validateImageUrl: (imageUrl: string) => api.validateAndImportImageUrl(imageUrl),
+
+  suggestCategory: (categoryName: string) => api.suggestCategoryDetails(categoryName),
 
   getSystemOverview: () => api.getSystemOverview(),
 

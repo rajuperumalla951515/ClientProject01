@@ -12,8 +12,10 @@ import {
   FolderTree,
   ExternalLink,
   SlidersHorizontal,
+  Sparkles,
+  Check
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, aiApi } from '../services/api';
 import { Category } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -37,6 +39,16 @@ export const CategoriesPage: React.FC = () => {
   const [formImageUrl, setFormImageUrl] = useState('');
   const [formIsActive, setFormIsActive] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+
+  // AI Suggestion State
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<{
+    description?: string;
+    short_summary?: string;
+    slug?: string;
+    seo_title?: string;
+    keywords?: string[];
+  } | null>(null);
 
   // Delete State
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -71,6 +83,7 @@ export const CategoriesPage: React.FC = () => {
     setFormDescription('');
     setFormImageUrl('https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600');
     setFormIsActive(true);
+    setAiSuggestion(null);
     setIsModalOpen(true);
   };
 
@@ -81,7 +94,33 @@ export const CategoriesPage: React.FC = () => {
     setFormDescription(cat.description || '');
     setFormImageUrl(cat.image_url || '');
     setFormIsActive(cat.is_active !== false);
+    setAiSuggestion(null);
     setIsModalOpen(true);
+  };
+
+  const handleAiSuggestCategory = async () => {
+    if (!formName.trim()) {
+      showError('Please enter a Category Name first.');
+      return;
+    }
+    setIsGeneratingAI(true);
+    try {
+      const res = await aiApi.suggestCategory(formName.trim());
+      setAiSuggestion(res);
+      showSuccess('AI suggestions generated. Review and click Accept below.', 'AI Ready');
+    } catch (err: any) {
+      showError(err.message || 'Failed to generate category suggestions.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const applyAiSuggestion = () => {
+    if (!aiSuggestion) return;
+    if (aiSuggestion.description) setFormDescription(aiSuggestion.description);
+    if (aiSuggestion.slug) setFormSlug(aiSuggestion.slug);
+    showSuccess('AI suggestions applied to form.');
+    setAiSuggestion(null);
   };
 
   // Generate slug automatically when name changes (if new category or slug not manually customized)
@@ -400,9 +439,30 @@ export const CategoriesPage: React.FC = () => {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
-              Description
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-[#26352B]">
+                Description
+              </label>
+              <button
+                type="button"
+                disabled={isGeneratingAI || !formName.trim()}
+                onClick={handleAiSuggestCategory}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                title="Generate description and SEO slug using AI"
+              >
+                {isGeneratingAI ? (
+                  <>
+                    <RefreshCw className="w-3 h-3 animate-spin text-[#496B45]" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 text-[#496B45]" />
+                    AI Suggest Details
+                  </>
+                )}
+              </button>
+            </div>
             <textarea
               rows={3}
               placeholder="Brief summary of this category for customer navigation..."
@@ -410,6 +470,52 @@ export const CategoriesPage: React.FC = () => {
               onChange={(e) => setFormDescription(e.target.value)}
               className="w-full px-3.5 py-2 rounded-xl border border-[#E6E7DD] text-xs text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
             />
+
+            {/* AI Suggestion Preview Box (Requires explicit admin acceptance) */}
+            {aiSuggestion && (
+              <div className="mt-2.5 p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-emerald-900 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-emerald-700" /> AI Generated Preview
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setAiSuggestion(null)}
+                      className="px-2 py-0.5 rounded text-[10px] font-medium text-[#778176] hover:bg-emerald-100"
+                    >
+                      Dismiss
+                    </button>
+                    <button
+                      type="button"
+                      onClick={applyAiSuggestion}
+                      className="px-2.5 py-0.5 rounded bg-[#244B37] text-white text-[10px] font-bold hover:bg-[#1b392a] flex items-center gap-1 shadow-xs"
+                    >
+                      <Check className="w-3 h-3" /> Accept & Apply
+                    </button>
+                  </div>
+                </div>
+                {aiSuggestion.description && (
+                  <p className="text-xs text-[#26352B] leading-relaxed italic">
+                    "{aiSuggestion.description}"
+                  </p>
+                )}
+                {aiSuggestion.slug && (
+                  <div className="text-[10px] font-mono text-emerald-800">
+                    Suggested Slug: <span className="font-semibold">/{aiSuggestion.slug}</span>
+                  </div>
+                )}
+                {aiSuggestion.keywords && aiSuggestion.keywords.length > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {aiSuggestion.keywords.slice(0, 5).map((kw, i) => (
+                      <span key={i} className="px-1.5 py-0.5 rounded-full bg-white text-[9px] font-medium text-[#496B45] border border-emerald-200">
+                        #{kw}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div>

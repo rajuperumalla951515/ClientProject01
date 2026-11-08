@@ -79,14 +79,15 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ]
     },
     {
-      heading: 'AI Intelligence',
+      heading: 'AI Assistant',
       items: [
-        { label: 'AI Business Assistant', to: '/ai/assistant', icon: Bot },
-        { label: 'Content Studio', to: '/ai/content-studio', icon: Sparkles },
-        { label: 'Bulk Batch Studio', to: '/ai/bulk-content', icon: Wand2 },
-        { label: 'Promotion Intelligence', to: '/ai/promotions', icon: TrendingUp },
-        { label: 'Action Approvals', to: '/ai/approvals', icon: CheckSquare },
-        { label: 'Provider Health & Quotas', to: '/ai/providers', icon: Cpu },
+        {
+          label: 'AI Assistant',
+          to: '/ai/assistant',
+          icon: Bot,
+          badge: 'Live',
+          badgeColor: 'bg-emerald-50 text-emerald-800 border-emerald-200'
+        },
       ]
     },
     {

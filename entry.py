@@ -48,6 +48,8 @@ try:
                 # 2. Attach Cloudflare D1 database binding to FastAPI application state
                 if hasattr(self.env, "DB") and self.env.DB is not None:
                     app.state.d1 = D1Database(binding=self.env.DB)
+                    if hasattr(self.env, "AI") and self.env.AI is not None:
+                        app.state.d1.ai_binding = self.env.AI
                     if not getattr(app.state, "_d1_initialized", False):
                         try:
                             check_row = await app.state.d1.fetch_one("SELECT count(*) as c FROM products")

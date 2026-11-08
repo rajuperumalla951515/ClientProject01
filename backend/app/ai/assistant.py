@@ -8,16 +8,22 @@ from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
 from backend.app.ai.router import ai_router
 
-BI_SYSTEM_PROMPT = """You are the Senior Business Intelligence Analyst for Sri Adithya Organics.
-You provide executive summaries for store owners regarding sales revenue, order fulfillment,
-stock levels, and customer trends.
-Strict Security & Integrity Rules:
-1. NEVER invent numbers or make up data. You must cite ONLY the verified figures provided in the Database Report.
-2. If the data is empty or unavailable, state clearly that no records exist in the database for that query.
-3. NEVER reveal customer passwords, hashes, internal system keys, or payment gateway credentials.
-4. Keep answers professional, executive-level, clear, and actionable. Format with clean bullet points.
-5. Currency must always be formatted in Indian Rupees (₹).
+ADMIN_ASSISTANT_SYSTEM_PROMPT = """You are the Sri Adithya Organics Admin Assistant.
+You help administrators manage an authentic organic grocery and traditional wood-pressed oils ecommerce business.
+You are friendly, intelligent, accurate, practical, and professional.
+You understand products, categories, traditional wood-pressed oils (Marachekku / Vaagai wood), organic groceries, pricing, inventory, discounts, SEO, and store operations.
+
+Core Guidelines:
+1. Answer general questions and greetings naturally and conversationally. Do not recite canned sales reports when greeted.
+2. When asked about business data (sales, revenue, inventory, orders, customers, store configuration), cite strictly the verified data provided in the system context.
+3. When asked to suggest products, descriptions, or marketing ideas, provide realistic, helpful, organic-grocery-appropriate suggestions.
+4. Support English and Telugu (తెలుగు) naturally based on the language the user speaks.
+5. Keep answers clear, well-structured, and helpful. Avoid unnecessary technical jargon unless requested.
+6. Never invent false organic certifications, medical cures, or unverified claims.
+7. Never disclose internal passwords, secret keys, or payment tokens.
 """
+
+BI_SYSTEM_PROMPT = ADMIN_ASSISTANT_SYSTEM_PROMPT
 
 class BusinessIntelligenceAssistant:
 
@@ -271,69 +277,84 @@ class BusinessIntelligenceAssistant:
         cls,
         d1,
         question: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
         admin_id: Optional[int] = None
     ) -> Dict[str, Any]:
         """
-        Executes conversational inquiry:
-        1. Classifies intent & fetches deterministic verified D1 database records.
-        2. Synthesizes a factual, executive response.
+        Executes natural conversational inquiry:
+        1. Classifies intent: chitchat/advice vs deterministic D1 database metrics.
+        2. Incorporates conversation context.
+        3. Synthesizes a factual, natural, practical response.
         """
         q_lower = question.lower().strip()
         data_payload: Dict[str, Any] = {}
-        tool_used = "general_business_report"
+        tool_used = "conversational_assistant"
+        is_data_query = False
 
-        # Determine tools to execute
-        if any(w in q_lower for w in ["entire application", "application details", "system architecture", "app details", "application overview", "about the app", "system details", "store details", "all details", "everything"]):
+        # Specific database analytical tools
+        if any(w in q_lower for w in ["entire application", "application details", "system architecture", "app details", "application overview", "about the app", "system details", "store details", "all details"]):
             data_payload["entire_application_details"] = await cls.get_application_overview(d1)
             tool_used = "application_details"
+            is_data_query = True
 
-        if any(w in q_lower for w in ["today", "revenue", "sales", "month", "last week", "aov", "average order"]):
+        elif any(w in q_lower for w in ["today's sales", "revenue", "sales summary", "how much sales", "how much revenue", "aov", "average order value", "monthly sales", "weekly sales"]):
             data_payload["sales_summary_30d"] = await cls.get_sales_summary(d1, days=30)
             data_payload["sales_summary_7d"] = await cls.get_sales_summary(d1, days=7)
             data_payload["revenue_comparison"] = await cls.get_revenue_comparison(d1)
-            if tool_used == "general_business_report":
-                tool_used = "sales_summary"
+            tool_used = "sales_summary"
+            is_data_query = True
 
-        if any(w in q_lower for w in ["top", "best seller", "selling", "popular", "fast"]):
+        elif any(w in q_lower for w in ["top selling", "best seller", "best selling", "popular products", "fast moving", "top product", "highest selling"]):
             data_payload["top_selling_products"] = await cls.get_top_products(d1, limit=10)
-            if tool_used == "general_business_report":
-                tool_used = "top_products"
+            tool_used = "top_products"
+            is_data_query = True
 
-        if any(w in q_lower for w in ["stock", "inventory", "low", "out of stock", "replenish", "warehouse"]):
+        elif any(w in q_lower for w in ["low stock", "out of stock", "stock status", "inventory report", "warehouse stock", "replenish"]):
             data_payload["low_stock_products"] = await cls.get_low_stock_products(d1, threshold=15)
             data_payload["inventory_summary"] = await cls.get_inventory_report(d1)
-            if tool_used == "general_business_report":
-                tool_used = "inventory_report"
+            tool_used = "inventory_report"
+            is_data_query = True
 
-        if any(w in q_lower for w in ["pending", "unfulfilled", "order status", "dispatch"]):
+        elif any(w in q_lower for w in ["pending order", "unfulfilled order", "order status", "dispatch pending"]):
             data_payload["pending_orders"] = await cls.get_pending_orders(d1)
-            if tool_used == "general_business_report":
-                tool_used = "pending_orders"
+            tool_used = "pending_orders"
+            is_data_query = True
 
-        if any(w in q_lower for w in ["customer", "repeat", "retention", "shopper", "loyalty"]):
+        elif any(w in q_lower for w in ["customer statistics", "customer stats", "registered customer", "repeat customer", "retention rate"]):
             data_payload["customer_statistics"] = await cls.get_customer_statistics(d1)
-            if tool_used == "general_business_report":
-                tool_used = "customer_statistics"
+            tool_used = "customer_statistics"
+            is_data_query = True
 
-        # If question is broad, fetch high-level health overview
-        if not data_payload:
-            data_payload["entire_application_details"] = await cls.get_application_overview(d1)
-            tool_used = "application_details"
+        # Build prompt incorporating conversation history
+        history_text = ""
+        if conversation_history:
+            turns = []
+            for item in conversation_history[-6:]:
+                role = "Admin" if item.get("role") == "user" else "Assistant"
+                content = item.get("content", "").strip()
+                if content:
+                    turns.append(f"{role}: {content}")
+            if turns:
+                history_text = "Recent Conversation Context:\n" + "\n".join(turns) + "\n\n"
 
-        # Synthesize with AI
-        prompt = f"""Admin User Question: "{question}"
+        if is_data_query and data_payload:
+            prompt = f"""{history_text}Admin Inquiry: "{question}"
 
-Verified Database Data (Source of Truth):
+Verified Database Records (Source of Truth):
 {json.dumps(data_payload, indent=2)}
 
-Please answer the admin's question concisely based strictly on the verified data above.
-Include key metrics (with ₹ symbol) and brief recommendations if helpful."""
+Please answer the administrator's inquiry clearly, professionally and concisely using the verified database records above. Format with clean bullet points and ₹ currency symbols where applicable."""
+        else:
+            prompt = f"""{history_text}Admin Inquiry: "{question}"
+
+Respond warmly, helpfully, and practically as the Sri Adithya Organics Admin Assistant.
+Provide a natural, intelligent, direct response. If the admin is asking for advice, suggestions, or greetings, respond conversationally without reciting unrequested database metrics."""
 
         res = await ai_router.route_request(
             d1=d1,
             task_type="bi_assistant",
             prompt=prompt,
-            system_prompt=BI_SYSTEM_PROMPT,
+            system_prompt=ADMIN_ASSISTANT_SYSTEM_PROMPT,
             json_mode=False,
             admin_id=admin_id
         )
@@ -341,7 +362,7 @@ Include key metrics (with ₹ symbol) and brief recommendations if helpful."""
         return {
             "answer": res["content"],
             "tool_used": tool_used,
-            "verified_data": data_payload,
+            "verified_data": data_payload if is_data_query else None,
             "provider": res["provider"],
             "model": res["model"]
         }

@@ -34,32 +34,40 @@ interface ChatMessage {
 
 const QUICK_PROMPTS = [
   {
-    label: "Entire Application Details",
-    prompt: "Provide a comprehensive breakdown of our entire application details, database state, system architecture, delivery logistics, and AI telemetry."
+    label: "👋 Hello / How are you?",
+    prompt: "Hello! How are you today? What can you help me with?"
   },
   {
-    label: "Today's Revenue & Orders",
-    prompt: "What is today's revenue, order count, and average order value from Cloudflare D1?"
+    label: "🌾 Organic Product Advice",
+    prompt: "Suggest high-demand organic products we should consider stocking for our traditional store."
   },
   {
-    label: "Low Stock Alert",
+    label: "📈 Boost Oil Sales",
+    prompt: "How can I improve sales for our traditional wood-pressed oils (Groundnut, Sesame, Coconut)?"
+  },
+  {
+    label: "📦 Low Stock Alert",
     prompt: "Which organic products are low in stock or out of stock right now?"
   },
   {
-    label: "Top 5 Selling Products",
+    label: "📊 Today's Revenue & Orders",
+    prompt: "What is today's revenue, order count, and average order value from Cloudflare D1?"
+  },
+  {
+    label: "🏆 Top Selling Products",
     prompt: "What are our top 5 best selling organic products by revenue?"
   },
   {
-    label: "Pending Orders to Fulfill",
+    label: "⏳ Pending Orders",
     prompt: "How many orders are currently pending fulfillment and need packing?"
   },
   {
-    label: "Revenue Comparison",
-    prompt: "Compare this month's revenue with the previous 30 days and show the growth rate."
+    label: "🏢 Entire Application Details",
+    prompt: "Provide a comprehensive breakdown of our entire application details, database state, system architecture, delivery logistics, and AI telemetry."
   },
   {
-    label: "Customer Base Statistics",
-    prompt: "Provide an executive summary of our active customers and registration metrics."
+    label: "Telugu: అమ్మకాల సలహాలు",
+    prompt: "మన స్టోర్‌లో చెక్క గానుగ నూనెల అమ్మకాలను ఎలా పెంచాలో మంచి సలహాలు ఇవ్వండి."
   }
 ];
 
@@ -323,9 +331,13 @@ export const AIAssistantPage: React.FC = () => {
                 <Bot className="w-4 h-4 animate-pulse" />
               </div>
               <div className="rounded-2xl rounded-tl-xs p-4 bg-white border border-[#E6E7DD] shadow-xs flex items-center gap-3">
-                <RefreshCw className="w-4 h-4 text-[#496B45] animate-spin" />
+                <div className="flex items-center gap-1.5 py-1">
+                  <span className="w-2 h-2 rounded-full bg-[#496B45] animate-bounce" style={{ animationDelay: '0ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-[#496B45] animate-bounce" style={{ animationDelay: '150ms' }} />
+                  <span className="w-2 h-2 rounded-full bg-[#496B45] animate-bounce" style={{ animationDelay: '300ms' }} />
+                </div>
                 <span className="text-xs font-semibold text-[#778176]">
-                  Consulting Cloudflare D1 database & synthesizing insights...
+                  Thinking & preparing response...
                 </span>
               </div>
             </div>

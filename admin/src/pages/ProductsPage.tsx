@@ -18,9 +18,19 @@ import {
   Check,
   X,
   Droplets,
-  Tag
+  Tag,
+  Upload,
+  Link as LinkIcon,
+  DollarSign,
+  Image as ImageIcon,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  Copy,
+  Wand2,
+  ExternalLink
 } from 'lucide-react';
-import { api } from '../services/api';
+import { api, aiApi } from '../services/api';
 import { Product, Category, ProductVariant } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -79,6 +89,26 @@ export const ProductsPage: React.FC = () => {
   const [formIsBestSeller, setFormIsBestSeller] = useState(false);
   const [formIsActive, setFormIsActive] = useState(true);
 
+  // Multi-Image Intelligence State
+  const [formImages, setFormImages] = useState<string[]>([]);
+  const [importImageUrlInput, setImportImageUrlInput] = useState('');
+  const [isImportingImage, setIsImportingImage] = useState(false);
+
+  // SEO Fields & Google Preview State
+  const [formMetaTitle, setFormMetaTitle] = useState('');
+  const [formMetaDescription, setFormMetaDescription] = useState('');
+  const [formKeywords, setFormKeywords] = useState('');
+  const [isSeoExpanded, setIsSeoExpanded] = useState(false);
+
+  // Contextual AI Dialog & Generator States
+  const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [aiTitleModalOpen, setAiTitleModalOpen] = useState(false);
+  const [aiTitleOptions, setAiTitleOptions] = useState<string[]>([]);
+  const [aiDescriptionModalOpen, setAiDescriptionModalOpen] = useState(false);
+  const [aiDescriptionData, setAiDescriptionData] = useState<any>(null);
+  const [aiOffersModalOpen, setAiOffersModalOpen] = useState(false);
+  const [aiOffersData, setAiOffersData] = useState<any>(null);
+
   // Variant Management inside Edit Modal
   const [newVariantUnit, setNewVariantUnit] = useState('1 Litre Bottle');
   const [newVariantPrice, setNewVariantPrice] = useState<number>(190);
@@ -128,13 +158,20 @@ export const ProductsPage: React.FC = () => {
     setFormStock(50);
     setFormUnit('1 Litre Bottle');
     setFormWeight('Standard Pack');
-    setFormImageUrl('https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800');
+    const defaultImg = 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800';
+    setFormImageUrl(defaultImg);
+    setFormImages([defaultImg]);
+    setImportImageUrlInput('');
     setFormDescription('');
     setFormShortDescription('');
     setFormBrand('Sri Adithya Organics');
     setFormOriginFarm('');
     setFormCertifications('100% Certified Organic');
     setFormStorageInstructions('Store in a cool dry place away from direct sunlight');
+    setFormMetaTitle('');
+    setFormMetaDescription('');
+    setFormKeywords('');
+    setIsSeoExpanded(false);
     setFormIsFeatured(false);
     setFormIsFreshToday(false);
     setFormIsDeal(false);
@@ -152,19 +189,199 @@ export const ProductsPage: React.FC = () => {
     setFormStock(p.variants?.[0]?.stock ?? 50);
     setFormUnit(p.variants?.[0]?.unit || '1 Litre Bottle');
     setFormWeight(p.variants?.[0]?.pack_size || 'Standard Pack');
-    setFormImageUrl(p.primary_image || p.images?.[0]?.image_url || '');
+    const primary = p.primary_image || p.images?.[0]?.image_url || 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800';
+    setFormImageUrl(primary);
+    const existingImgs = (p.images && p.images.length > 0) ? p.images.map(img => img.image_url) : [primary];
+    setFormImages(existingImgs);
+    setImportImageUrlInput('');
     setFormDescription(p.description || '');
     setFormShortDescription(p.short_description || '');
     setFormBrand(p.brand || 'Sri Adithya Organics');
     setFormOriginFarm(p.origin_farm || '');
     setFormCertifications(p.certifications || '100% Certified Organic');
     setFormStorageInstructions(p.storage_instructions || '');
+    setFormMetaTitle((p as any).meta_title || p.name);
+    setFormMetaDescription((p as any).meta_description || p.short_description || '');
+    setFormKeywords((p as any).keywords || '');
+    setIsSeoExpanded(false);
     setFormIsFeatured(!!p.is_featured);
     setFormIsFreshToday(!!p.is_fresh_today);
     setFormIsDeal(!!p.is_deal);
     setFormIsBestSeller(!!p.is_best_seller);
     setFormIsActive(p.is_active !== false);
     setIsModalOpen(true);
+  };
+
+  // --- Contextual AI Generators (Directly in Product Form) ---
+
+  const handleGenerateTitles = async () => {
+    if (!formName.trim()) {
+      showError('Please enter a base product name first (e.g. Groundnut Oil).');
+      return;
+    }
+    const catName = categories.find(c => c.id === formCategoryId)?.name || 'Wood-Pressed Oils';
+    setIsGeneratingAI(true);
+    try {
+      const res = await aiApi.generateTitle({
+        product_name: formName,
+        category: catName
+      });
+      const candidateList = [
+        res.primary_title,
+        res.short_title,
+        res.traditional_name,
+        res.seo_title,
+        ...(res.alternatives || [])
+      ].filter(Boolean);
+      const unique = Array.from(new Set(candidateList)) as string[];
+      setAiTitleOptions(unique);
+      setAiTitleModalOpen(true);
+    } catch (err: any) {
+      showError(err.message || 'Failed to suggest titles.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleGenerateDescription = async () => {
+    if (!formName.trim()) {
+      showError('Please enter a product name first.');
+      return;
+    }
+    const catName = categories.find(c => c.id === formCategoryId)?.name || 'Wood-Pressed Oils';
+    setIsGeneratingAI(true);
+    try {
+      const res = await aiApi.generateDescription({
+        product_name: formName,
+        category: catName,
+        key_features: [formUnit, formBrand, formCertifications].filter(Boolean)
+      });
+      setAiDescriptionData(res);
+      setAiDescriptionModalOpen(true);
+    } catch (err: any) {
+      showError(err.message || 'Failed to generate descriptions.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleSuggestOffers = async () => {
+    if (formPrice <= 0) {
+      showError('Please specify a Selling Price greater than 0 first.');
+      return;
+    }
+    setIsGeneratingAI(true);
+    try {
+      const res = await aiApi.suggestOffers({
+        product_name: formName || 'Organic Item',
+        selling_price: formPrice,
+        mrp: formMrp
+      });
+      setAiOffersData(res);
+      setAiOffersModalOpen(true);
+    } catch (err: any) {
+      showError(err.message || 'Failed to calculate margin-safe offers.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  const handleGenerateSEO = async () => {
+    if (!formName.trim()) {
+      showError('Please enter a product name first.');
+      return;
+    }
+    const catName = categories.find(c => c.id === formCategoryId)?.name || 'Wood-Pressed Oils';
+    setIsGeneratingAI(true);
+    try {
+      const res = await aiApi.generateSEO({
+        product_name: formName,
+        category: catName
+      });
+      if (res.meta_title) setFormMetaTitle(res.meta_title);
+      if (res.meta_description) setFormMetaDescription(res.meta_description);
+      if (res.keywords) {
+        setFormKeywords(Array.isArray(res.keywords) ? res.keywords.join(', ') : res.keywords);
+      }
+      setIsSeoExpanded(true);
+      showSuccess('SEO metadata generated & loaded into Google preview.', 'SEO Ready');
+    } catch (err: any) {
+      showError(err.message || 'Failed to generate SEO metadata.');
+    } finally {
+      setIsGeneratingAI(false);
+    }
+  };
+
+  // --- Product Image Management Handlers ---
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      showError('Image size exceeds 5MB limit. Please choose a smaller image.');
+      return;
+    }
+
+    if (!file.type.match(/^image\/(jpeg|png|webp|gif)$/i)) {
+      showError('Only JPG, PNG, WebP, and GIF images are supported.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const base64Url = uploadEvent.target?.result as string;
+      if (base64Url) {
+        setFormImages(prev => [base64Url, ...prev]);
+        setFormImageUrl(base64Url);
+        showSuccess('Image uploaded and set as primary.', 'Uploaded');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  const handleImportImageUrl = async () => {
+    const url = importImageUrlInput.trim();
+    if (!url) {
+      showError('Please enter a valid image URL.');
+      return;
+    }
+    setIsImportingImage(true);
+    try {
+      const res = await aiApi.validateImageUrl(url);
+      setFormImages(prev => [res.image_url, ...prev]);
+      setFormImageUrl(res.image_url);
+      setImportImageUrlInput('');
+      showSuccess(`Image imported & verified (${res.size_kb} KB).`, 'Import Successful');
+    } catch (err: any) {
+      showError(err.message || 'Failed to import image URL.');
+    } finally {
+      setIsImportingImage(false);
+    }
+  };
+
+  const handleSetPrimaryImage = (index: number) => {
+    setFormImages(prev => {
+      const next = [...prev];
+      const [chosen] = next.splice(index, 1);
+      next.unshift(chosen);
+      setFormImageUrl(chosen);
+      return next;
+    });
+    showSuccess('Primary image updated.');
+  };
+
+  const handleRemoveImage = (index: number) => {
+    setFormImages(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      if (next.length > 0) {
+        setFormImageUrl(next[0]);
+      } else {
+        setFormImageUrl('');
+      }
+      return next;
+    });
   };
 
   const handleSaveProduct = async (e: React.FormEvent) => {
@@ -862,11 +1079,23 @@ export const ProductsPage: React.FC = () => {
       >
         <form onSubmit={handleSaveProduct} className="space-y-5">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Name */}
+            {/* Name with Contextual AI Title Generator */}
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Product Name *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-[#26352B]">
+                  Product Name *
+                </label>
+                <button
+                  type="button"
+                  disabled={isGeneratingAI}
+                  onClick={handleGenerateTitles}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                  title="Generate organic, wood-pressed, and SEO title options"
+                >
+                  <Sparkles className="w-3 h-3 text-[#496B45]" />
+                  AI Suggest Titles
+                </button>
+              </div>
               <input
                 type="text"
                 required
@@ -938,11 +1167,23 @@ export const ProductsPage: React.FC = () => {
               />
             </div>
 
-            {/* Selling Price */}
+            {/* Selling Price with Margin-Safe Offer Suggestions */}
             <div>
-              <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Selling Price (₹) *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-[#26352B]">
+                  Selling Price (₹) *
+                </label>
+                <button
+                  type="button"
+                  disabled={isGeneratingAI}
+                  onClick={handleSuggestOffers}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                  title="Suggest margin-safe promotional discounts"
+                >
+                  <Sparkles className="w-3 h-3 text-[#496B45]" />
+                  Suggest Offers
+                </button>
+              </div>
               <input
                 type="number"
                 min="0"
@@ -985,34 +1226,136 @@ export const ProductsPage: React.FC = () => {
               />
             </div>
 
-            {/* Image URL with preview */}
+            {/* Certifications & Farm Details */}
             <div>
               <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Primary Product Image URL
+                Certifications / Standard
               </label>
+              <input
+                type="text"
+                value={formCertifications}
+                onChange={(e) => setFormCertifications(e.target.value)}
+                placeholder="100% Certified Organic / FSSAI"
+                className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+              />
+            </div>
+
+            {/* Comprehensive Product Image Intelligence Section */}
+            <div className="md:col-span-2 p-3.5 rounded-xl border border-[#E6E7DD] bg-[#FAF9F5] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h4 className="text-xs font-bold text-[#26352B] flex items-center gap-1.5">
+                    <ImageIcon className="w-4 h-4 text-[#496B45]" /> Product Images & Visual Assets
+                  </h4>
+                  <p className="text-[10px] text-[#778176]">
+                    Upload local files (max 5MB) or import from public HTTPS image URLs with SSRF protection.
+                  </p>
+                </div>
+                <label className="px-3 py-1.5 rounded-lg bg-white border border-[#E6E7DD] text-xs font-bold text-[#244B37] hover:bg-[#F6F5EF] cursor-pointer flex items-center gap-1.5 shadow-2xs">
+                  <Upload className="w-3.5 h-3.5 text-[#496B45]" /> Upload Local File
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                </label>
+              </div>
+
+              {/* URL Import Input */}
               <div className="flex gap-2">
                 <input
                   type="url"
-                  value={formImageUrl}
-                  onChange={(e) => setFormImageUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="flex-1 px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+                  placeholder="https://images.unsplash.com/... or cloud image URL"
+                  value={importImageUrlInput}
+                  onChange={(e) => setImportImageUrlInput(e.target.value)}
+                  className="flex-1 px-3 py-1.5 bg-white border border-[#E6E7DD] rounded-lg text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
                 />
-                {formImageUrl && (
-                  <img
-                    src={formImageUrl}
-                    alt="Preview"
-                    className="w-9 h-9 rounded-lg object-cover border border-[#E6E7DD] shrink-0"
-                  />
-                )}
+                <button
+                  type="button"
+                  disabled={isImportingImage || !importImageUrlInput.trim()}
+                  onClick={handleImportImageUrl}
+                  className="px-3 py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] transition-colors disabled:opacity-50 flex items-center gap-1 shrink-0"
+                >
+                  {isImportingImage ? (
+                    <>
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                      Validating...
+                    </>
+                  ) : (
+                    <>
+                      <LinkIcon className="w-3 h-3" />
+                      Import from URL
+                    </>
+                  )}
+                </button>
               </div>
+
+              {/* Image Preview Gallery Cards */}
+              {formImages.length > 0 && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+                  {formImages.map((imgUrl, idx) => (
+                    <div
+                      key={idx}
+                      className={`relative group rounded-xl overflow-hidden border ${
+                        idx === 0 ? 'border-[#244B37] ring-2 ring-[#244B37]/20' : 'border-[#E6E7DD]'
+                      } bg-white shadow-2xs`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Product ${idx + 1}`}
+                        className="w-full h-24 object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src =
+                            'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800';
+                        }}
+                      />
+                      <div className="absolute top-1 left-1">
+                        {idx === 0 ? (
+                          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#244B37] text-white shadow-xs">
+                            ★ Primary
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleSetPrimaryImage(idx)}
+                            className="px-1.5 py-0.5 rounded text-[9px] font-semibold bg-white/95 text-[#26352B] hover:bg-white shadow-xs"
+                          >
+                            Set Primary
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="absolute top-1 right-1 p-1 rounded-md bg-white/90 text-rose-600 hover:bg-rose-50 shadow-xs"
+                        title="Remove image"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
-            {/* Description */}
+            {/* Description with Contextual AI Copywriter */}
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Product Description & Nutritional Benefits
-              </label>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                <label className="block text-xs font-bold text-[#26352B]">
+                  Product Description & Nutritional Benefits
+                </label>
+                <button
+                  type="button"
+                  disabled={isGeneratingAI}
+                  onClick={handleGenerateDescription}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                  title="Generate engaging description, highlights, and benefits"
+                >
+                  <Sparkles className="w-3 h-3 text-[#496B45]" />
+                  AI Write Description & Benefits
+                </button>
+              </div>
               <textarea
                 rows={3}
                 value={formDescription}
@@ -1020,6 +1363,130 @@ export const ProductsPage: React.FC = () => {
                 placeholder="Traditional stone/wood ghani pressed at low temperature below 40°C..."
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
+              {formShortDescription && (
+                <div className="mt-1 text-[11px] text-[#778176] italic">
+                  Short summary: "{formShortDescription}"
+                </div>
+              )}
+            </div>
+
+            {/* Storage Guidance */}
+            <div className="md:col-span-2">
+              <label className="block text-xs font-bold text-[#26352B] mb-1">
+                Storage & Shelf-Life Guidance
+              </label>
+              <input
+                type="text"
+                value={formStorageInstructions}
+                onChange={(e) => setFormStorageInstructions(e.target.value)}
+                placeholder="Store in a cool, dry place away from direct sunlight. Shelf life: 9 months."
+                className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+              />
+            </div>
+
+            {/* Collapsible Search Engine Optimization (SEO) Section with Google Preview */}
+            <div className="md:col-span-2 rounded-xl border border-[#E6E7DD] bg-white overflow-hidden">
+              <div
+                className="p-3 bg-[#FAF9F5] flex items-center justify-between cursor-pointer select-none"
+                onClick={() => setIsSeoExpanded(!isSeoExpanded)}
+              >
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-[#496B45]" />
+                  <span className="text-xs font-bold text-[#26352B]">
+                    Search Engine Optimization (SEO) & Google Preview
+                  </span>
+                  <span className="text-[10px] text-[#778176]">
+                    {isSeoExpanded ? '(Click to collapse)' : '(Click to expand)'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleGenerateSEO();
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[10px] font-bold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#496B45]" />
+                    Generate SEO Meta
+                  </button>
+                  {isSeoExpanded ? (
+                    <ChevronUp className="w-4 h-4 text-[#778176]" />
+                  ) : (
+                    <ChevronDown className="w-4 h-4 text-[#778176]" />
+                  )}
+                </div>
+              </div>
+
+              {isSeoExpanded && (
+                <div className="p-4 space-y-3.5 border-t border-[#E6E7DD] bg-white">
+                  {/* Google Search Result Preview */}
+                  <div className="p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] space-y-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-[#778176]">
+                      Google Search Result Preview
+                    </span>
+                    <div className="text-[11px] text-[#1a0dab] hover:underline font-medium truncate cursor-pointer">
+                      https://sriadithyaorganics.pages.dev › products › {(formMetaTitle || formName).toLowerCase().replace(/\s+/g, '-')}
+                    </div>
+                    <div className="text-sm font-semibold text-[#1a0dab] line-clamp-1">
+                      {formMetaTitle || formName || 'Product Title | Sri Adithya Organics'}
+                    </div>
+                    <div className="text-xs text-[#4d5156] line-clamp-2 leading-relaxed">
+                      {formMetaDescription || formShortDescription || formDescription.slice(0, 150) || 'Buy 100% pure traditional wood-pressed oils and organic farm produce directly from Sri Adithya Organics.'}
+                    </div>
+                  </div>
+
+                  {/* SEO Form Inputs */}
+                  <div className="space-y-2.5">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[11px] font-bold text-[#26352B]">Meta Title</label>
+                        <span className="text-[10px] text-[#778176]">
+                          {formMetaTitle.length}/60 chars
+                        </span>
+                      </div>
+                      <input
+                        type="text"
+                        maxLength={70}
+                        value={formMetaTitle}
+                        onChange={(e) => setFormMetaTitle(e.target.value)}
+                        placeholder="e.g. Pure Wood-Pressed Groundnut Oil | Sri Adithya Organics"
+                        className="w-full px-3 py-1.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-lg text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="text-[11px] font-bold text-[#26352B]">Meta Description</label>
+                        <span className="text-[10px] text-[#778176]">
+                          {formMetaDescription.length}/160 chars
+                        </span>
+                      </div>
+                      <textarea
+                        rows={2}
+                        maxLength={180}
+                        value={formMetaDescription}
+                        onChange={(e) => setFormMetaDescription(e.target.value)}
+                        placeholder="e.g. Order cold-pressed, unrefined wood ghani groundnut oil online..."
+                        className="w-full px-3 py-1.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-lg text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="text-[11px] font-bold text-[#26352B] block mb-1">Keywords / Search Tags</label>
+                      <input
+                        type="text"
+                        value={formKeywords}
+                        onChange={(e) => setFormKeywords(e.target.value)}
+                        placeholder="wood pressed oil, marachekku, pure cold pressed, organic peanut oil"
+                        className="w-full px-3 py-1.5 bg-[#FAF9F5] border border-[#E6E7DD] rounded-lg text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1186,6 +1653,209 @@ export const ProductsPage: React.FC = () => {
         variant="warning"
         isLoading={isDeleting}
       />
+
+      {/* 1. Contextual AI Title Suggestions Modal */}
+      <Modal
+        isOpen={aiTitleModalOpen}
+        onClose={() => setAiTitleModalOpen(false)}
+        title="Suggested Product Titles"
+        subtitle="Select the title that best fits traditional wood-pressed extraction or certified organic standards"
+        maxWidth="lg"
+      >
+        <div className="space-y-2.5">
+          {aiTitleOptions.map((title, idx) => (
+            <div
+              key={idx}
+              className="p-3 rounded-xl border border-[#E6E7DD] hover:border-[#244B37] bg-white hover:bg-emerald-50/40 transition-colors flex items-center justify-between gap-3 group"
+            >
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-[#26352B] leading-snug">{title}</p>
+                <span className="text-[10px] text-[#778176]">
+                  {title.length} characters
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setFormName(title);
+                  setAiTitleModalOpen(false);
+                  showSuccess('Title applied to product form.');
+                }}
+                className="px-3 py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] shrink-0 shadow-xs flex items-center gap-1"
+              >
+                <Check className="w-3 h-3" /> Select
+              </button>
+            </div>
+          ))}
+          <div className="pt-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setAiTitleModalOpen(false)}
+              className="px-4 py-1.5 rounded-lg border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 2. Contextual AI Description & Benefits Modal */}
+      <Modal
+        isOpen={aiDescriptionModalOpen}
+        onClose={() => setAiDescriptionModalOpen(false)}
+        title="AI Copywriter: Description & Highlights"
+        subtitle="Review generated product catalog copy before applying to the product form"
+        maxWidth="xl"
+      >
+        {aiDescriptionData && (
+          <div className="space-y-4">
+            {/* Short Description */}
+            <div className="p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] space-y-1">
+              <span className="text-[10px] font-bold text-[#778176] uppercase tracking-wider">
+                Short Summary (Card Preview)
+              </span>
+              <p className="text-xs font-medium text-[#26352B] leading-relaxed">
+                {aiDescriptionData.short_description}
+              </p>
+            </div>
+
+            {/* Detailed Description */}
+            <div className="p-3 rounded-xl bg-white border border-[#E6E7DD] space-y-1">
+              <span className="text-[10px] font-bold text-[#778176] uppercase tracking-wider">
+                Full Detailed Description
+              </span>
+              <p className="text-xs text-[#26352B] leading-relaxed whitespace-pre-wrap">
+                {aiDescriptionData.detailed_description}
+              </p>
+            </div>
+
+            {/* Highlights */}
+            {aiDescriptionData.highlights && aiDescriptionData.highlights.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10px] font-bold text-[#778176] uppercase tracking-wider">
+                  Key Highlights & Benefits
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {aiDescriptionData.highlights.map((h: string, idx: number) => (
+                    <div key={idx} className="p-2 rounded-lg bg-emerald-50/60 border border-emerald-200 text-xs font-medium text-[#244B37] flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#496B45]" />
+                      <span>{h}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Storage */}
+            {aiDescriptionData.storage_instructions && (
+              <div className="p-2.5 rounded-lg bg-[#FAF9F5] border border-[#E6E7DD] text-xs text-[#778176]">
+                <strong className="text-[#26352B]">Storage Note: </strong>
+                {aiDescriptionData.storage_instructions}
+              </div>
+            )}
+
+            <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E6E7DD]">
+              <button
+                type="button"
+                onClick={() => setAiDescriptionModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (aiDescriptionData.detailed_description) setFormDescription(aiDescriptionData.detailed_description);
+                  if (aiDescriptionData.short_description) setFormShortDescription(aiDescriptionData.short_description);
+                  if (aiDescriptionData.storage_instructions) setFormStorageInstructions(aiDescriptionData.storage_instructions);
+                  setAiDescriptionModalOpen(false);
+                  showSuccess('Description and highlights applied to product form.');
+                }}
+                className="px-4 py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] flex items-center gap-1.5 shadow-xs"
+              >
+                <Check className="w-3.5 h-3.5" /> Accept & Apply to Form
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* 3. Margin-Safe Offer Suggestions Modal */}
+      <Modal
+        isOpen={aiOffersModalOpen}
+        onClose={() => setAiOffersModalOpen(false)}
+        title="Margin-Protected Offer Suggestions"
+        subtitle="Deterministic profit calculations verifying your gross margin floor"
+        maxWidth="xl"
+      >
+        {aiOffersData && (
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] text-xs text-[#26352B]">
+              <div>
+                Base Price: <strong className="font-bold">₹{aiOffersData.selling_price}</strong> | MRP: <strong>₹{aiOffersData.mrp}</strong>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                  <ShieldCheck className="w-3 h-3 text-emerald-600" /> Min Margin Floor: {aiOffersData.min_margin_percent}%
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              {aiOffersData.offers?.map((offer: any) => (
+                <div
+                  key={offer.id}
+                  className="rounded-xl border border-[#E6E7DD] p-3.5 bg-white flex flex-col justify-between hover:shadow-card-hover transition-shadow space-y-3"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-1 mb-1.5">
+                      <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100/70 text-[#244B37]">
+                        {offer.badge}
+                      </span>
+                      <span className="text-[10px] font-bold text-emerald-700">
+                        {offer.discount_percent}% OFF
+                      </span>
+                    </div>
+                    <h5 className="text-xs font-bold text-[#26352B]">{offer.name}</h5>
+                    <div className="mt-2 flex items-baseline gap-1.5">
+                      <span className="text-lg font-bold text-[#244B37]">₹{offer.offer_price}</span>
+                      <span className="text-xs text-[#778176] line-through">₹{offer.original_price}</span>
+                    </div>
+                    <div className="mt-1 text-[10px] text-[#778176]">
+                      Margin: <span className="font-bold text-emerald-700">{offer.gross_margin_percent}%</span>
+                    </div>
+                    <p className="mt-2 text-[10px] text-[#778176] leading-relaxed">
+                      {offer.rationale}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormPrice(offer.offer_price);
+                      setAiOffersModalOpen(false);
+                      showSuccess(`Offer price ₹${offer.offer_price} applied to form.`);
+                    }}
+                    className="w-full py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-bold hover:bg-[#1b392a] flex items-center justify-center gap-1 shadow-xs"
+                  >
+                    Apply Price (₹{offer.offer_price})
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <div className="pt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setAiOffersModalOpen(false)}
+                className="px-4 py-1.5 rounded-lg border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-[#F6F5EF]"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
