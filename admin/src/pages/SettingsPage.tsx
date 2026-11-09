@@ -17,12 +17,14 @@ import {
   CheckCircle,
   Database,
   Building,
+  Cpu,
 } from 'lucide-react';
 import { api } from '../services/api';
 import { StoreSettings } from '../types';
 import { useAdminAuth } from '../context/AdminAuthContext';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToast } from '../context/ToastContext';
+import { AIProviderQuotaSection } from '../components/ai/AIProviderQuotaSection';
 
 export const SettingsPage: React.FC = () => {
   const { user } = useAdminAuth();
@@ -30,7 +32,7 @@ export const SettingsPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<'profile' | 'delivery' | 'whatsapp' | 'security'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'delivery' | 'whatsapp' | 'security' | 'ai_quota'>('profile');
 
   // Form Fields - Delivery & Store
   const [minOrder, setMinOrder] = useState<number>(99);
@@ -194,6 +196,7 @@ export const SettingsPage: React.FC = () => {
           { id: 'delivery', label: 'Delivery & Pricing Rules', icon: Truck },
           { id: 'whatsapp', label: 'WhatsApp Order Desk', icon: Phone },
           { id: 'security', label: 'Admin Security', icon: ShieldCheck },
+          { id: 'ai_quota', label: 'AI Provider Quota', icon: Cpu },
         ].map((tab) => {
           const Icon = tab.icon;
           return (
@@ -581,6 +584,13 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
         </form>
+      )}
+
+      {/* Tab 5: AI Provider Quota & Health */}
+      {activeTab === 'ai_quota' && (
+        <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm">
+          <AIProviderQuotaSection />
+        </div>
       )}
     </div>
   );

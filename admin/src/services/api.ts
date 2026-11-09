@@ -21,7 +21,8 @@ import {
   AISEOResponse,
   AITransformResponse,
   AIPromotion,
-  AIActionApproval
+  AIActionApproval,
+  AIProductRecognitionResponse
 } from '../types';
 
 const RAW_API_URL = (import.meta.env.VITE_API_URL || 'https://sriadithyaorganics.devraj951515.workers.dev').trim();
@@ -273,6 +274,7 @@ class ApiClient {
     slug?: string;
     description?: string;
     image_url?: string;
+    is_active?: boolean;
   }): Promise<Category> {
     return this.request<Category>('/categories', {
       method: 'POST',
@@ -651,12 +653,24 @@ class ApiClient {
       body: JSON.stringify({ approved }),
     });
   }
+
+  async recognizeProduct(productName: string, existingCategories?: any[]): Promise<AIProductRecognitionResponse> {
+    return this.request<AIProductRecognitionResponse>('/ai/products/recognize', {
+      method: 'POST',
+      body: JSON.stringify({
+        product_name: productName,
+        existing_categories: existingCategories,
+      }),
+    });
+  }
 }
 
 export const api = new ApiClient();
 
 export const aiApi = {
   getProviders: () => api.getAIProviders(),
+  recognizeProduct: (productName: string, existingCategories?: any[]) =>
+    api.recognizeProduct(productName, existingCategories),
   updateProviderConfig: (name: string, _data?: any) => api.toggleAIProvider(name),
   getUsageLogs: (limit = 50) => api.getAIUsageLogs(limit),
   testProviders: async () => {

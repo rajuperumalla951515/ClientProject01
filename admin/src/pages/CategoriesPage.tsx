@@ -80,6 +80,20 @@ export const CategoriesPage: React.FC = () => {
 
   useEffect(() => {
     loadCategories();
+
+    // Check query parameters if navigated from product creation form
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('create') === 'true') {
+      const suggestedName = params.get('name') || '';
+      const suggestedSlug = params.get('slug') || '';
+      setEditingCategory(null);
+      setFormName(suggestedName);
+      setFormSlug(suggestedSlug || suggestedName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+      setFormDescription(params.get('description') || '');
+      setFormImageUrl('https://images.unsplash.com/photo-1540420773420-3366772f4999?w=600');
+      setFormIsActive(true);
+      setIsModalOpen(true);
+    }
   }, []);
 
   const openAddModal = () => {
@@ -199,7 +213,7 @@ export const CategoriesPage: React.FC = () => {
         });
         showSuccess(`Category "${formName}" updated.`, 'Category Saved');
       } else {
-        await api.createCategory({
+        const createdCat = await api.createCategory({
           name: formName.trim(),
           slug: cleanSlug,
           description: formDescription.trim(),
@@ -207,6 +221,13 @@ export const CategoriesPage: React.FC = () => {
           is_active: formIsActive,
         });
         showSuccess(`Category "${formName}" created.`, 'Category Created');
+
+        // Check if navigated from product creation form
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('from') === 'product') {
+          window.location.href = `/products?openAdd=true&category_id=${createdCat.id}`;
+          return;
+        }
       }
       setIsModalOpen(false);
       loadCategories();

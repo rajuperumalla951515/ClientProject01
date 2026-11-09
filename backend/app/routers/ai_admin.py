@@ -103,6 +103,10 @@ class UnsplashSearchRequest(BaseModel):
 class CategorySuggestRequest(BaseModel):
     category_name: str
 
+class ProductRecognizeRequest(BaseModel):
+    product_name: str
+    existing_categories: Optional[List[Dict[str, Any]]] = None
+
 class StockApprovalProposalRequest(BaseModel):
     product_id: int
     variant_id: Optional[int] = None
@@ -127,20 +131,108 @@ async def get_providers(
     current_admin: Dict[str, Any] = Depends(get_current_admin)
 ):
     """Returns real-time status, daily quotas, latency, and cooldowns for all AI providers."""
+    from datetime import datetime
     await ensure_ai_tables(d1)
     configs = await ai_router.get_provider_configs(d1)
     status_info = ai_config.get_provider_status()
+
+    # Detect if primary provider is currently down/in cooldown
+    primary_cooling = False
+    for c in configs:
+        if c.get("priority", 1) == 1:
+            cd = c.get("cooldown_until")
+            if cd:
+                try:
+                    if datetime.utcnow() < datetime.strptime(cd, "%Y-%m-%d %H:%M:%S"):
+                        primary_cooling = True
+                except Exception:
+                    pass
 
     enriched = []
     for c in configs:
         p_name = c["provider_name"]
         item = dict(c)
         meta = status_info.get(p_name, {})
-        item["has_credentials"] = meta.get("has_credentials", False)
-        item["provider_type"] = meta.get("provider_type", "fallback")
+        has_creds = meta.get("has_credentials", False)
+        item["has_credentials"] = has_creds
+
+        display_names = {
+            "cloudflare": "Cloudflare Workers AI",
+            "groq": "GroqCloud Fast LLM",
+            "gemini": "Google Gemini API"
+        }
+        item["display_name"] = display_names.get(p_name, p_name.capitalize())
+
+        priority = item.get("priority", 1)
+        item["is_fallback"] = priority > 1
+        item["is_currently_active_fallback"] = bool(primary_cooling and priority == 2)
+
+        limit = item.get("daily_request_limit", 1000)
+        used = item.get("requests_today", 0)
+        item["daily_limit"] = limit
+        item["remaining_requests"] = max(0, limit - used)
+
+        quota_explanations = {
+            "cloudflare": "Quota information unavailable from provider API (monitored via application ceiling: 1,000 reqs/day)",
+            "groq": "Free Tier: 30 RPM / 14,400 RPD (Account rate limit headers monitored)",
+            "gemini": "Free Tier: 15 RPM / 1,500 RPD (Quota API unavailable without Google Cloud Billing)"
+        }
+        item["provider_quota_info"] = quota_explanations.get(p_name, "Quota information unavailable from provider API.")
+
+        is_enabled = bool(item.get("is_enabled", 1))
+        consecutive_errs = item.get("consecutive_errors", 0)
+        cooldown_until = item.get("cooldown_until")
+        is_cooling = False
+        if cooldown_until:
+            try:
+                is_cooling = datetime.utcnow() < datetime.strptime(cooldown_until, "%Y-%m-%d %H:%M:%S")
+            except Exception:
+                pass
+
+        last_err = str(item.get("last_error_message") or "")
+        if not is_enabled:
+            item["status"] = "Disabled"
+        elif not has_creds:
+            item["status"] = "Configuration Required"
+        elif used >= limit:
+            item["status"] = "Quota Exhausted"
+        elif is_cooling:
+            item["status"] = "Rate Limited" if ("429" in last_err or "rate limit" in last_err.lower()) else "Temporarily Unavailable"
+        elif consecutive_errs >= 3:
+            item["status"] = "Temporarily Unavailable"
+        elif priority == 1 or (primary_cooling and priority == 2):
+            item["status"] = "Active"
+        else:
+            item["status"] = "Available"
+
+        item["rate_limit_status"] = "Rate Limited (Cooldown Active)" if is_cooling else "Normal"
         enriched.append(item)
 
     return enriched
+
+
+@router.post("/products/recognize")
+async def recognize_product(
+    payload: ProductRecognizeRequest,
+    d1: D1Database = Depends(get_d1),
+    current_admin: Dict[str, Any] = Depends(get_current_admin)
+):
+    """
+    Intelligently identifies product type, checks existing D1 categories or suggests category creation,
+    and returns context-appropriate units, packaging, storage, shelf-life, and SEO copy.
+    """
+    from backend.app.ai.product_recognition import product_recognition
+    categories = payload.existing_categories
+    if categories is None:
+        cat_rows = await d1.fetch_all("SELECT id, name, slug FROM categories WHERE is_active = 1")
+        categories = [dict(r) for r in cat_rows]
+
+    return await product_recognition.recognize(
+        product_name=payload.product_name,
+        existing_categories=categories,
+        d1=d1,
+        admin_id=current_admin["id"]
+    )
 
 
 @router.post("/providers/{name}/toggle")

@@ -317,11 +317,17 @@ export interface AIProviderConfig {
   id: number;
   provider?: string;
   provider_name: 'cloudflare' | 'groq' | 'gemini' | string;
+  display_name?: string;
   model_name: string;
   is_enabled: boolean | number;
   is_active?: boolean;
   priority: number;
+  is_fallback?: boolean;
+  is_currently_active_fallback?: boolean;
+  status?: 'Active' | 'Available' | 'Rate Limited' | 'Quota Exhausted' | 'Temporarily Unavailable' | 'Configuration Required' | 'Unknown' | 'Disabled' | string;
   daily_request_limit: number;
+  daily_limit?: number;
+  remaining_requests?: number;
   daily_quota_limit?: number;
   daily_token_limit: number;
   requests_today: number;
@@ -335,7 +341,33 @@ export interface AIProviderConfig {
   last_error_message?: string | null;
   has_credentials?: boolean;
   provider_type?: string;
+  provider_quota_info?: string;
+  rate_limit_status?: string;
   updated_at?: string;
+}
+
+export interface AIProductRecognitionResponse {
+  product_name: string;
+  product_type: string;
+  suggested_unit: string;
+  suggested_units: string[];
+  suggested_packaging: string;
+  veg_classification?: string;
+  storage_instructions: string;
+  shelf_life?: string;
+  suggested_brand?: string;
+  suggested_certifications?: string;
+  short_description: string;
+  detailed_description: string;
+  highlights: string[];
+  seo_title: string;
+  meta_description: string;
+  keywords: string[];
+  category_matched: boolean;
+  matched_category?: Category | { id: number; name: string; slug: string } | null;
+  suggested_category_name?: string;
+  suggested_category_slug?: string;
+  source?: string;
 }
 
 export interface AIUsageLog {

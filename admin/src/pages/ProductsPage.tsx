@@ -28,10 +28,12 @@ import {
   ShieldCheck,
   Copy,
   Wand2,
-  ExternalLink
+  ExternalLink,
+  Clock,
+  FolderPlus
 } from 'lucide-react';
 import { api, aiApi } from '../services/api';
-import { Product, Category, ProductVariant } from '../types';
+import { Product, Category, ProductVariant, AIProductRecognitionResponse } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Pagination } from '../components/ui/Pagination';
@@ -123,11 +125,251 @@ export const ProductsPage: React.FC = () => {
   const [newVariantStock, setNewVariantStock] = useState<number>(40);
   const [isAddingVariant, setIsAddingVariant] = useState(false);
 
+  // Smart Product Recognition & Category Workflow State
+  const [aiRecognition, setAiRecognition] = useState<AIProductRecognitionResponse | null>(null);
+  const [isRecognizing, setIsRecognizing] = useState(false);
+  const [hasManuallyEdited, setHasManuallyEdited] = useState<Record<string, boolean>>({});
+  const [hasRestoredDraft, setHasRestoredDraft] = useState(false);
+
+  // Inline Category Creator Modal State (100% Zero Data Loss)
+  const [isInlineCategoryModalOpen, setIsInlineCategoryModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newCategorySlug, setNewCategorySlug] = useState('');
+  const [newCategoryDescription, setNewCategoryDescription] = useState('');
+  const [isCreatingCategoryInline, setIsCreatingCategoryInline] = useState(false);
+
   // Delete Dialog State
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
   const { showSuccess, showError } = useToast();
+
+  const PRODUCT_DRAFT_KEY = 'sri_adithya_product_draft';
+
+  // Restore draft on initial load or modal opening
+  const restoreDraftIfAvailable = (availableCategories: Category[] = categories): boolean => {
+    try {
+      const raw = localStorage.getItem(PRODUCT_DRAFT_KEY);
+      if (!raw) return false;
+      const draft = JSON.parse(raw);
+      if (!draft || !draft.formName) return false;
+
+      setEditingProduct(null);
+      setFormName(draft.formName || '');
+      setFormCategoryId(draft.formCategoryId || (availableCategories[0]?.id ?? 1));
+      setFormPrice(Number(draft.formPrice) || 99);
+      setFormMrp(Number(draft.formMrp) || 120);
+      setFormStock(Number(draft.formStock) || 50);
+      setFormUnit(draft.formUnit || '');
+      setFormWeight(draft.formWeight || '');
+      setFormImageUrl(draft.formImageUrl || '');
+      setFormImages(draft.formImages || (draft.formImageUrl ? [draft.formImageUrl] : []));
+      setFormDescription(draft.formDescription || '');
+      setFormShortDescription(draft.formShortDescription || '');
+      setFormBrand(draft.formBrand || 'Sri Adithya Organics');
+      setFormOriginFarm(draft.formOriginFarm || '');
+      setFormCertifications(draft.formCertifications || '');
+      setFormStorageInstructions(draft.formStorageInstructions || '');
+      setFormMetaTitle(draft.formMetaTitle || '');
+      setFormMetaDescription(draft.formMetaDescription || '');
+      setFormKeywords(draft.formKeywords || '');
+      setFormIsFeatured(!!draft.formIsFeatured);
+      setFormIsFreshToday(!!draft.formIsFreshToday);
+      setFormIsDeal(!!draft.formIsDeal);
+      setFormIsBestSeller(!!draft.formIsBestSeller);
+      setFormIsActive(draft.formIsActive !== false);
+      setHasRestoredDraft(true);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    localStorage.removeItem(PRODUCT_DRAFT_KEY);
+    setHasRestoredDraft(false);
+    openAddModal(true);
+    showSuccess('Product draft discarded.');
+  };
+
+  // Auto-save draft changes to localStorage while creating a product
+  useEffect(() => {
+    if (!editingProduct && isModalOpen && formName.trim()) {
+      const draftData = {
+        formName,
+        formCategoryId,
+        formPrice,
+        formMrp,
+        formStock,
+        formUnit,
+        formWeight,
+        formImageUrl,
+        formImages,
+        formDescription,
+        formShortDescription,
+        formBrand,
+        formOriginFarm,
+        formCertifications,
+        formStorageInstructions,
+        formMetaTitle,
+        formMetaDescription,
+        formKeywords,
+        formIsFeatured,
+        formIsFreshToday,
+        formIsDeal,
+        formIsBestSeller,
+        formIsActive,
+      };
+      localStorage.setItem(PRODUCT_DRAFT_KEY, JSON.stringify(draftData));
+    }
+  }, [
+    editingProduct, isModalOpen, formName, formCategoryId, formPrice, formMrp, formStock,
+    formUnit, formWeight, formImageUrl, formImages, formDescription, formShortDescription,
+    formBrand, formOriginFarm, formCertifications, formStorageInstructions, formMetaTitle,
+    formMetaDescription, formKeywords, formIsFeatured, formIsFreshToday, formIsDeal,
+    formIsBestSeller, formIsActive
+  ]);
+
+  // Debounced Intelligent Recognition
+  useEffect(() => {
+    if (!isModalOpen || !formName.trim() || formName.trim().length < 3) {
+      setAiRecognition(null);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      setIsRecognizing(true);
+      try {
+        const res = await aiApi.recognizeProduct(formName.trim(), categories);
+        setAiRecognition(res);
+
+        // Auto-select category if matched and user hasn't manually chosen category
+        if (res.category_matched && res.matched_category && !hasManuallyEdited.category) {
+          setFormCategoryId(Number(res.matched_category.id));
+        }
+
+        // Auto-assign unit if user hasn't entered custom unit
+        if (!hasManuallyEdited.unit && res.suggested_unit && !formUnit) {
+          setFormUnit(res.suggested_unit);
+        }
+        if (!hasManuallyEdited.packaging && res.suggested_packaging && !formWeight) {
+          setFormWeight(res.suggested_packaging);
+        }
+        if (!hasManuallyEdited.storage && res.storage_instructions && !formStorageInstructions) {
+          setFormStorageInstructions(res.storage_instructions);
+        }
+      } catch (err) {
+        console.warn('Product recognition notice:', err);
+      } finally {
+        setIsRecognizing(false);
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [formName, isModalOpen, categories]);
+
+  // Check URL query parameters for category creation return
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const openAdd = params.get('openAdd');
+    const selectedCatId = params.get('category_id');
+
+    if (openAdd === 'true') {
+      const hasDraft = restoreDraftIfAvailable();
+      if (!hasDraft) {
+        openAddModal();
+      }
+      if (selectedCatId) {
+        setFormCategoryId(Number(selectedCatId));
+        setHasManuallyEdited(prev => ({ ...prev, category: true }));
+      }
+      setIsModalOpen(true);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [categories]);
+
+  const handleApplyAllSuggestions = () => {
+    if (!aiRecognition) return;
+
+    if (!hasManuallyEdited.unit && aiRecognition.suggested_unit) {
+      setFormUnit(aiRecognition.suggested_unit);
+    }
+    if (!hasManuallyEdited.packaging && aiRecognition.suggested_packaging) {
+      setFormWeight(aiRecognition.suggested_packaging);
+    }
+    if (!hasManuallyEdited.description && aiRecognition.detailed_description) {
+      setFormDescription(aiRecognition.detailed_description);
+    }
+    if (!hasManuallyEdited.short_description && aiRecognition.short_description) {
+      setFormShortDescription(aiRecognition.short_description);
+    }
+    if (!hasManuallyEdited.storage && aiRecognition.storage_instructions) {
+      setFormStorageInstructions(aiRecognition.storage_instructions);
+    }
+    if (!hasManuallyEdited.certifications && aiRecognition.suggested_certifications) {
+      setFormCertifications(aiRecognition.suggested_certifications);
+    }
+    if (!hasManuallyEdited.meta_title && aiRecognition.seo_title) {
+      setFormMetaTitle(aiRecognition.seo_title);
+    }
+    if (!hasManuallyEdited.meta_description && aiRecognition.meta_description) {
+      setFormMetaDescription(aiRecognition.meta_description);
+    }
+    if (!hasManuallyEdited.keywords && aiRecognition.keywords?.length) {
+      setFormKeywords(aiRecognition.keywords.join(', '));
+    }
+    if (!hasManuallyEdited.category && aiRecognition.category_matched && aiRecognition.matched_category) {
+      setFormCategoryId(Number(aiRecognition.matched_category.id));
+    }
+
+    showSuccess('Applied contextual AI suggestions to form.');
+  };
+
+  const handleOpenInlineCategoryModal = () => {
+    const defaultName = aiRecognition?.suggested_category_name || (formName.includes('Cake') ? 'Bakery & Confectionery' : 'Organic Groceries');
+    const defaultSlug = aiRecognition?.suggested_category_slug || defaultName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    setNewCategoryName(defaultName);
+    setNewCategorySlug(defaultSlug);
+    setNewCategoryDescription(
+      aiRecognition?.short_description
+        ? `Authentic, chemical-free ${defaultName.toLowerCase()} crafted traditionally with natural quality.`
+        : `Handcrafted, farm-fresh ${defaultName.toLowerCase()} from Sri Adithya Organics.`
+    );
+    setIsInlineCategoryModalOpen(true);
+  };
+
+  const handleSaveInlineCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCategoryName.trim()) {
+      showError('Category name is required.');
+      return;
+    }
+
+    setIsCreatingCategoryInline(true);
+    const slug = newCategorySlug.trim() || newCategoryName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    try {
+      const created = await api.createCategory({
+        name: newCategoryName.trim(),
+        slug: slug || `cat-${Date.now()}`,
+        description: newCategoryDescription.trim(),
+        image_url: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&q=80&w=800',
+        is_active: true
+      });
+
+      // Update categories state and select it
+      const updatedCats = [...categories, created];
+      setCategories(updatedCats);
+      setFormCategoryId(created.id);
+      setHasManuallyEdited(prev => ({ ...prev, category: true }));
+
+      showSuccess(`Category "${created.name}" created and selected! All your product details are preserved.`, 'Category Created');
+      setIsInlineCategoryModalOpen(false);
+    } catch (err: any) {
+      showError(err.message || 'Failed to create category.');
+    } finally {
+      setIsCreatingCategoryInline(false);
+    }
+  };
 
   const loadData = async (isManual = false) => {
     if (isManual) setIsRefreshing(true);
@@ -138,7 +380,7 @@ export const ProductsPage: React.FC = () => {
       ]);
       setProducts(prods);
       setCategories(cats);
-      if (cats.length > 0 && !editingProduct) {
+      if (cats.length > 0 && !editingProduct && !formCategoryId) {
         setFormCategoryId(cats[0].id);
       }
       if (isManual) {
@@ -156,15 +398,23 @@ export const ProductsPage: React.FC = () => {
     loadData();
   }, []);
 
-  const openAddModal = () => {
+  const openAddModal = (forceFresh?: boolean | React.MouseEvent) => {
+    const shouldForce = typeof forceFresh === 'boolean' ? forceFresh : false;
+    if (!shouldForce) {
+      const restored = restoreDraftIfAvailable();
+      if (restored) {
+        setIsModalOpen(true);
+        return;
+      }
+    }
     setEditingProduct(null);
     setFormName('');
     setFormCategoryId(categories[0]?.id || 1);
     setFormPrice(99);
     setFormMrp(120);
     setFormStock(50);
-    setFormUnit('1 Litre Bottle');
-    setFormWeight('Standard Pack');
+    setFormUnit('');
+    setFormWeight('');
     const defaultImg = 'https://images.unsplash.com/photo-1474979266404-7eaacbcd87c5?auto=format&fit=crop&q=80&w=800';
     setFormImageUrl(defaultImg);
     setFormImages([defaultImg]);
@@ -173,8 +423,8 @@ export const ProductsPage: React.FC = () => {
     setFormShortDescription('');
     setFormBrand('Sri Adithya Organics');
     setFormOriginFarm('');
-    setFormCertifications('100% Certified Organic');
-    setFormStorageInstructions('Store in a cool dry place away from direct sunlight');
+    setFormCertifications('');
+    setFormStorageInstructions('');
     setFormMetaTitle('');
     setFormMetaDescription('');
     setFormKeywords('');
@@ -184,6 +434,9 @@ export const ProductsPage: React.FC = () => {
     setFormIsDeal(false);
     setFormIsBestSeller(false);
     setFormIsActive(true);
+    setAiRecognition(null);
+    setHasManuallyEdited({});
+    setHasRestoredDraft(false);
     setIsModalOpen(true);
   };
 
@@ -504,7 +757,7 @@ export const ProductsPage: React.FC = () => {
         // Also update primary variant
         if (editingProduct.variants?.[0]?.id) {
           await api.updateVariant(editingProduct.id, editingProduct.variants[0].id, {
-            unit: formUnit.trim() || '1 Litre Bottle',
+            unit: formUnit.trim() || 'Standard Pack',
             pack_size: formWeight.trim() || 'Standard Pack',
             price: Number(formPrice) || 99,
             mrp: Number(formMrp) || 120,
@@ -532,7 +785,7 @@ export const ProductsPage: React.FC = () => {
           is_active: formIsActive,
           variants: [
             {
-              unit: formUnit.trim() || '1 Litre Bottle',
+              unit: formUnit.trim() || 'Standard Pack',
               pack_size: formWeight.trim() || 'Standard Pack',
               price: Number(formPrice) || 99,
               mrp: Number(formMrp) || 120,
@@ -549,6 +802,11 @@ export const ProductsPage: React.FC = () => {
         showSuccess(`Product "${formName}" added to D1 catalogue.`, 'Product Created');
       }
 
+      // Clear draft on successful save
+      localStorage.removeItem(PRODUCT_DRAFT_KEY);
+      setHasRestoredDraft(false);
+      setAiRecognition(null);
+      setHasManuallyEdited({});
       setIsModalOpen(false);
       loadData();
     } catch (err: any) {
@@ -1175,42 +1433,187 @@ export const ProductsPage: React.FC = () => {
         maxWidth="3xl"
       >
         <form onSubmit={handleSaveProduct} className="space-y-5">
+          {/* Restored Draft Alert Banner */}
+          {hasRestoredDraft && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between text-xs text-amber-900 shadow-2xs">
+              <div className="flex items-center gap-2">
+                <Clock className="w-4 h-4 text-amber-600 shrink-0" />
+                <span>
+                  Restored draft for <strong>"{formName || 'Unnamed Product'}"</strong>. Your entered pricing, images, and description are intact.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={handleDiscardDraft}
+                className="px-2.5 py-1 rounded-lg bg-white border border-amber-300 text-amber-900 font-semibold hover:bg-amber-100 text-[11px] transition-colors shrink-0"
+              >
+                Discard Draft
+              </button>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Name with Contextual AI Title Generator */}
+            {/* Name with Contextual AI Recognition & Title Generator */}
             <div className="md:col-span-2">
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-xs font-bold text-[#26352B]">
                   Product Name *
                 </label>
-                <button
-                  type="button"
-                  disabled={isGeneratingAI}
-                  onClick={handleGenerateTitles}
-                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
-                  title="Generate organic, wood-pressed, and SEO title options"
-                >
-                  <Sparkles className="w-3 h-3 text-[#496B45]" />
-                  AI Suggest Titles
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={isGeneratingAI}
+                    onClick={handleGenerateTitles}
+                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg text-[11px] font-semibold text-[#244B37] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                    title="Generate organic, wood-pressed, and SEO title options"
+                  >
+                    <Sparkles className="w-3 h-3 text-[#496B45]" />
+                    AI Suggest Titles
+                  </button>
+                </div>
               </div>
               <input
                 type="text"
                 required
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. Sri Adithya Wood-Pressed Pure Groundnut Oil (Marachekku)"
+                placeholder="e.g. Organic Plum Cake, Traditional Wood-Pressed Groundnut Oil, BPT Sona Masoori Rice"
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs sm:text-sm text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
+
+              {/* Contextual Smart Product Recognition Card */}
+              {isRecognizing && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-[#244B37] animate-pulse">
+                  <Sparkles className="w-3.5 h-3.5 text-[#496B45]" />
+                  <span>Recognizing product type, category match & suitable packaging...</span>
+                </div>
+              )}
+
+              {aiRecognition && (
+                <div className="mt-2.5 p-3.5 rounded-xl border border-emerald-200 bg-[#FAF9F5] space-y-2.5 shadow-2xs">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-bold bg-[#244B37] text-white flex items-center gap-1">
+                        {aiRecognition.product_type}
+                      </span>
+                      {aiRecognition.veg_classification && (
+                        <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                          {aiRecognition.veg_classification}
+                        </span>
+                      )}
+                      <span className="text-[10px] text-[#778176]">
+                        {aiRecognition.source?.includes('ai_enriched') ? 'AI Verified' : 'Domain Classified'}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleApplyAllSuggestions}
+                        className="px-2.5 py-1 rounded-lg bg-[#244B37] hover:bg-[#1B3829] text-white text-[11px] font-bold flex items-center gap-1 shadow-2xs transition-colors"
+                      >
+                        <Sparkles className="w-3 h-3 text-[#8A9B69]" />
+                        Apply All AI Suggestions
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setAiRecognition(null)}
+                        className="p-1 rounded-md text-[#778176] hover:text-[#26352B]"
+                        title="Dismiss suggestions"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Category Match / Creation Alert */}
+                  <div className="text-xs">
+                    {aiRecognition.category_matched && aiRecognition.matched_category ? (
+                      <div className="flex items-center gap-1.5 text-emerald-800 font-medium">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>
+                          Category Matched: <strong>{aiRecognition.matched_category.name}</strong> (Selected in dropdown)
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 rounded-lg bg-amber-50 border border-amber-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 text-amber-900">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                          <span>
+                            Category not found for "{formName}". Suggested: <strong>"{aiRecognition.suggested_category_name || 'Bakery & Confectionery'}"</strong>
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleOpenInlineCategoryModal}
+                          className="px-3 py-1 rounded-lg bg-[#244B37] hover:bg-[#1B3829] text-white text-xs font-bold flex items-center gap-1 shrink-0 shadow-2xs"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          Create Category "{aiRecognition.suggested_category_name || 'New Category'}"
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Suggested Units Quick-Chips (Cake -> 500g, 1 piece; Oil -> 1L; Rice -> 1kg) */}
+                  {aiRecognition.suggested_units && aiRecognition.suggested_units.length > 0 && (
+                    <div>
+                      <span className="text-[10px] font-bold text-[#778176] uppercase tracking-wider block mb-1">
+                        Suggested Units (Click to set):
+                      </span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {aiRecognition.suggested_units.map((unitOpt, uIdx) => (
+                          <button
+                            key={uIdx}
+                            type="button"
+                            onClick={() => {
+                              setFormUnit(unitOpt);
+                              if (aiRecognition.suggested_packaging) {
+                                setFormWeight(aiRecognition.suggested_packaging);
+                              }
+                              setHasManuallyEdited(prev => ({ ...prev, unit: true, packaging: true }));
+                            }}
+                            className={`px-2.5 py-0.5 rounded-lg text-xs font-medium border transition-colors ${
+                              formUnit === unitOpt
+                                ? 'bg-[#244B37] text-white border-[#244B37]'
+                                : 'bg-white text-[#26352B] border-[#E6E7DD] hover:border-[#8A9B69]'
+                            }`}
+                          >
+                            {unitOpt}
+                          </button>
+                        ))}
+                        {aiRecognition.suggested_packaging && (
+                          <span className="px-2 py-0.5 rounded-lg text-[11px] text-[#778176] bg-white border border-[#E6E7DD] flex items-center gap-1">
+                            📦 Container: {aiRecognition.suggested_packaging}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
 
-            {/* Category */}
+            {/* Category with Instant Creator Button */}
             <div>
-              <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Category *
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-[#26352B]">
+                  Category *
+                </label>
+                <button
+                  type="button"
+                  onClick={handleOpenInlineCategoryModal}
+                  className="text-[11px] font-semibold text-[#244B37] hover:underline flex items-center gap-1"
+                >
+                  <Plus className="w-3 h-3" /> New Category
+                </button>
+              </div>
               <select
                 value={formCategoryId}
-                onChange={(e) => setFormCategoryId(Number(e.target.value))}
+                onChange={(e) => {
+                  setFormCategoryId(Number(e.target.value));
+                  setHasManuallyEdited(prev => ({ ...prev, category: true }));
+                }}
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               >
                 {categories.map((c) => (
@@ -1229,7 +1632,10 @@ export const ProductsPage: React.FC = () => {
               <input
                 type="text"
                 value={formBrand}
-                onChange={(e) => setFormBrand(e.target.value)}
+                onChange={(e) => {
+                  setFormBrand(e.target.value);
+                  setHasManuallyEdited(prev => ({ ...prev, brand: true }));
+                }}
                 placeholder="Sri Adithya Organics"
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
@@ -1238,14 +1644,17 @@ export const ProductsPage: React.FC = () => {
             {/* Default Variant Details */}
             <div>
               <label className="block text-xs font-bold text-[#26352B] mb-1">
-                Default Unit (e.g. 1 Litre, 500 ml, 1 kg) *
+                Default Unit (e.g. 500 g Box, 1 kg Bag, 1 Litre) *
               </label>
               <input
                 type="text"
                 required
                 value={formUnit}
-                onChange={(e) => setFormUnit(e.target.value)}
-                placeholder="1 Litre Bottle"
+                onChange={(e) => {
+                  setFormUnit(e.target.value);
+                  setHasManuallyEdited(prev => ({ ...prev, unit: true }));
+                }}
+                placeholder="e.g. 500 g Box, 1 kg Bag, 1 Litre Bottle"
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
             </div>
@@ -1258,8 +1667,11 @@ export const ProductsPage: React.FC = () => {
               <input
                 type="text"
                 value={formWeight}
-                onChange={(e) => setFormWeight(e.target.value)}
-                placeholder="Standard Pack / Glass Bottle"
+                onChange={(e) => {
+                  setFormWeight(e.target.value);
+                  setHasManuallyEdited(prev => ({ ...prev, packaging: true }));
+                }}
+                placeholder="e.g. Food-Grade Cake Box, Glass Bottle, Eco Bag"
                 className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
               />
             </div>
@@ -2156,6 +2568,85 @@ export const ProductsPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </Modal>
+
+      {/* Inline Category Creator Modal - 100% Zero Data Loss */}
+      <Modal
+        isOpen={isInlineCategoryModalOpen}
+        onClose={() => setIsInlineCategoryModalOpen(false)}
+        title={`Create Category "${newCategoryName}"`}
+        subtitle="Saved directly to Cloudflare D1 and auto-selected in this product form without clearing any entered data."
+        maxWidth="md"
+      >
+        <form onSubmit={handleSaveInlineCategory} className="space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-[#26352B] mb-1">
+              Category Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={newCategoryName}
+              onChange={(e) => {
+                setNewCategoryName(e.target.value);
+                setNewCategorySlug(e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, ''));
+              }}
+              className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#26352B] mb-1">
+              Category URL Slug *
+            </label>
+            <input
+              type="text"
+              required
+              value={newCategorySlug}
+              onChange={(e) => setNewCategorySlug(e.target.value)}
+              className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs font-mono text-[#26352B] focus:outline-none focus:border-[#496B45]"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#26352B] mb-1">
+              Category Description
+            </label>
+            <textarea
+              rows={3}
+              value={newCategoryDescription}
+              onChange={(e) => setNewCategoryDescription(e.target.value)}
+              className="w-full px-3.5 py-2 bg-[#FAF9F5] border border-[#E6E7DD] rounded-xl text-xs text-[#26352B] focus:outline-none focus:border-[#496B45]"
+            />
+          </div>
+
+          <div className="pt-2 flex items-center justify-end gap-2 border-t border-[#E6E7DD]">
+            <button
+              type="button"
+              onClick={() => setIsInlineCategoryModalOpen(false)}
+              className="px-4 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#778176] hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={isCreatingCategoryInline}
+              className="px-4 py-2 rounded-xl bg-[#244B37] hover:bg-[#1B3829] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs transition-colors disabled:opacity-50"
+            >
+              {isCreatingCategoryInline ? (
+                <>
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                  Creating in D1...
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5" />
+                  Save & Select Category
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );
