@@ -24,11 +24,11 @@ export const HomePage: React.FC = () => {
       try {
         const [cats, best, fresh, dls, oils, ess] = await Promise.all([
           api.getCategories(),
-          api.getProducts({ collection: 'best_sellers', limit: 8 }),
-          api.getProducts({ collection: 'fresh_today', limit: 8 }),
-          api.getProducts({ collection: 'deals', limit: 8 }),
-          api.getProducts({ category_slug: 'cold-pressed-oils', limit: 4 }),
-          api.getProducts({ limit: 8, sort: 'popular' }),
+          api.getProducts({ collection: 'best_sellers', limit: 12 }),
+          api.getProducts({ collection: 'fresh_today', limit: 12 }),
+          api.getProducts({ collection: 'deals', limit: 12 }),
+          api.getProducts({ category_slug: 'cold-pressed-oils', limit: 6 }),
+          api.getProducts({ limit: 12, sort: 'popular' }),
         ]);
         setCategories(cats);
         setBestSellers(best);
@@ -46,36 +46,36 @@ export const HomePage: React.FC = () => {
   }, []);
 
   return (
-    <div className="space-y-12 sm:space-y-16 pb-16">
+    <div className="w-full space-y-10 sm:space-y-14 pb-16 overflow-x-hidden">
       
-      {/* 1. HERO SECTION */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-rootly-creamDark/60 to-rootly-cream pt-4 pb-8 sm:py-16 border-b border-stone-200/60">
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-12 items-center">
+      {/* 1. HERO SECTION - Expansive Full-Width Experience */}
+      <section className="relative overflow-hidden bg-gradient-to-b from-[#F3EFEA] via-[#FAF8F5] to-white pt-4 pb-8 sm:py-14 border-b border-[#E6E7DD]">
+        <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 xl:gap-14 items-center">
             
             {/* Left Content */}
-            <div className="lg:col-span-7 space-y-4 sm:space-y-6 text-center lg:text-left">
-              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full bg-rootly-forest text-rootly-sagePale text-[10px] sm:text-xs font-semibold shadow-sm max-w-full">
-                <Sparkles className="w-3.5 h-3.5 text-rootly-sagePale shrink-0" />
+            <div className="lg:col-span-7 space-y-4 sm:space-y-5 text-center lg:text-left">
+              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 rounded-full bg-[#244B37] text-white text-[11px] sm:text-xs font-semibold shadow-sm max-w-full">
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
                 <span className="font-bold">Sri Adithya Organics</span>
-                <span className="w-1 h-1 rounded-full bg-rootly-sagePale shrink-0" />
-                <span className="text-white truncate">Traditional Wood-Pressed & Organics</span>
+                <span className="w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
+                <span className="text-emerald-100 truncate">Traditional Wood-Pressed & Pure Organics</span>
               </div>
 
-              <h1 className="font-display font-black text-2xl xs:text-3xl sm:text-5xl lg:text-6xl text-stone-900 tracking-tight leading-[1.15]">
+              <h1 className="font-display font-black text-2xl xs:text-3xl sm:text-5xl lg:text-5xl xl:text-6xl text-stone-900 tracking-tight leading-[1.12]">
                 Pure from Nature, <br />
-                <span className="text-rootly-forest italic font-serif font-normal">Cold-Pressed with Heritage.</span>
+                <span className="text-[#244B37] italic font-serif font-normal">Cold-Pressed with Heritage.</span>
               </h1>
 
-              <p className="text-stone-600 text-xs sm:text-base max-w-xl mx-auto lg:mx-0 leading-relaxed">
+              <p className="text-stone-600 text-xs sm:text-base max-w-2xl mx-auto lg:mx-0 leading-relaxed">
                 Welcome to <strong>Sri Adithya Organics</strong>. Authentic wood-pressed edible oils (Marachekku), farm-fresh chemical-free produce, heirloom millets, unpolished pulses, and pure A2 cow ghee delivered fresh to your doorstep in minutes.
               </p>
 
-              {/* CTAs */}
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-4 pt-1">
+              {/* Quick CTAs */}
+              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-3.5 pt-1">
                 <Link
                   to="/products?category=cold-pressed-oils"
-                  className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-xs sm:text-sm shadow-lift hover:shadow-card transition-all flex items-center gap-2 group min-h-[44px]"
+                  className="px-5 sm:px-6 py-3 rounded-2xl bg-[#244B37] hover:bg-[#1a3627] text-white font-black text-xs sm:text-sm shadow-lift hover:shadow-card transition-all flex items-center gap-2 group min-h-[44px]"
                 >
                   <Droplet className="w-4 h-4 text-amber-300" />
                   <span>Shop Wood-Pressed Oils</span>
@@ -84,30 +84,30 @@ export const HomePage: React.FC = () => {
 
                 <Link
                   to="/products"
-                  className="px-5 sm:px-6 py-3 sm:py-3.5 rounded-2xl bg-white hover:bg-stone-50 text-stone-800 font-bold text-xs sm:text-sm border border-stone-200 shadow-sm transition-all min-h-[44px] flex items-center"
+                  className="px-5 sm:px-6 py-3 rounded-2xl bg-white hover:bg-stone-50 text-stone-800 font-bold text-xs sm:text-sm border border-stone-200 shadow-sm transition-all min-h-[44px] flex items-center"
                 >
                   Explore All Groceries
                 </Link>
               </div>
 
               {/* Trust Badges */}
-              <div className="pt-3 grid grid-cols-3 gap-2 sm:gap-3 max-w-md mx-auto lg:mx-0 text-left">
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
+              <div className="pt-2 grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto lg:mx-0 text-left">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
+                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
                     <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                     <span>15-30 Mins</span>
                   </p>
                   <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Express delivery</p>
                 </div>
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
+                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
+                    <Award className="w-3.5 h-3.5 text-[#244B37] shrink-0" />
                     <span>Marachekku</span>
                   </p>
                   <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Wood ghani pressed</p>
                 </div>
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/80 border border-stone-200/80 shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-rootly-forest flex items-center gap-1">
+                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
+                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
                     <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                     <span>100% Pure</span>
                   </p>
@@ -126,19 +126,19 @@ export const HomePage: React.FC = () => {
                 />
                 
                 {/* Overlay Floating Card */}
-                <div className="absolute bottom-4 left-4 right-4 p-3.5 rounded-2xl bg-white/95 backdrop-blur-md border border-stone-200 shadow-lift flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700">
+                <div className="absolute bottom-3 left-3 right-3 p-3 rounded-2xl bg-white/95 backdrop-blur-md border border-stone-200 shadow-lift flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700">
                       <Droplet className="w-5 h-5 text-amber-600 fill-amber-500" />
                     </div>
                     <div>
                       <p className="text-xs font-bold text-stone-900">Flagship Wood-Pressed Groundnut Oil</p>
-                      <p className="text-[11px] text-stone-500">100% Traditional Marachekku Extraction</p>
+                      <p className="text-[10px] text-stone-500">100% Traditional Marachekku Extraction</p>
                     </div>
                   </div>
                   <Link
                     to="/products/wood-pressed-groundnut-oil"
-                    className="p-2 rounded-xl bg-rootly-forest text-white hover:bg-rootly-dark transition-all"
+                    className="p-2 rounded-xl bg-[#244B37] text-white hover:bg-[#1a3627] transition-all"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </Link>
@@ -150,18 +150,18 @@ export const HomePage: React.FC = () => {
         </div>
       </section>
 
-      {/* 2. CATEGORY NAVIGATION CARDS */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-baseline justify-between mb-4 sm:mb-6">
+      {/* 2. CATEGORY NAVIGATION TILES - High-Density Layout */}
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="flex items-baseline justify-between mb-3.5 sm:mb-5">
           <div>
-            <h2 className="font-display font-extrabold text-xl sm:text-2xl text-stone-900 tracking-tight">
+            <h2 className="font-display font-black text-xl sm:text-2xl text-stone-900 tracking-tight">
               Explore by Category
             </h2>
-            <p className="text-xs text-stone-500 mt-0.5">Pure staples, wood-pressed oils, and farm-fresh greens for healthy kitchens.</p>
+            <p className="text-xs text-stone-500 mt-0.5">Wood-pressed oils, unpolished grains, pure staples, and farm-fresh produce.</p>
           </div>
           <Link
             to="/products"
-            className="text-xs font-bold text-rootly-forest hover:text-rootly-dark flex items-center gap-1 group"
+            className="text-xs font-bold text-[#244B37] hover:underline flex items-center gap-1 group"
           >
             <span>View All</span>
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
@@ -169,24 +169,24 @@ export const HomePage: React.FC = () => {
         </div>
 
         {isLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="p-3 rounded-2xl bg-white border border-stone-200/80 shadow-soft animate-pulse flex flex-col items-center">
-                <div className="w-full aspect-square rounded-xl bg-stone-200 mb-2.5" />
-                <div className="h-4 bg-stone-200 rounded w-3/4 mb-1" />
-                <div className="h-3 bg-stone-100 rounded w-1/2" />
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2.5 sm:gap-3.5">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="p-2.5 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft animate-pulse flex flex-col items-center">
+                <div className="w-full aspect-square rounded-xl bg-stone-200 mb-2" />
+                <div className="h-3 bg-stone-200 rounded w-3/4 mb-1" />
+                <div className="h-2.5 bg-stone-100 rounded w-1/2" />
               </div>
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2.5 sm:gap-3.5">
             {categories.map((cat) => (
               <Link
                 key={cat.id}
                 to={`/products?category=${cat.slug}`}
-                className="group p-2.5 sm:p-3 rounded-2xl bg-white border border-stone-200/90 shadow-soft hover:shadow-card hover:border-rootly-sage transition-all flex flex-col items-center text-center"
+                className="group p-2 sm:p-2.5 rounded-2xl bg-white border border-[#E6E7DD] hover:border-[#496B45]/60 shadow-soft hover:shadow-card transition-all flex flex-col items-center text-center"
               >
-                <div className="w-full aspect-square rounded-xl bg-rootly-cream overflow-hidden mb-2">
+                <div className="w-full aspect-square rounded-xl bg-[#FAF8F5] overflow-hidden mb-2">
                   <img
                     src={cat.image_url || 'https://images.unsplash.com/photo-1540420773420-3366772f4999?auto=format&fit=crop&q=80&w=400'}
                     alt={cat.name}
@@ -194,11 +194,11 @@ export const HomePage: React.FC = () => {
                     className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-300"
                   />
                 </div>
-                <h3 className="font-bold text-xs sm:text-sm text-stone-900 group-hover:text-rootly-forest transition-colors line-clamp-1">
+                <h3 className="font-bold text-[11px] sm:text-xs text-stone-900 group-hover:text-[#244B37] transition-colors line-clamp-1">
                   <span className="hidden sm:inline">{cat.name}</span>
                   <span className="sm:hidden">{getShortNavLabel(cat.name)}</span>
                 </h3>
-                <p className="text-[10px] text-stone-400 mt-0.5">
+                <p className="text-[9px] text-stone-400 mt-0.5">
                   {cat.product_count ? `${cat.product_count} items` : 'Explore →'}
                 </p>
               </Link>
@@ -207,20 +207,20 @@ export const HomePage: React.FC = () => {
         )}
       </section>
 
-      {/* 3. SRI ADITHYA WOOD-PRESSED OILS SPOTLIGHT */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="p-4 sm:p-8 rounded-3xl bg-gradient-to-r from-[#2B1E12] via-[#382618] to-[#1C2C1D] text-white shadow-xl relative overflow-hidden">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-white/10">
+      {/* 3. SRI ADITHYA WOOD-PRESSED OILS SPOTLIGHT - Full Screen Banner */}
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="p-4 sm:p-7 rounded-3xl bg-gradient-to-r from-[#241A10] via-[#332214] to-[#172718] text-white shadow-xl relative overflow-hidden">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-5 border-b border-white/10">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-bold uppercase tracking-wider mb-2">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1.5">
                 <Droplet className="w-3 h-3 fill-amber-300" />
                 Sri Adithya Specialty
               </div>
               <h2 className="font-display font-black text-xl sm:text-3xl text-white">
                 Traditional Wood-Pressed (Marachekku) Oils
               </h2>
-              <p className="text-xs sm:text-sm text-amber-100/80 mt-1 max-w-xl">
-                Extracted using ancestral Vaagai wood ghanis at temperatures strictly below 40°C. 100% unrefined, free of hexanes and chemical bleaches, with rich natural aroma and authentic flavor.
+              <p className="text-xs sm:text-sm text-amber-100/80 mt-1 max-w-2xl">
+                Extracted using ancestral Vaagai wood ghanis strictly below 40°C. 100% unrefined, zero hexanes, zero chemical bleaches, with rich natural aroma.
               </p>
             </div>
             <Link
@@ -231,9 +231,9 @@ export const HomePage: React.FC = () => {
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+              Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
             ) : (
               coldPressedOils.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -244,14 +244,14 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 4. BEST SELLERS COLLECTION */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-baseline justify-between mb-4 sm:mb-6">
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="flex items-baseline justify-between mb-3.5 sm:mb-5">
           <div>
             <div className="flex items-center gap-2">
-              <span className="p-1 rounded-lg bg-emerald-100 text-emerald-800">
+              <span className="p-1 rounded-lg bg-emerald-100 text-[#244B37]">
                 <Award className="w-4 h-4" />
               </span>
-              <h2 className="font-display font-extrabold text-xl sm:text-2xl text-stone-900 tracking-tight">
+              <h2 className="font-display font-black text-xl sm:text-2xl text-stone-900 tracking-tight">
                 Customer Favorites & Best Sellers
               </h2>
             </div>
@@ -259,16 +259,16 @@ export const HomePage: React.FC = () => {
           </div>
           <Link
             to="/products?collection=best_sellers"
-            className="text-xs font-bold text-rootly-forest hover:text-rootly-dark flex items-center gap-1 group"
+            className="text-xs font-bold text-[#244B37] hover:underline flex items-center gap-1 group"
           >
             <span>View All</span>
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
           {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
           ) : (
             bestSellers.map((product) => (
               <ProductCard key={product.id} product={product} />
@@ -278,32 +278,32 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 5. FRESH TODAY (HARVESTED TODAY) */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="p-4 sm:p-8 rounded-3xl bg-rootly-forest text-white shadow-xl">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-6 border-b border-white/10">
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="p-4 sm:p-7 rounded-3xl bg-[#244B37] text-white shadow-xl">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 mb-4 sm:mb-6 pb-4 sm:pb-5 border-b border-white/10">
             <div>
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rootly-sage text-white text-[11px] font-bold uppercase tracking-wider mb-2">
-                <Clock className="w-3 h-3" />
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-800 text-emerald-100 border border-emerald-600/50 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider mb-1.5">
+                <Clock className="w-3 h-3 text-emerald-300" />
                 Harvested This Morning
               </div>
               <h2 className="font-display font-black text-xl sm:text-3xl text-white">
                 Fresh Today from the Soil
               </h2>
-              <p className="text-xs sm:text-sm text-rootly-sagePale/90 mt-1 max-w-lg">
+              <p className="text-xs sm:text-sm text-emerald-100/90 mt-1 max-w-xl">
                 Delivered from farm to your kitchen within hours of harvesting. Zero cold storage or chemical carbide ripening.
               </p>
             </div>
             <Link
               to="/products?collection=fresh_today"
-              className="px-4 sm:px-5 py-2.5 rounded-xl bg-white text-rootly-forest hover:bg-rootly-cream font-bold text-xs shrink-0 self-start sm:self-center transition-all shadow-md min-h-[40px] flex items-center"
+              className="px-4 sm:px-5 py-2.5 rounded-xl bg-white text-[#244B37] hover:bg-stone-100 font-bold text-xs shrink-0 self-start sm:self-center transition-all shadow-md min-h-[40px] flex items-center"
             >
               Shop Morning Harvest →
             </Link>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
             {isLoading ? (
-              Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+              Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
             ) : (
               freshToday.map((product) => (
                 <ProductCard key={product.id} product={product} />
@@ -314,14 +314,14 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 6. DEALS OF THE DAY */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-baseline justify-between mb-4 sm:mb-6">
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="flex items-baseline justify-between mb-3.5 sm:mb-5">
           <div>
             <div className="flex items-center gap-2">
               <span className="p-1 rounded-lg bg-amber-100 text-amber-800">
                 <Flame className="w-4 h-4 text-amber-600" />
               </span>
-              <h2 className="font-display font-extrabold text-xl sm:text-2xl text-stone-900 tracking-tight">
+              <h2 className="font-display font-black text-xl sm:text-2xl text-stone-900 tracking-tight">
                 Deals of the Day
               </h2>
             </div>
@@ -329,16 +329,16 @@ export const HomePage: React.FC = () => {
           </div>
           <Link
             to="/products?collection=deals"
-            className="text-xs font-bold text-rootly-forest hover:text-rootly-dark flex items-center gap-1 group"
+            className="text-xs font-bold text-[#244B37] hover:underline flex items-center gap-1 group"
           >
             <span>View All</span>
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
           {isLoading ? (
-            Array.from({ length: 4 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
           ) : (
             deals.map((product) => (
               <ProductCard key={product.id} product={product} />
@@ -348,10 +348,10 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 7. TRUST & SOURCING TRANSPARENCY SECTION */}
-      <section className="bg-white border-y border-stone-200/90 py-10 sm:py-16">
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-12">
-            <span className="text-xs font-bold uppercase tracking-wider text-rootly-forest">
+      <section className="w-full bg-[#FAF8F5] border-y border-[#E6E7DD] py-10 sm:py-14">
+        <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+          <div className="text-center max-w-2xl mx-auto mb-8 sm:mb-10">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#244B37]">
               Sri Adithya Organics
             </span>
             <h2 className="font-display font-black text-2xl sm:text-4xl text-stone-900 mt-1 tracking-tight">
@@ -362,10 +362,10 @@ export const HomePage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-8">
-            <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] border border-stone-200/80 space-y-3">
-              <div className="w-12 h-12 rounded-xl bg-rootly-forest text-rootly-sagePale flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6 text-rootly-sagePale" />
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-[#244B37] text-white flex items-center justify-center">
+                <ShieldCheck className="w-5 h-5 text-emerald-200" />
               </div>
               <h3 className="font-bold text-base text-stone-900">Verified Origin Traceability</h3>
               <p className="text-xs text-stone-600 leading-relaxed">
@@ -373,9 +373,9 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] border border-stone-200/80 space-y-3">
-              <div className="w-12 h-12 rounded-xl bg-rootly-forest text-rootly-sagePale flex items-center justify-center">
-                <CheckCircle2 className="w-6 h-6 text-rootly-sagePale" />
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-[#244B37] text-white flex items-center justify-center">
+                <CheckCircle2 className="w-5 h-5 text-emerald-200" />
               </div>
               <h3 className="font-bold text-base text-stone-900">Zero Chemical Residue Lab Testing</h3>
               <p className="text-xs text-stone-600 leading-relaxed">
@@ -383,9 +383,9 @@ export const HomePage: React.FC = () => {
               </p>
             </div>
 
-            <div className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] border border-stone-200/80 space-y-3">
-              <div className="w-12 h-12 rounded-xl bg-rootly-forest text-rootly-sagePale flex items-center justify-center">
-                <RefreshCw className="w-6 h-6 text-rootly-sagePale" />
+            <div className="p-5 sm:p-6 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft space-y-3">
+              <div className="w-11 h-11 rounded-xl bg-[#244B37] text-white flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-emerald-200" />
               </div>
               <h3 className="font-bold text-base text-stone-900">Eco-Conscious Packaging</h3>
               <p className="text-xs text-stone-600 leading-relaxed">
@@ -397,26 +397,26 @@ export const HomePage: React.FC = () => {
       </section>
 
       {/* 8. FARM TO HOME ESSENTIALS */}
-      <section className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8">
-        <div className="flex items-baseline justify-between mb-4 sm:mb-6">
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
+        <div className="flex items-baseline justify-between mb-3.5 sm:mb-5">
           <div>
-            <h2 className="font-display font-extrabold text-xl sm:text-2xl text-stone-900 tracking-tight">
+            <h2 className="font-display font-black text-xl sm:text-2xl text-stone-900 tracking-tight">
               Pantry & Farm-to-Home Essentials
             </h2>
             <p className="text-xs text-stone-500 mt-1">Staples that nourish your family every single day.</p>
           </div>
           <Link
             to="/products"
-            className="text-xs font-bold text-rootly-forest hover:text-rootly-dark flex items-center gap-1 group"
+            className="text-xs font-bold text-[#244B37] hover:underline flex items-center gap-1 group"
           >
             <span>View All</span>
             <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
           </Link>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4 md:gap-5">
           {isLoading ? (
-            Array.from({ length: 8 }).map((_, i) => <ProductCardSkeleton key={i} />)
+            Array.from({ length: 6 }).map((_, i) => <ProductCardSkeleton key={i} />)
           ) : (
             essentials.map((product) => (
               <ProductCard key={product.id} product={product} />
@@ -428,4 +428,3 @@ export const HomePage: React.FC = () => {
     </div>
   );
 };
-

@@ -15,7 +15,7 @@ import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
 
 export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
-  const { addToCart, updateQuantity, getItemByProductAndVariant } = useCart();
+  const { addToCart, incrementItem, decrementItem, getItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, deliveryMinutes, openLocationModal } = useLocation();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
@@ -53,7 +53,7 @@ export const ProductDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-6 sm:py-8 animate-pulse">
+      <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 py-6 sm:py-8 animate-pulse">
         {/* Breadcrumb skeleton */}
         <div className="h-4 bg-stone-200 rounded w-48 mb-6" />
 
@@ -113,8 +113,7 @@ export const ProductDetailPage: React.FC = () => {
     );
   }
 
-  const cartItem = getItemByProductAndVariant(product.id, selectedVariant.id);
-  const quantityInCart = cartItem ? cartItem.quantity : 0;
+  const quantityInCart = getItemQuantity(product.id, selectedVariant.id);
   const isOutOfStock = selectedVariant.stock <= 0;
 
   const discountPercent =
@@ -132,7 +131,7 @@ export const ProductDetailPage: React.FC = () => {
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-8 sm:space-y-12">
+    <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 py-6 sm:py-8 space-y-8 sm:space-y-12">
       
       {/* Breadcrumb */}
       <nav className="flex items-center gap-2 text-xs text-stone-400">
@@ -257,10 +256,10 @@ export const ProductDetailPage: React.FC = () => {
           <div className="pt-2 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
             {quantityInCart > 0 ? (
               <div className="flex items-center gap-4">
-                <div className="flex items-center rounded-2xl bg-rootly-forest text-white shadow-lift overflow-hidden h-12 px-2">
+                <div className="flex items-center rounded-2xl bg-[#244B37] text-white shadow-lift overflow-hidden h-12 px-2">
                   <button
-                    onClick={() => updateQuantity(cartItem!.id, quantityInCart - 1)}
-                    className="p-2 hover:bg-rootly-dark active:scale-95 transition-all"
+                    onClick={() => decrementItem(product.id, selectedVariant.id)}
+                    className="p-2 hover:bg-[#1a3627] active:scale-95 transition-all"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
@@ -268,14 +267,14 @@ export const ProductDetailPage: React.FC = () => {
                     {quantityInCart}
                   </span>
                   <button
-                    onClick={() => updateQuantity(cartItem!.id, quantityInCart + 1)}
+                    onClick={() => incrementItem(product.id, selectedVariant.id, selectedVariant.stock, product, selectedVariant)}
                     disabled={quantityInCart >= selectedVariant.stock}
-                    className="p-2 hover:bg-rootly-dark active:scale-95 transition-all disabled:opacity-50"
+                    className="p-2 hover:bg-[#1a3627] active:scale-95 transition-all disabled:opacity-50"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
-                <span className="text-xs font-bold text-rootly-forest">
+                <span className="text-xs font-bold text-[#244B37]">
                   Added to your cart!
                 </span>
               </div>

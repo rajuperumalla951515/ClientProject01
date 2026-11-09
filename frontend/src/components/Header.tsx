@@ -114,7 +114,7 @@ export const Header: React.FC = () => {
       )}
 
       {/* Main Header Bar */}
-      <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-2 sm:py-3">
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-2 sm:py-3">
         <div className="flex items-center justify-between gap-2 sm:gap-4 md:gap-6">
           
           {/* Brand Logo - Responsive Size */}
@@ -423,7 +423,7 @@ export const Header: React.FC = () => {
 
       {/* Category Pills Navigation Strip with Shortened Mobile Labels */}
       <nav className="border-t border-stone-200/80 bg-white/70 overflow-x-auto no-scrollbar py-2 scroll-smooth">
-        <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 flex items-center gap-1.5 sm:gap-2 text-xs font-semibold whitespace-nowrap">
+        <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 flex items-center gap-1.5 sm:gap-2 text-xs font-semibold whitespace-nowrap">
           <Link
             to="/products"
             className="px-2.5 sm:px-3 py-1.5 rounded-full bg-rootly-forest text-white hover:bg-rootly-dark transition-colors shrink-0 flex items-center"

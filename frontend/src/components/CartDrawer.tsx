@@ -9,7 +9,7 @@ import { useLocation } from '../context/LocationContext';
 
 export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, isDrawerOpen, closeDrawer, updateQuantity, removeFromCart } = useCart();
+  const { cart, isDrawerOpen, closeDrawer, incrementItem, decrementItem, setItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, openLocationModal } = useLocation();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
@@ -146,7 +146,7 @@ export const CartDrawer: React.FC = () => {
                   <div className="flex items-center rounded-xl bg-stone-100 border border-stone-200 text-stone-800 overflow-hidden h-9 shrink-0 touch-manipulation">
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      onClick={() => decrementItem(item.product_id, item.variant_id)}
                       aria-label="Decrease quantity"
                       className="w-8 h-full flex items-center justify-center hover:bg-stone-200 active:scale-90 transition-all text-xs"
                     >
@@ -157,7 +157,7 @@ export const CartDrawer: React.FC = () => {
                     </span>
                     <button
                       type="button"
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => incrementItem(item.product_id, item.variant_id, item.variant?.stock || 999)}
                       aria-label="Increase quantity"
                       className="w-8 h-full flex items-center justify-center hover:bg-stone-200 active:scale-90 transition-all text-xs"
                     >
@@ -168,7 +168,7 @@ export const CartDrawer: React.FC = () => {
                   {/* Remove Button */}
                   <button
                     type="button"
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => setItemQuantity(item.product_id, item.variant_id, 0)}
                     aria-label="Remove item"
                     className="p-2 text-stone-400 hover:text-red-500 transition-colors touch-manipulation min-w-[36px] min-h-[36px] flex items-center justify-center"
                     title="Remove item"

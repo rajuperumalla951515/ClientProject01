@@ -6,7 +6,7 @@ import { ShieldCheck, Truck, RefreshCw, Leaf, Mail, Phone, MapPin, Heart } from 
 export const Footer: React.FC = () => {
   return (
     <footer className="bg-[#182C1E] text-stone-300 pt-16 pb-12 border-t border-stone-800">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10">
         {/* Value Props Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6 pb-12 border-b border-stone-800 text-stone-200">
           <div className="flex items-start gap-3.5">

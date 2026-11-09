@@ -9,7 +9,7 @@ import { useLocation } from '../context/LocationContext';
 
 export const CartPage: React.FC = () => {
   const navigate = useNavigate();
-  const { cart, updateQuantity, removeFromCart, clearCart } = useCart();
+  const { cart, incrementItem, decrementItem, setItemQuantity, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, openLocationModal, serviceHub, deliveryMinutes } = useLocation();
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
@@ -43,7 +43,7 @@ export const CartPage: React.FC = () => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6 sm:space-y-8">
+    <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 py-5 sm:py-8 space-y-6 sm:space-y-8">
       <div>
         <h1 className="font-display font-black text-2xl sm:text-3xl text-stone-900">
           <span className="hidden sm:inline">Shopping Cart</span>
@@ -120,7 +120,7 @@ export const CartPage: React.FC = () => {
                 <div className="flex items-center gap-4">
                   <div className="flex items-center rounded-xl bg-stone-100 border border-stone-200 overflow-hidden h-9">
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity - 1)}
+                      onClick={() => decrementItem(item.product_id, item.variant_id)}
                       className="px-2.5 h-full hover:bg-stone-200 active:scale-95 transition-all"
                     >
                       <Minus className="w-3.5 h-3.5" />
@@ -129,7 +129,7 @@ export const CartPage: React.FC = () => {
                       {item.quantity}
                     </span>
                     <button
-                      onClick={() => updateQuantity(item.id, item.quantity + 1)}
+                      onClick={() => incrementItem(item.product_id, item.variant_id, item.variant?.stock || 999)}
                       className="px-2.5 h-full hover:bg-stone-200 active:scale-95 transition-all"
                     >
                       <Plus className="w-3.5 h-3.5" />
@@ -137,7 +137,7 @@ export const CartPage: React.FC = () => {
                   </div>
 
                   <button
-                    onClick={() => removeFromCart(item.id)}
+                    onClick={() => setItemQuantity(item.product_id, item.variant_id, 0)}
                     className="p-2 text-stone-400 hover:text-red-500 transition-colors"
                   >
                     <Trash2 className="w-4 h-4" />

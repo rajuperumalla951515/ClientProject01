@@ -31,13 +31,34 @@ const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m
 const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
 const FAQPage = lazy(() => import('./pages/FAQPage').then(m => ({ default: m.FAQPage })));
 const PolicyPage = lazy(() => import('./pages/PolicyPage').then(m => ({ default: m.PolicyPage })));
-const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage').then(m => ({ default: m.AdminDashboardPage })));
+
+const AdminRedirect: React.FC = () => {
+  useEffect(() => {
+    window.location.replace('https://adminsriadithyaorganics.pages.dev');
+  }, []);
+  return (
+    <div className="min-h-[50vh] flex flex-col items-center justify-center p-6 text-center">
+      <div className="w-12 h-12 rounded-2xl bg-[#244B37] text-white flex items-center justify-center mb-3 shadow-md">
+        <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+        </svg>
+      </div>
+      <h2 className="text-lg font-bold text-stone-900">Redirecting to Sri Adithya Organics Admin Portal...</h2>
+      <p className="text-xs text-stone-500 mt-1 max-w-sm">
+        Administrative controls are hosted on a secure, isolated domain. If not redirected automatically,{' '}
+        <a href="https://adminsriadithyaorganics.pages.dev" className="text-[#244B37] font-bold underline">
+          click here to open admin
+        </a>.
+      </p>
+    </div>
+  );
+};
 
 const RouteLoadingSkeleton = () => (
-  <div className="max-w-7xl mx-auto px-4 py-8 animate-pulse space-y-6">
+  <div className="w-full max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 xl:px-10 py-8 animate-pulse space-y-6">
     <div className="h-8 bg-stone-200/80 rounded-lg w-1/3"></div>
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-      {[...Array(4)].map((_, i) => (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 sm:gap-4">
+      {[...Array(6)].map((_, i) => (
         <div key={i} className="h-64 bg-stone-200/60 rounded-2xl"></div>
       ))}
     </div>
@@ -76,7 +97,7 @@ function AppLayout() {
             <Route path="/returns-policy" element={<PolicyPage />} />
             <Route path="/privacy-policy" element={<PolicyPage />} />
             <Route path="/terms" element={<PolicyPage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
+            <Route path="/admin" element={<AdminRedirect />} />
           </Routes>
         </Suspense>
       </main>

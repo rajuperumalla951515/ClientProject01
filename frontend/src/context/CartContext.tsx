@@ -41,6 +41,7 @@ interface CartContextType {
   isDrawerOpen: boolean;
   openDrawer: () => void;
   closeDrawer: () => void;
+  // Core actions
   addToCart: (
     productId: number,
     variantId: number,
@@ -48,6 +49,23 @@ interface CartContextType {
     product?: Product,
     variant?: ProductVariant
   ) => Promise<void>;
+  incrementItem: (
+    productId: number,
+    variantId: number,
+    maxStock?: number,
+    product?: Product,
+    variant?: ProductVariant
+  ) => void;
+  decrementItem: (productId: number, variantId: number) => void;
+  setItemQuantity: (
+    productId: number,
+    variantId: number,
+    quantity: number,
+    maxStock?: number,
+    product?: Product,
+    variant?: ProductVariant
+  ) => void;
+  // Compatibility helpers
   updateQuantity: (itemId: number, quantity: number) => void;
   removeFromCart: (itemId: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -70,11 +88,16 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return defaultCart;
   });
 
+  // Always keep ref aligned to state for synchronous reading during rapid event firing
+  const cartRef = useRef<CartData>(cart);
+  cartRef.current = cart;
+
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(false);
 
-  // Debounce timers map to batch rapid clicks (+ + +) on the same item into 1 request
-  const debounceTimers = useRef<Map<number, any>>(new Map());
+  // Per-item debounce timers and sequence version tracking
+  const debounceTimers = useRef<Map<string, any>>(new Map());
+  const requestSeqRef = useRef<Map<string, number>>(new Map());
 
   // Dynamically recompute totals when delivery settings change
   useEffect(() => {
@@ -86,10 +109,10 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const data = await api.getCart();
       if (data && Array.isArray(data.items)) {
         setCart(data);
+        cartRef.current = data;
         try {
           localStorage.setItem('sri_adithya_local_cart', JSON.stringify(data));
         } catch {}
-        return;
       }
     } catch (err) {
       console.warn('Backend cart refresh notice:', err);
@@ -103,7 +126,122 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const openDrawer = () => setIsDrawerOpen(true);
   const closeDrawer = () => setIsDrawerOpen(false);
 
-  // Optimistic Add To Cart (< 10ms UI update)
+  /**
+   * Atomic Quantity Setter (Rock-Solid Optimistic UI with Debounced Server Sync)
+   * Prevents quantity jumping, eliminates temporary ID mismatches, and handles zero deletion.
+   */
+  const setItemQuantity = (
+    productId: number,
+    variantId: number,
+    quantity: number,
+    maxStock = 999,
+    product?: Product,
+    variant?: ProductVariant
+  ) => {
+    const key = `${productId}_${variantId}`;
+    const targetQty = Math.max(0, Math.min(quantity, maxStock));
+
+    // 1. Immediately update local state synchronously
+    setCart((prev) => {
+      const existingIdx = prev.items.findIndex(
+        (i) => i.product_id === productId && i.variant_id === variantId
+      );
+      let newItems = [...prev.items];
+
+      if (targetQty <= 0) {
+        newItems = newItems.filter(
+          (i) => !(i.product_id === productId && i.variant_id === variantId)
+        );
+      } else if (existingIdx >= 0) {
+        newItems[existingIdx] = {
+          ...newItems[existingIdx],
+          quantity: targetQty,
+        };
+      } else if (product && variant) {
+        newItems.push({
+          id: Date.now(),
+          product_id: productId,
+          variant_id: variantId,
+          quantity: targetQty,
+          product,
+          variant,
+        });
+      }
+
+      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
+      cartRef.current = updated;
+      try {
+        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
+      } catch {}
+      return updated;
+    });
+
+    // 2. Increment sequence version to ignore any stale out-of-order network responses
+    const nextSeq = (requestSeqRef.current.get(key) || 0) + 1;
+    requestSeqRef.current.set(key, nextSeq);
+
+    // 3. Clear existing debounce timer for this item
+    if (debounceTimers.current.has(key)) {
+      clearTimeout(debounceTimers.current.get(key));
+    }
+
+    // 4. Batch rapid clicks (+ + +) into 1 network sync
+    const timer = setTimeout(async () => {
+      debounceTimers.current.delete(key);
+      try {
+        const serverCart = await api.setCartQuantity(productId, variantId, targetQty);
+        // Only accept server state if no newer client action occurred for this item
+        if (requestSeqRef.current.get(key) === nextSeq) {
+          setCart(serverCart);
+          cartRef.current = serverCart;
+          try {
+            localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
+          } catch {}
+        }
+      } catch (err: any) {
+        console.warn('Cart quantity sync warning:', err);
+        if (requestSeqRef.current.get(key) === nextSeq) {
+          await refreshCart();
+        }
+      }
+    }, 280);
+
+    debounceTimers.current.set(key, timer);
+  };
+
+  /**
+   * Fast Increment Item (One-Click / Rapid-Click Safe)
+   */
+  const incrementItem = (
+    productId: number,
+    variantId: number,
+    maxStock = 999,
+    product?: Product,
+    variant?: ProductVariant
+  ) => {
+    const existing = cartRef.current.items.find(
+      (i) => i.product_id === productId && i.variant_id === variantId
+    );
+    const currentQty = existing ? existing.quantity : 0;
+    if (currentQty >= maxStock) return;
+    setItemQuantity(productId, variantId, currentQty + 1, maxStock, product, variant);
+  };
+
+  /**
+   * Fast Decrement Item (Safe Step-down & Removal at 0)
+   */
+  const decrementItem = (productId: number, variantId: number) => {
+    const existing = cartRef.current.items.find(
+      (i) => i.product_id === productId && i.variant_id === variantId
+    );
+    const currentQty = existing ? existing.quantity : 0;
+    if (currentQty <= 0) return;
+    setItemQuantity(productId, variantId, currentQty - 1);
+  };
+
+  /**
+   * Standard Add to Cart (Opens drawer, updates UI immediately)
+   */
   const addToCart = async (
     productId: number,
     variantId: number,
@@ -111,116 +249,59 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     product?: Product,
     variant?: ProductVariant
   ) => {
-    // 1. Synchronously update local cart
-    setCart((prev) => {
-      const existingIdx = prev.items.findIndex(
-        (i) => i.product_id === productId && i.variant_id === variantId
-      );
-      let newItems = [...prev.items];
-      if (existingIdx >= 0) {
-        newItems[existingIdx] = {
-          ...newItems[existingIdx],
-          quantity: newItems[existingIdx].quantity + quantity,
-        };
-      } else if (product && variant) {
-        newItems.push({
-          id: Date.now(), // temporary optimistic ID
-          product_id: productId,
-          variant_id: variantId,
-          quantity,
-          product,
-          variant,
-        });
-      }
-      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
-      try {
-        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    // 2. Open drawer immediately
+    const existing = cartRef.current.items.find(
+      (i) => i.product_id === productId && i.variant_id === variantId
+    );
+    const currentQty = existing ? existing.quantity : 0;
+    const stock = variant?.stock || 999;
+    setItemQuantity(productId, variantId, currentQty + quantity, stock, product, variant);
     openDrawer();
-
-    // 3. Sync to backend asynchronously
-    try {
-      const serverCart = await api.addToCart(productId, variantId, quantity);
-      setCart(serverCart);
-      try {
-        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
-      } catch {}
-    } catch (err: any) {
-      console.error('Failed to sync item to cart on server:', err);
-      // Reconcile with latest server state on error
-      await refreshCart();
-      throw err;
-    }
   };
 
-  // Optimistic Quantity Stepper with Request Debouncing (< 10ms UI update)
+  /**
+   * Backward-Compatible updateQuantity by itemId (Maps to setItemQuantity)
+   */
   const updateQuantity = (itemId: number, quantity: number) => {
-    // 1. Immediately update UI state
-    setCart((prev) => {
-      let newItems: CartItem[];
-      if (quantity <= 0) {
-        newItems = prev.items.filter((i) => i.id !== itemId);
-      } else {
-        newItems = prev.items.map((i) => (i.id === itemId ? { ...i, quantity } : i));
-      }
-      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
-      try {
-        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
-    // 2. Debounce backend network sync (300ms window)
-    if (debounceTimers.current.has(itemId)) {
-      clearTimeout(debounceTimers.current.get(itemId));
+    const item = cartRef.current.items.find((i) => i.id === itemId);
+    if (item) {
+      setItemQuantity(item.product_id, item.variant_id, quantity, item.variant?.stock || 999);
+      return;
     }
-
-    const timer = setTimeout(async () => {
-      debounceTimers.current.delete(itemId);
-      try {
-        const serverCart = await api.updateCartItem(itemId, quantity);
-        setCart(serverCart);
-        try {
-          localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
-        } catch {}
-      } catch (err: any) {
-        console.error('Failed to sync quantity with backend:', err);
-        await refreshCart();
-      }
-    }, 300);
-
-    debounceTimers.current.set(itemId, timer);
+    // Fallback: sync directly with backend if item ID only
+    api.updateCartItem(itemId, quantity).then((serverCart) => {
+      setCart(serverCart);
+      cartRef.current = serverCart;
+    }).catch(refreshCart);
   };
 
-  // Optimistic Remove From Cart (< 10ms UI update)
+  /**
+   * Backward-Compatible removeFromCart
+   */
   const removeFromCart = async (itemId: number) => {
-    setCart((prev) => {
-      const newItems = prev.items.filter((i) => i.id !== itemId);
-      const updated = calculateCartTotals(newItems, freeDeliveryThreshold, standardDeliveryFee);
-      try {
-        localStorage.setItem('sri_adithya_local_cart', JSON.stringify(updated));
-      } catch {}
-      return updated;
-    });
-
+    const item = cartRef.current.items.find((i) => i.id === itemId);
+    if (item) {
+      setItemQuantity(item.product_id, item.variant_id, 0);
+      return;
+    }
     try {
       const serverCart = await api.removeCartItem(itemId);
       setCart(serverCart);
+      cartRef.current = serverCart;
       try {
         localStorage.setItem('sri_adithya_local_cart', JSON.stringify(serverCart));
       } catch {}
-    } catch (err: any) {
-      console.error('Failed to remove item from server cart:', err);
+    } catch (err) {
+      console.warn('Remove cart item error:', err);
       await refreshCart();
     }
   };
 
+  /**
+   * Clear Cart
+   */
   const clearCart = async () => {
     setCart(defaultCart);
+    cartRef.current = defaultCart;
     try {
       localStorage.removeItem('sri_adithya_local_cart');
     } catch {}
@@ -263,6 +344,9 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         openDrawer,
         closeDrawer,
         addToCart,
+        incrementItem,
+        decrementItem,
+        setItemQuantity,
         updateQuantity,
         removeFromCart,
         clearCart,
@@ -283,4 +367,3 @@ export const useCart = () => {
   }
   return context;
 };
-

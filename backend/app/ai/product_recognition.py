@@ -339,3 +339,4 @@ Respond ONLY with valid JSON in this exact schema:
         return base_result
 
 product_recognition = ProductRecognitionEngine()
+

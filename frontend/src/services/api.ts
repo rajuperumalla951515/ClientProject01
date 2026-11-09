@@ -285,6 +285,13 @@ export const api = {
     });
   },
 
+  async setCartQuantity(productId: number, variantId: number, quantity: number): Promise<CartData> {
+    return request('/cart/set-quantity', {
+      method: 'PUT',
+      body: JSON.stringify({ product_id: productId, variant_id: variantId, quantity }),
+    });
+  },
+
   async updateCartItem(itemId: number, quantity: number): Promise<CartData> {
     return request(`/cart/items/${itemId}`, {
       method: 'PUT',

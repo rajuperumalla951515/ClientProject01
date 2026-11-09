@@ -5,7 +5,7 @@ from typing import Optional, List, Tuple, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, Header, status
 from backend.app.config import settings
 from backend.app.d1 import D1Database, get_d1
-from backend.app.schemas import CartOut, CartItemAdd, CartItemUpdate, CartItemOut, ProductOut, VariantOut, ProductImageOut
+from backend.app.schemas import CartOut, CartItemAdd, CartItemUpdate, CartItemSetQuantity, CartItemOut, ProductOut, VariantOut, ProductImageOut
 from backend.app.deps import get_optional_user
 from backend.app.pricing import compute_financials
 
@@ -304,7 +304,59 @@ async def remove_cart_item(
     return await compute_cart_details(cart, d1)
 
 
+@router.put("/set-quantity", response_model=CartOut)
+async def set_cart_quantity_by_product_variant(
+    payload: CartItemSetQuantity,
+    x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
+    d1: D1Database = Depends(get_d1),
+    user: Optional[Dict[str, Any]] = Depends(get_optional_user)
+):
+    """
+    Atomic quantity setter by (product_id, variant_id).
+    Prevents race conditions, avoids client-side temporary item IDs,
+    and handles deletion automatically when quantity <= 0.
+    """
+    cart = await get_or_create_cart(d1, user, x_session_id)
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+
+    if payload.quantity <= 0:
+        await d1.execute(
+            "DELETE FROM cart_items WHERE cart_id = ? AND product_id = ? AND variant_id = ?",
+            cart["id"], payload.product_id, payload.variant_id
+        )
+    else:
+        variant = await d1.fetch_one(
+            "SELECT * FROM product_variants WHERE id = ? AND product_id = ?",
+            payload.variant_id, payload.product_id
+        )
+        if not variant:
+            raise HTTPException(status_code=404, detail="Product variant not found.")
+        if variant["stock"] < payload.quantity:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Only {variant['stock']} units available in stock."
+            )
+
+        cart_item = await d1.fetch_one(
+            "SELECT * FROM cart_items WHERE cart_id = ? AND product_id = ? AND variant_id = ?",
+            cart["id"], payload.product_id, payload.variant_id
+        )
+        if cart_item:
+            await d1.execute(
+                "UPDATE cart_items SET quantity = ? WHERE id = ?",
+                payload.quantity, cart_item["id"]
+            )
+        else:
+            await d1.execute_insert(
+                "INSERT INTO cart_items (cart_id, product_id, variant_id, quantity, created_at) VALUES (?, ?, ?, ?, ?)",
+                cart["id"], payload.product_id, payload.variant_id, payload.quantity, now
+            )
+
+    return await compute_cart_details(cart, d1)
+
+
 @router.delete("", status_code=status.HTTP_204_NO_CONTENT)
+@router.post("/clear", response_model=CartOut)
 async def clear_cart(
     x_session_id: Optional[str] = Header(None, alias="X-Session-ID"),
     d1: D1Database = Depends(get_d1),
@@ -312,4 +364,4 @@ async def clear_cart(
 ):
     cart = await get_or_create_cart(d1, user, x_session_id)
     await d1.execute("DELETE FROM cart_items WHERE cart_id = ?", cart["id"])
-    return None
+    return await compute_cart_details(cart, d1)
