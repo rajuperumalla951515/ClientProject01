@@ -8,7 +8,10 @@ from backend.app.routers.addresses import (
     get_road_distance_km,
     calculate_distance_based_delivery_fee,
     parse_distance_slabs,
+    reverse_geocode,
+    check_serviceability,
 )
+from backend.app.schemas import ReverseGeocodeRequest, ServiceabilityCheckRequest
 from backend.app.routers.orders import format_whatsapp_order_message
 
 def test_pan_india_pin_mapping():
@@ -147,3 +150,54 @@ def test_whatsapp_message_pan_india_address():
     assert "80.648" in msg
     # Must NOT force Telangana onto an Andhra Pradesh address
     assert "Vijayawada, Telangana" not in msg
+
+def test_ghatkesar_no_abids_snap():
+    """Verify Ghatkesar coordinates do NOT snap to Abids or 500001, and are marked Out of Delivery Range."""
+    req = ReverseGeocodeRequest(latitude=17.4477, longitude=78.6833)
+    res = reverse_geocode(req)
+    
+    # Must NOT be Hyderabad Abids / Koti or 500001
+    assert "Abids" not in res.locality
+    assert "Koti" not in res.locality
+    assert res.postal_code != "500001"
+    
+    # Must reflect true distance from Kothagudem Mill (~240-270 km)
+    assert res.distance_km is not None
+    assert res.distance_km > 200.0
+    
+    # Must NOT contradict with Express 0 Mins
+    assert res.is_serviceable is False
+    assert res.estimated_delivery_minutes == 0
+    assert res.delivery_fee == 0.0
+    assert res.service_hub == "Out of Delivery Range"
+    assert res.matched_slab is None
+
+def test_babu_camp_mill_serviceable():
+    """Verify Babu Camp coordinates near Kothagudem Mill are serviceable with express ETA and 0-2 km slab."""
+    req = ReverseGeocodeRequest(latitude=17.5376, longitude=80.6210)
+    res = reverse_geocode(req)
+    
+    assert res.is_serviceable is True
+    assert res.distance_km is not None
+    assert res.distance_km < 3.0
+    assert res.estimated_delivery_minutes == 15
+    assert res.delivery_fee == 20.0
+    assert res.matched_slab == "0–2 km"
+    assert res.postal_code == "507101"
+    assert "Kothagudem" in res.city
+
+@pytest.mark.anyio
+async def test_serviceability_check_unserviceable_distance():
+    """Verify serviceability check marks out-of-range coordinates unserviceable with 0 ETA and 0 fee."""
+    req = ServiceabilityCheckRequest(
+        postal_code="501301",
+        latitude=17.4477,
+        longitude=78.6833
+    )
+    res = await check_serviceability(req)
+    assert res.is_serviceable is False
+    assert res.estimated_delivery_minutes == 0
+    assert res.delivery_fee == 0.0
+    assert res.matched_slab is None
+    assert res.service_hub == "Out of Delivery Range"
+

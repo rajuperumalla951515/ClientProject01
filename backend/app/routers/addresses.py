@@ -161,15 +161,17 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     resolved_country = "India"
     resolved_formatted = None
     landmark = None
+    is_incomplete = False
 
     # Check proximity to actual store: Sri Aditya Organics & Oil Mill (17.5376, 80.6210)
     store_dist = calculate_distance(lat, lon, 17.5376, 80.6210)
-    if store_dist <= 2.5:
+    if store_dist <= 1.5:
         resolved_locality = "Babu Camp / Ganeshbasthi"
         resolved_city = "Kothagudem"
         resolved_district = "Bhadradri Kothagudem"
         resolved_state = "Telangana"
         resolved_pin = "507101"
+        road = "Babu Camp Road"
 
     # 1. Google Maps Geocoding API if configured
     google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
@@ -209,7 +211,46 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         except Exception:
             pass
 
-    # 2. OpenStreetMap Nominatim reverse geocode (Pan-India)
+    # 2. Photon (Komoot OSM) Reverse Geocoder — fast, reliable Pan-India OSM data
+    if not resolved_city or not resolved_pin:
+        try:
+            p_url = f"https://photon.komoot.io/reverse?lat={lat}&lon={lon}"
+            req = urllib.request.Request(p_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
+            with urllib.request.urlopen(req, timeout=3.5) as resp:
+                if resp.status == 200:
+                    p_data = json.loads(resp.read().decode("utf-8"))
+                    if p_data.get("features"):
+                        props = p_data["features"][0].get("properties", {})
+                        road = road or props.get("street")
+                        if props.get("type") in ("house", "building"):
+                            building = building or props.get("name")
+                        resolved_locality = resolved_locality or props.get("district") or props.get("locality") or props.get("suburb") or props.get("name")
+                        resolved_city = resolved_city or props.get("city") or props.get("town") or props.get("village") or props.get("county")
+                        resolved_district = resolved_district or props.get("county") or props.get("district")
+                        resolved_state = resolved_state or props.get("state")
+                        resolved_pin = resolved_pin or props.get("postcode")
+                        resolved_country = props.get("country") or resolved_country
+        except Exception:
+            pass
+
+    # 3. BigDataCloud Reverse Geocoder
+    if not resolved_city or not resolved_pin:
+        try:
+            bdc_url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
+            req = urllib.request.Request(bdc_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                if resp.status == 200:
+                    bdc_data = json.loads(resp.read().decode("utf-8"))
+                    resolved_locality = resolved_locality or bdc_data.get("locality")
+                    resolved_city = resolved_city or bdc_data.get("city") or bdc_data.get("locality")
+                    resolved_district = resolved_district or bdc_data.get("principalSubdivisionCode")
+                    resolved_state = resolved_state or bdc_data.get("principalSubdivision")
+                    resolved_pin = resolved_pin or bdc_data.get("postcode")
+                    resolved_country = bdc_data.get("countryName") or resolved_country
+        except Exception:
+            pass
+
+    # 4. OpenStreetMap Nominatim reverse geocode (Pan-India)
     if not resolved_city or not resolved_pin:
         try:
             url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&addressdetails=1"
@@ -232,70 +273,74 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         except Exception:
             pass
 
-    # 3. If Nominatim could not resolve, check known locality clusters
+    # 5. Fallback without assuming Hyderabad or Abids
+    in_telangana = (15.8 <= lat <= 19.9) and (77.2 <= lon <= 81.8)
     if not resolved_city:
-        closest_cluster = None
-        min_dist = float("inf")
-        for cluster in KNOWN_LOCALITY_CLUSTERS:
-            dist = calculate_distance(lat, lon, cluster["lat"], cluster["lon"])
-            if dist < min_dist:
-                min_dist = dist
-                closest_cluster = cluster
-
-        if closest_cluster and min_dist <= 25.0:
-            resolved_locality = resolved_locality or closest_cluster["name"]
-            resolved_city = closest_cluster["city"]
-            resolved_district = closest_cluster.get("district")
-            resolved_state = closest_cluster["state"]
-            resolved_pin = resolved_pin or closest_cluster["pin"]
-
-    # 4. Fallback from coordinates / postal region without assuming Bangalore/Hyderabad
-    if not resolved_city:
-        resolved_city = resolved_district or "Delivery Location"
+        resolved_city = resolved_district or ("Telangana" if in_telangana else "India")
+        is_incomplete = True
     if not resolved_locality:
-        resolved_locality = resolved_city
+        resolved_locality = road or resolved_city
     if not resolved_state:
-        resolved_state = "India"
+        resolved_state = "Telangana" if in_telangana else "India"
     if not resolved_pin:
-        resolved_pin = "507101" if store_dist <= 15.0 else ""
+        resolved_pin = "507101" if store_dist <= 2.5 else ""
+        if not resolved_pin:
+            is_incomplete = True
 
-    street_parts = [p for p in [building, road, neighbourhood] if p]
-    street_line = ", ".join(street_parts) if street_parts else resolved_locality
+    street_parts = [p for p in [building, road, resolved_locality] if p and p != resolved_city]
+    street_line = ", ".join(dict.fromkeys(street_parts)) if street_parts else resolved_locality
 
     if not resolved_formatted:
         pin_suffix = f" - {resolved_pin}" if resolved_pin else ""
-        resolved_formatted = f"{street_line}, {resolved_locality}, {resolved_city}, {resolved_state}{pin_suffix}"
+        dist_suffix = f", {resolved_district}" if resolved_district and resolved_district != resolved_city else ""
+        resolved_formatted = f"{street_line}, {resolved_city}{dist_suffix}, {resolved_state}{pin_suffix}"
 
     # Calculate actual road distance from Kothagudem store (17.5376, 80.6210)
+    store_lat = 17.5376
+    store_lon = 80.6210
     road_dist = store_dist * 1.22
+    distance_source = "haversine_road_estimate"
     try:
-        dist_km_calc, _ = get_road_distance_km(17.5376, 80.6210, lat, lon)
+        dist_km_calc, d_source = get_road_distance_km(store_lat, store_lon, lat, lon)
         if dist_km_calc is not None:
             road_dist = dist_km_calc
+            distance_source = d_source
     except Exception:
         pass
 
-    # Serviceability evaluation (Max delivery radius default: 60 km)
-    is_serviceable = road_dist <= 60.0 or (resolved_pin and resolved_pin.startswith("507"))
-    if road_dist <= 2.0:
-        est_minutes = 15
-    elif road_dist <= 5.0:
-        est_minutes = 20
-    elif road_dist <= 15.0:
-        est_minutes = 30
-    elif road_dist <= 35.0:
-        est_minutes = 45
-    elif road_dist <= 60.0:
-        est_minutes = 75
-    else:
-        est_minutes = 0
+    # Dynamic distance fee calculation based on actual distance
+    slabs = DEFAULT_DISTANCE_SLABS
+    max_delivery_radius_km = 60.0
+    calculated_fee, is_serviceable, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
+        distance_km=road_dist,
+        slabs=slabs,
+        subtotal=0.0,
+        free_delivery_threshold=499.0,
+        max_delivery_radius_km=max_delivery_radius_km,
+        default_fallback_fee=39.0
+    )
 
-    if is_serviceable:
-        serv_msg = f"Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
-        serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)" if road_dist <= 35.0 else "Sri Aditya Organics Regional Hub"
-    else:
-        serv_msg = f"Delivery currently unavailable to {resolved_city}, {resolved_state} (~{road_dist:.0f} km from Kothagudem facility)."
+    if not is_serviceable:
+        est_minutes = 0
         serv_hub = "Out of Delivery Range"
+        serv_msg = f"Delivery currently unavailable to this location ({road_dist:.0f} km from Kothagudem Mill; max direct delivery radius is {int(max_delivery_radius_km)} km)."
+        calculated_fee = 0.0
+        matched_slab = None
+    else:
+        if road_dist <= 2.0:
+            est_minutes = 15
+        elif road_dist <= 5.0:
+            est_minutes = 20
+        elif road_dist <= 15.0:
+            est_minutes = 30
+        elif road_dist <= 35.0:
+            est_minutes = 45
+        elif road_dist <= 60.0:
+            est_minutes = 75
+        else:
+            est_minutes = 90
+        serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)" if road_dist <= 35.0 else "Sri Aditya Organics Regional Hub"
+        serv_msg = f"Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
 
     out = ReverseGeocodeOut(
         latitude=lat,
@@ -320,49 +365,102 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         service_hub=serv_hub,
         message=serv_msg,
         distance_km=round(road_dist, 1),
+        delivery_fee=calculated_fee,
+        matched_slab=matched_slab,
+        is_incomplete=is_incomplete,
         source="gps_detected"
     )
 
-    REVERSE_GEOCODE_CACHE[cache_key] = out
+    if not is_incomplete:
+        REVERSE_GEOCODE_CACHE[cache_key] = out
     return out
 
 
 @router.get("/search", response_model=List[AddressSearchResultItem])
 def search_address(query: str = Query(..., min_length=2)):
     results = []
+    seen_places = set()
     q_clean = query.strip()
+    encoded = urllib.parse.quote(q_clean)
+
+    # 1. Photon search (Komoot OSM) — fast and reliable
     try:
-        encoded = urllib.parse.quote(q_clean)
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=8"
-        req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
+        p_url = f"https://photon.komoot.io/api/?q={encoded}&limit=8"
+        req = urllib.request.Request(p_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
         with urllib.request.urlopen(req, timeout=3.5) as resp:
             if resp.status == 200:
-                data = json.loads(resp.read().decode("utf-8"))
-                for it in data:
-                    addr = it.get("address", {})
-                    pin = addr.get("postcode", "")
-                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or addr.get("state_district") or addr.get("county") or ""
-                    st = addr.get("state", "")
-                    dist = addr.get("state_district") or addr.get("county") or ""
-                    loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or addr.get("road") or it.get("name") or ""
-                    results.append(AddressSearchResultItem(
-                        place_id=str(it.get("place_id")),
-                        formatted_address=it.get("display_name"),
-                        locality=loc,
-                        city=city,
-                        district=dist,
-                        state=st,
-                        postal_code=pin,
-                        latitude=float(it["lat"]),
-                        longitude=float(it["lon"])
-                    ))
+                p_data = json.loads(resp.read().decode("utf-8"))
+                for feat in p_data.get("features", []):
+                    props = feat.get("properties", {})
+                    coords = feat.get("geometry", {}).get("coordinates", [])
+                    if len(coords) >= 2:
+                        lon_val, lat_val = float(coords[0]), float(coords[1])
+                        key = (round(lat_val, 3), round(lon_val, 3))
+                        if key not in seen_places:
+                            seen_places.add(key)
+                            name_val = props.get("name") or props.get("street") or q_clean
+                            city_val = props.get("city") or props.get("county") or ""
+                            dist_val = props.get("county") or props.get("district") or ""
+                            state_val = props.get("state") or ""
+                            pin_val = props.get("postcode") or ""
+                            parts = [name_val, city_val, state_val]
+                            disp = ", ".join([p for p in parts if p])
+                            if pin_val:
+                                disp += f" - {pin_val}"
+                            results.append(AddressSearchResultItem(
+                                place_id=str(props.get("osm_id", f"{lat_val}_{lon_val}")),
+                                formatted_address=disp,
+                                locality=props.get("district") or props.get("locality") or name_val,
+                                city=city_val or dist_val or "India",
+                                district=dist_val or None,
+                                state=state_val or "India",
+                                postal_code=pin_val,
+                                latitude=lat_val,
+                                longitude=lon_val
+                            ))
     except Exception:
         pass
 
-    if not results:
-        q_lower = q_clean.lower()
-        for c in KNOWN_LOCALITY_CLUSTERS:
-            if q_lower in c["name"].lower() or q_lower in c["city"].lower() or q_lower == c["pin"]:
+    # 2. Nominatim search (Pan-India) if needed
+    if len(results) < 4:
+        try:
+            url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=8"
+            req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                if resp.status == 200:
+                    data = json.loads(resp.read().decode("utf-8"))
+                    for it in data:
+                        lat_val, lon_val = float(it["lat"]), float(it["lon"])
+                        key = (round(lat_val, 3), round(lon_val, 3))
+                        if key not in seen_places:
+                            seen_places.add(key)
+                            addr = it.get("address", {})
+                            pin = addr.get("postcode", "")
+                            city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or addr.get("state_district") or addr.get("county") or ""
+                            st = addr.get("state", "")
+                            dist = addr.get("state_district") or addr.get("county") or ""
+                            loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or addr.get("road") or it.get("name") or ""
+                            results.append(AddressSearchResultItem(
+                                place_id=str(it.get("place_id")),
+                                formatted_address=it.get("display_name"),
+                                locality=loc,
+                                city=city,
+                                district=dist,
+                                state=st,
+                                postal_code=pin,
+                                latitude=lat_val,
+                                longitude=lon_val
+                            ))
+        except Exception:
+            pass
+
+    # 3. Known locality clusters
+    q_lower = q_clean.lower()
+    for c in KNOWN_LOCALITY_CLUSTERS:
+        if q_lower in c["name"].lower() or q_lower in c["city"].lower() or q_lower == c["pin"]:
+            key = (round(c["lat"], 3), round(c["lon"], 3))
+            if key not in seen_places:
+                seen_places.add(key)
                 results.append(AddressSearchResultItem(
                     place_id=f"cluster_{c['pin']}",
                     formatted_address=f"{c['name']}, {c['city']}, {c['state']} - {c['pin']}",
@@ -421,6 +519,7 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
 
     pin = (req.postal_code or "").strip()
     is_valid_pin = len(pin) == 6 and pin.isdigit()
+    matching_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
 
     if not is_valid_pin:
         return ServiceabilityCheckOut(
@@ -503,7 +602,7 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
         fee_msg = f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})"
 
     # Calculate estimated delivery minutes based on road distance
-    if distance_km is not None:
+    if distance_km is not None and is_serv:
         if distance_km <= 2.0:
             minutes = 15
         elif distance_km <= 5.0:
@@ -516,12 +615,12 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             minutes = 75
         else:
             minutes = 90
-    elif matching_cluster:
+    elif matching_cluster and is_serv:
         minutes = matching_cluster["minutes"]
-    elif zone and zone.get("estimated_delivery_time"):
+    elif zone and zone.get("estimated_delivery_time") and is_serv:
         minutes = 15 if "15" in str(zone.get("estimated_delivery_time")) else 30
     else:
-        minutes = 45
+        minutes = 0
 
     if not is_serv:
         return ServiceabilityCheckOut(
@@ -531,13 +630,13 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             city=city,
             locality=locality,
             estimated_delivery_minutes=0,
-            delivery_fee=calculated_fee,
+            delivery_fee=0.0,
             distance_km=distance_km,
             distance_source=distance_source,
-            matched_slab=matched_slab,
+            matched_slab=None,
             min_order_amount=min_order,
             free_delivery_threshold=free_thresh,
-            service_hub=hub,
+            service_hub="Out of Delivery Range",
             message=fee_msg,
             store_address=store_addr,
             store_maps_url=store_maps

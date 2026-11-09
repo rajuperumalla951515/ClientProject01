@@ -11,7 +11,7 @@ export const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, incrementItem, decrementItem, setItemQuantity, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes } = useLocation();
+  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes, isServiceable } = useLocation();
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const handleCheckout = () => {
@@ -184,13 +184,17 @@ export const CartPage: React.FC = () => {
             <p className="text-[11px] text-stone-500 flex items-center gap-1">
               <span>{serviceHub}</span>
               <span>•</span>
-              {deliveryMinutes <= 30 ? (
+              {!isServiceable ? (
+                <span className="text-rose-700 font-bold flex items-center gap-0.5">
+                  Out of Delivery Range
+                </span>
+              ) : deliveryMinutes > 0 && deliveryMinutes <= 30 ? (
                 <span className="text-emerald-700 font-bold flex items-center gap-0.5">
                   <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
                   Express {deliveryMinutes} Mins
                 </span>
               ) : (
-                <span className="text-stone-600 font-medium">Pan-India Courier</span>
+                <span className="text-stone-600 font-medium">Standard Delivery (~{deliveryMinutes || 45} Mins)</span>
               )}
             </p>
           </div>

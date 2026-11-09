@@ -31,6 +31,12 @@ export const InteractiveDeliveryMap: React.FC<InteractiveDeliveryMapProps> = ({
   const accuracyCircleRef = useRef<L.Circle | null>(null);
   const [isMoved, setIsMoved] = useState(false);
 
+  // Store onCoordinatesChange in a ref to avoid stale closures in Leaflet events
+  const onCoordinatesChangeRef = useRef(onCoordinatesChange);
+  useEffect(() => {
+    onCoordinatesChangeRef.current = onCoordinatesChange;
+  }, [onCoordinatesChange]);
+
   // Custom high-visibility organic pin icon
   const createCustomPinIcon = useCallback(() => {
     return L.divIcon({
@@ -131,7 +137,7 @@ export const InteractiveDeliveryMap: React.FC<InteractiveDeliveryMapProps> = ({
         if (accuracyCircleRef.current) {
           accuracyCircleRef.current.setLatLng(pos);
         }
-        onCoordinatesChange(pos.lat, pos.lng);
+        onCoordinatesChangeRef.current(pos.lat, pos.lng);
       });
 
       // Tap / Click anywhere on map moves the pin
@@ -142,7 +148,7 @@ export const InteractiveDeliveryMap: React.FC<InteractiveDeliveryMapProps> = ({
           accuracyCircleRef.current.setLatLng(e.latlng);
         }
         map.panTo(e.latlng, { animate: true, duration: 0.5 });
-        onCoordinatesChange(e.latlng.lat, e.latlng.lng);
+        onCoordinatesChangeRef.current(e.latlng.lat, e.latlng.lng);
       });
     }
 
@@ -192,7 +198,7 @@ export const InteractiveDeliveryMap: React.FC<InteractiveDeliveryMapProps> = ({
       }
       mapInstanceRef.current.setView([targetLat, targetLon], 17, { animate: true });
       setIsMoved(false);
-      onCoordinatesChange(targetLat, targetLon);
+      onCoordinatesChangeRef.current(targetLat, targetLon);
     }
   };
 

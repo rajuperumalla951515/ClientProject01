@@ -627,6 +627,8 @@ class ReverseGeocodeOut(BaseModel):
     service_hub: str = "Sri Aditya Organics & Oil Mill (Kothagudem)"
     message: str = "Delivery location resolved"
     distance_km: Optional[float] = None
+    delivery_fee: Optional[float] = None
+    matched_slab: Optional[str] = None
     is_incomplete: bool = False
     source: str = "gps_detected"
 

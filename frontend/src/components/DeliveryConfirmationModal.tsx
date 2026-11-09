@@ -28,7 +28,7 @@ export const DeliveryConfirmationModal: React.FC = () => {
 
   const currentLat = pinCoordinates?.lat ?? detectedLocation.latitude;
   const currentLon = pinCoordinates?.lon ?? detectedLocation.longitude;
-  const isExpress = detectedLocation.estimated_delivery_minutes <= 30;
+  const isExpress = detectedLocation.is_serviceable && detectedLocation.estimated_delivery_minutes > 0 && detectedLocation.estimated_delivery_minutes <= 30;
 
   const handleConfirm = () => {
     confirmDeliveryToDetectedLocation({
@@ -154,21 +154,63 @@ export const DeliveryConfirmationModal: React.FC = () => {
               </div>
             </div>
 
-            {/* Logistics Service Hub and Delivery Estimate Badge */}
-            <div className="pt-2 border-t border-stone-200/70 flex items-center justify-between text-xs">
-              <span className="text-stone-500 font-medium truncate">
-                {detectedLocation.service_hub}
-              </span>
-              {isExpress ? (
-                <span className="inline-flex items-center gap-1 font-bold text-emerald-700 bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px] shrink-0 border border-emerald-300">
-                  <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
-                  Express {detectedLocation.estimated_delivery_minutes} Mins
+            {/* Logistics Service Hub, Road Distance and Delivery Fee */}
+            <div className="pt-2 border-t border-stone-200/70 space-y-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-xs">
+                <span className="font-bold text-stone-800 truncate">
+                  {detectedLocation.is_serviceable ? detectedLocation.service_hub : 'Out of Delivery Range'}
                 </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 font-semibold text-stone-700 bg-stone-200/80 px-2 py-0.5 rounded-md text-[11px] shrink-0">
-                  <Truck className="w-3 h-3 text-rootly-forest" />
-                  Standard Delivery
-                </span>
+                <div className="shrink-0">
+                  {!detectedLocation.is_serviceable ? (
+                    <span className="inline-flex items-center gap-1 font-bold text-rose-800 bg-rose-100 px-2 py-0.5 rounded-md text-[11px] border border-rose-300">
+                      <AlertCircle className="w-3 h-3 text-rose-600" />
+                      <span>Out of Direct Range</span>
+                    </span>
+                  ) : isExpress ? (
+                    <span className="inline-flex items-center gap-1 font-bold text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-md text-[11px] shrink-0 border border-emerald-300">
+                      <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                      <span>Express {detectedLocation.estimated_delivery_minutes} Mins</span>
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 font-semibold text-stone-700 bg-stone-200/80 px-2 py-0.5 rounded-md text-[11px] shrink-0">
+                      <Truck className="w-3 h-3 text-rootly-forest" />
+                      <span>Standard (~{detectedLocation.estimated_delivery_minutes || 45} Mins)</span>
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Road distance and calculated delivery fee slab */}
+              {detectedLocation.distance_km !== null && detectedLocation.distance_km !== undefined && (
+                <div className="flex items-center justify-between text-[11px] text-stone-600 bg-stone-100/80 px-2.5 py-1.5 rounded-xl">
+                  <span className="flex items-center gap-1 font-medium">
+                    <Truck className="w-3.5 h-3.5 text-rootly-forest" />
+                    <span>~{detectedLocation.distance_km} km from Kothagudem Mill</span>
+                    {detectedLocation.matched_slab && (
+                      <span className="font-mono text-stone-700 bg-white border border-stone-200 px-1 rounded text-[10px]">
+                        {detectedLocation.matched_slab}
+                      </span>
+                    )}
+                  </span>
+                  {detectedLocation.is_serviceable ? (
+                    <span className="font-bold text-stone-900">
+                      Fee: {detectedLocation.delivery_fee !== null && detectedLocation.delivery_fee !== undefined
+                        ? `₹${detectedLocation.delivery_fee}`
+                        : '₹20.0'}
+                    </span>
+                  ) : (
+                    <span className="font-bold text-rose-600">Direct Delivery Unavailable</span>
+                  )}
+                </div>
+              )}
+
+              {!detectedLocation.is_serviceable && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-rose-700">
+                    {detectedLocation.message || 'Direct doorstep delivery is currently available within 60 km of our Kothagudem Mill. You can still confirm to browse, or select a nearby address.'}
+                  </p>
+                </div>
               )}
             </div>
           </div>

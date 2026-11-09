@@ -165,7 +165,8 @@ export const LocationModal: React.FC = () => {
     }
   };
 
-  const isExpress = deliveryMinutes <= 30;
+  const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
+  const isExpress = isServiceable && deliveryMinutes > 0 && deliveryMinutes <= 30;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -237,7 +238,12 @@ export const LocationModal: React.FC = () => {
                   <p className="text-xs text-stone-500 mt-1 flex items-center gap-1.5 flex-wrap">
                     <span>{serviceHub}</span>
                     <span>•</span>
-                    {isExpress ? (
+                    {!isServiceable ? (
+                      <span className="inline-flex items-center gap-1 text-rose-700 font-bold">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Out of Delivery Range</span>
+                      </span>
+                    ) : isExpress ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">
                         <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
                         <span>Express {deliveryMinutes} Mins Delivery</span>
@@ -245,7 +251,7 @@ export const LocationModal: React.FC = () => {
                     ) : (
                       <span className="inline-flex items-center gap-1 text-stone-600 font-medium">
                         <Truck className="w-3 h-3 text-rootly-forest" />
-                        <span>Pan-India Courier (2-3 Days)</span>
+                        <span>Standard Delivery (~{deliveryMinutes || 45} Mins)</span>
                       </span>
                     )}
                   </p>

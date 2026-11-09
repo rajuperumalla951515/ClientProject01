@@ -17,7 +17,7 @@ export const ProductDetailPage: React.FC = () => {
   const { slug } = useParams<{ slug: string }>();
   const { addToCart, incrementItem, decrementItem, getItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, deliveryMinutes, openLocationModal } = useLocation();
+  const { locationLabel, deliveryMinutes, isServiceable, openLocationModal } = useLocation();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
   const [product, setProduct] = useState<Product | null>(null);
@@ -317,7 +317,7 @@ export const ProductDetailPage: React.FC = () => {
               <Truck className="w-4 h-4 text-rootly-forest shrink-0 group-hover:scale-105 transition-transform" />
               <span className="truncate">
                 Deliver to <strong className="underline underline-offset-2">{locationLabel.split(',')[0]}</strong>:{' '}
-                <strong>{deliveryMinutes <= 30 ? `Express ${deliveryMinutes} Mins` : '2-3 Days'}</strong>
+                <strong>{!isServiceable ? 'Out of Delivery Range' : deliveryMinutes > 0 && deliveryMinutes <= 30 ? `Express ${deliveryMinutes} Mins` : 'Standard Delivery'}</strong>
               </span>
             </button>
             <div className="flex items-center gap-2.5 text-xs text-stone-700">

@@ -100,7 +100,8 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   // Real-time distance and delivery fee
   const distanceKm = selectedDeliveryAddress.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress.matched_slab || locationMatchedSlab;
-  const rawDeliveryFee = selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? 20.0;
+  const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
+  const rawDeliveryFee = isServiceable ? (selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
   const deliveryFee = subtotal >= freeThreshold ? 0.0 : rawDeliveryFee;
   const totalAmount = round2(subtotal + deliveryFee);
 
@@ -596,13 +597,18 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <p className="text-[11px] text-stone-500 flex items-center gap-1">
                     <span>{serviceHub}</span>
                     <span>•</span>
-                    {deliveryMinutes <= 30 ? (
+                    {!selectedDeliveryAddress.is_serviceable ? (
+                      <span className="text-rose-700 font-bold flex items-center gap-0.5">
+                        <AlertCircle className="w-3 h-3 text-rose-500" />
+                        Out of Delivery Range
+                      </span>
+                    ) : deliveryMinutes > 0 && deliveryMinutes <= 30 ? (
                       <span className="text-emerald-700 font-bold flex items-center gap-0.5">
                         <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
                         Express {deliveryMinutes} Mins
                       </span>
                     ) : (
-                      <span className="text-stone-600 font-medium">Pan-India Courier (2-3 Days)</span>
+                      <span className="text-stone-600 font-medium">Standard Delivery (~{deliveryMinutes || 45} Mins)</span>
                     )}
                   </p>
                 </div>
@@ -705,7 +711,9 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                       </span>
                     )}
                   </div>
-                  {deliveryFee === 0 ? (
+                  {!isServiceable ? (
+                    <span className="font-bold text-rose-600">Unavailable</span>
+                  ) : deliveryFee === 0 ? (
                     <span className="font-bold text-emerald-700 uppercase">
                       {subtotal >= freeThreshold ? `FREE (Orders over ₹${freeThreshold})` : 'FREE'}
                     </span>

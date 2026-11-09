@@ -292,6 +292,9 @@ export interface ReverseGeocodeResult {
   estimated_delivery_minutes: number;
   service_hub: string;
   message: string;
+  distance_km?: number | null;
+  delivery_fee?: number | null;
+  matched_slab?: string | null;
   is_incomplete?: boolean;
   source?: string;
 }

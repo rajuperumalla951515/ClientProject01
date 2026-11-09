@@ -145,6 +145,19 @@ const DEFAULT_DELIVERY_ADDRESS: SelectedDeliveryAddress = {
   is_confirmed: false,
 };
 
+// Calculate Haversine road estimate in client fallback
+function calculateClientRoadDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371.0;
+  const dLat = (lat2 - lat1) * Math.PI / 180.0;
+  const dLon = (lon2 - lon1) * Math.PI / 180.0;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180.0) * Math.cos(lat2 * Math.PI / 180.0) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 1.22 * 10) / 10;
+}
+
 const isTelanganaPin = (pin?: string | null): boolean => {
   if (!pin) return false;
   const p = parseInt(pin.trim(), 10);
@@ -297,21 +310,60 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return detected;
     } catch (err: any) {
       // Client-side fallback if backend request fails (Never invent coordinates or mock address)
+      // 1. Try direct Photon OSM lookup from client
+      let street = '';
+      let locality = 'Delivery Location';
+      let city = 'Local Area';
+      let state = 'India';
+      let pin = '';
+      let country = 'India';
+      let formatted = `Delivery Coordinates (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+
+      try {
+        const resp = await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`);
+        if (resp.ok) {
+          const pData = await resp.json();
+          if (pData?.features?.[0]?.properties) {
+            const props = pData.features[0].properties;
+            street = props.street || '';
+            locality = props.district || props.locality || props.suburb || props.name || locality;
+            city = props.city || props.town || props.village || city;
+            state = props.state || state;
+            pin = props.postcode || pin;
+            country = props.country || country;
+            formatted = [street, locality, city, state, pin].filter(Boolean).join(', ');
+          }
+        }
+      } catch {}
+
+      // Calculate distance from Sri Aditya Organics & Oil Mill (17.5376, 80.6210)
+      const clientDist = calculateClientRoadDistanceKm(17.5376, 80.6210, lat, lon);
+      const isServ = clientDist <= 60.0;
+      const estMinutes = !isServ ? 0 : clientDist <= 2.0 ? 15 : clientDist <= 15.0 ? 30 : 45;
+      const fee = !isServ ? 0.0 : clientDist <= 2.0 ? 20.0 : clientDist <= 4.0 ? 30.0 : clientDist <= 6.0 ? 40.0 : 50.0;
+      const slab = !isServ ? null : clientDist <= 2.0 ? '0–2 km' : clientDist <= 4.0 ? '2–4 km' : clientDist <= 6.0 ? '4–6 km' : clientDist <= 8.0 ? '6–8 km' : '8–10 km';
+
       return {
-        formatted_address: `Delivery Coordinates (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
-        locality: 'Delivery Location',
-        city: 'Local Area',
-        state: 'India',
-        postal_code: '',
-        country: 'India',
+        formatted_address: formatted,
+        road: street || undefined,
+        locality,
+        city,
+        state,
+        postal_code: pin,
+        country,
         latitude: lat,
         longitude: lon,
         accuracy_meters: accuracy ?? null,
-        is_serviceable: true,
-        estimated_delivery_minutes: 30,
-        service_hub: 'Sri Aditya Organics Fulfillment Network',
-        message: 'Delivery location marked on map',
-        is_incomplete: true,
+        is_serviceable: isServ,
+        estimated_delivery_minutes: estMinutes,
+        distance_km: clientDist,
+        delivery_fee: fee,
+        matched_slab: slab,
+        service_hub: isServ ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Out of Delivery Range',
+        message: isServ
+          ? `Delivery Available (~${clientDist.toFixed(1)} km from Kothagudem Mill)`
+          : `Delivery currently unavailable (${clientDist.toFixed(0)} km from Kothagudem Mill; max delivery radius is 60 km).`,
+        is_incomplete: !pin,
         source: isManualPin ? 'map_pin' : 'gps_detected',
         accuracy_level: isManualPin ? 'manual' : computeAccuracyLevel(accuracy),
         initial_gps_lat: initialGpsLat ?? lat,
@@ -466,12 +518,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const targetLat = pinCoordinates?.lat ?? detectedLocation.latitude;
       const targetLon = pinCoordinates?.lon ?? detectedLocation.longitude;
 
-      let servFee = 20.0;
-      let distKm: number | null = null;
+      let servFee = detectedLocation.delivery_fee ?? (detectedLocation.is_serviceable ? 20.0 : 0.0);
+      let distKm: number | null = detectedLocation.distance_km ?? null;
       let distSource: string | null = null;
-      let matchedSlab: string | null = null;
+      let matchedSlab: string | null = detectedLocation.matched_slab ?? null;
       let estMinutes = detectedLocation.estimated_delivery_minutes;
       let isServ = detectedLocation.is_serviceable;
+      let hub = detectedLocation.service_hub;
 
       try {
         const serv = await api.checkServiceability(
@@ -485,6 +538,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         matchedSlab = serv.matched_slab ?? null;
         estMinutes = serv.estimated_delivery_minutes;
         isServ = serv.is_serviceable;
+        hub = serv.service_hub;
       } catch (err) {
         console.warn('Could not verify serviceability on confirm:', err);
       }
@@ -506,7 +560,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         accuracy_meters: detectedLocation.accuracy_meters,
         formatted_address: detectedLocation.formatted_address,
         is_serviceable: isServ,
-        service_hub: detectedLocation.service_hub,
+        service_hub: isServ ? hub : 'Out of Delivery Range',
         estimated_delivery_minutes: estMinutes,
         delivery_fee: servFee,
         distance_km: distKm,
@@ -826,7 +880,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (err) {
         console.warn('Recalculate delivery fee notice:', err);
         return {
-          fee: selectedDeliveryAddress.delivery_fee ?? 20.0,
+          fee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 20.0) : 0,
           distance_km: selectedDeliveryAddress.distance_km ?? null,
           is_serviceable: selectedDeliveryAddress.is_serviceable,
           matched_slab: selectedDeliveryAddress.matched_slab ?? null,
@@ -905,7 +959,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isLocationConfirmed: selectedDeliveryAddress.is_confirmed,
         serviceHub: selectedDeliveryAddress.service_hub,
         deliveryMinutes: selectedDeliveryAddress.estimated_delivery_minutes,
-        deliveryFee: selectedDeliveryAddress.delivery_fee ?? 20.0,
+        deliveryFee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 20.0) : 0,
         distanceKm: selectedDeliveryAddress.distance_km ?? null,
         matchedSlab: selectedDeliveryAddress.matched_slab || undefined,
         recalculateDeliveryFee,

@@ -39,8 +39,10 @@ export const CheckoutPage: React.FC = () => {
   // Dynamic Distance & Delivery Fee Calculation
   const distanceKm = selectedDeliveryAddress?.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress?.matched_slab || locationMatchedSlab;
+  const isServiceable = selectedDeliveryAddress?.is_serviceable !== false;
   const isFreeDelivery = cart.subtotal >= cart.free_delivery_threshold;
-  const deliveryFee = isFreeDelivery ? 0 : (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? 20.0);
+  const rawFee = isServiceable ? (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
+  const deliveryFee = isFreeDelivery ? 0 : rawFee;
   const totalPayable = Math.round((cart.subtotal - cart.discount + deliveryFee) * 100) / 100;
 
   // Recalculate fee dynamically when address or cart subtotal changes
@@ -571,7 +573,9 @@ export const CheckoutPage: React.FC = () => {
                     </span>
                   )}
                 </div>
-                {deliveryFee === 0 ? (
+                {!isServiceable ? (
+                  <span className="font-bold text-rose-600">Unavailable</span>
+                ) : deliveryFee === 0 ? (
                   <span className="font-bold text-emerald-700 uppercase">
                     {cart.subtotal >= cart.free_delivery_threshold ? `FREE (Orders over ₹${cart.free_delivery_threshold})` : 'FREE'}
                   </span>
