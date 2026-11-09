@@ -312,13 +312,30 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span className="text-stone-500">Delivery Destination:</span>
                   <span className="text-stone-900 truncate max-w-[200px]">{locationLabel}</span>
                 </div>
-                {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude && (
+                {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude ? (
                   <div className="flex justify-between font-semibold text-emerald-800">
-                    <span className="text-stone-500">Live GPS Location:</span>
-                    <span className="font-mono text-[11px] flex items-center gap-1 text-emerald-700">
+                    <span className="text-stone-500">Customer Location:</span>
+                    <a
+                      href={`https://maps.google.com/?q=${selectedDeliveryAddress.latitude},${selectedDeliveryAddress.longitude}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[11px] flex items-center gap-1 text-emerald-700 hover:underline"
+                    >
                       <Navigation className="w-3 h-3 text-rootly-forest" />
-                      <span>{selectedDeliveryAddress.latitude.toFixed(4)}, {selectedDeliveryAddress.longitude.toFixed(4)}</span>
-                    </span>
+                      <span>{selectedDeliveryAddress.latitude.toFixed(4)}, {selectedDeliveryAddress.longitude.toFixed(4)} (Open Map ↗)</span>
+                    </a>
+                  </div>
+                ) : (
+                  <div className="flex justify-between font-semibold">
+                    <span className="text-stone-500">Customer Location:</span>
+                    <a
+                      href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(selectedDeliveryAddress.formatted_address || locationLabel)}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-stone-700 text-[11px] hover:underline"
+                    >
+                      Open Address in Maps ↗
+                    </a>
                   </div>
                 )}
                 <div className="flex justify-between font-semibold">
@@ -446,13 +463,27 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                 <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
                   <p className="font-bold text-stone-900 leading-snug">{locationLabel}</p>
                   
-                  {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude && (
-                    <div className="inline-flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200/70">
-                      <Navigation className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
-                      <span>Live GPS Coordinates Attached to Order</span>
-                      {selectedDeliveryAddress.accuracy_meters && (
-                        <span className="text-stone-400 font-mono text-[10px]"> (±{Math.round(selectedDeliveryAddress.accuracy_meters)}m)</span>
-                      )}
+                  {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude ? (
+                    <div className="flex items-center justify-between text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200/70">
+                      <div className="flex items-center gap-1.5">
+                        <Navigation className="w-3.5 h-3.5 text-rootly-forest shrink-0" />
+                        <span>Live GPS Attached</span>
+                        {selectedDeliveryAddress.accuracy_meters && (
+                          <span className="text-stone-400 font-mono text-[10px]"> (±{Math.round(selectedDeliveryAddress.accuracy_meters)}m)</span>
+                        )}
+                      </div>
+                      <a
+                        href={`https://maps.google.com/?q=${selectedDeliveryAddress.latitude},${selectedDeliveryAddress.longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[10px] font-bold text-rootly-forest hover:underline"
+                      >
+                        View on Map ↗
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="text-[11px] text-stone-500 bg-stone-100 px-2.5 py-1 rounded-lg">
+                      <span>Delivery address location will be shared in WhatsApp message</span>
                     </div>
                   )}
 

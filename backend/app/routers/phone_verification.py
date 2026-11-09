@@ -281,3 +281,4 @@ async def get_phone_verification_status(
         message="Verified" if is_ver else "Unverified",
         is_verified=is_ver
     )
+

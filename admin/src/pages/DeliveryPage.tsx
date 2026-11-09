@@ -38,15 +38,16 @@ export const DeliveryPage: React.FC = () => {
   const [newSlotInput, setNewSlotInput] = useState('');
 
   // Store Fulfillment Hub & Delivery Distance State
-  const [storeName, setStoreName] = useState('Sri Adithya Organics Mill & Fulfilment Hub');
-  const [storeAddress, setStoreAddress] = useState('Road No. 36, Jubilee Hills');
-  const [storeCity, setStoreCity] = useState('Hyderabad');
-  const [storeDistrict, setStoreDistrict] = useState('Hyderabad');
+  const [storeName, setStoreName] = useState('Sri Aditya Organics & Oil Mill');
+  const [storeAddress, setStoreAddress] = useState('Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam');
+  const [storeCity, setStoreCity] = useState('Kothagudem');
+  const [storeDistrict, setStoreDistrict] = useState('Bhadradri Kothagudem');
   const [storeState, setStoreState] = useState('Telangana');
-  const [storePincode, setStorePincode] = useState('500033');
-  const [storeLat, setStoreLat] = useState<number>(17.4319);
-  const [storeLon, setStoreLon] = useState<number>(78.4073);
-  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState<number>(35);
+  const [storePincode, setStorePincode] = useState('507101');
+  const [storeLat, setStoreLat] = useState<number>(17.5376);
+  const [storeLon, setStoreLon] = useState<number>(80.6210);
+  const [storeMapsUrl, setStoreMapsUrl] = useState('https://share.google/e1aO3V8FJQ7USIKzU');
+  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState<number>(60);
   const [maxExpressRadiusKm, setMaxExpressRadiusKm] = useState<number>(15);
   const [whatsappNumber, setWhatsappNumber] = useState('919515159006');
 
@@ -80,15 +81,16 @@ export const DeliveryPage: React.FC = () => {
       setStandardFee(settingsData.standard_delivery_fee ?? 39);
       setExpressFee(settingsData.express_delivery_fee ?? 59);
 
-      setStoreName(settingsData.store_name || 'Sri Adithya Organics Mill & Fulfilment Hub');
-      setStoreAddress(settingsData.store_address || 'Road No. 36, Jubilee Hills');
-      setStoreCity(settingsData.store_city || 'Hyderabad');
-      setStoreDistrict(settingsData.store_district || 'Hyderabad');
+      setStoreName(settingsData.store_name || 'Sri Aditya Organics & Oil Mill');
+      setStoreAddress(settingsData.store_address || 'Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam');
+      setStoreCity(settingsData.store_city || 'Kothagudem');
+      setStoreDistrict(settingsData.store_district || 'Bhadradri Kothagudem');
       setStoreState(settingsData.store_state || 'Telangana');
-      setStorePincode(settingsData.store_pincode || '500033');
-      setStoreLat(settingsData.store_latitude ?? 17.4319);
-      setStoreLon(settingsData.store_longitude ?? 78.4073);
-      setDeliveryRadiusKm(settingsData.delivery_radius_km ?? 35);
+      setStorePincode(settingsData.store_pincode || '507101');
+      setStoreLat(settingsData.store_latitude ?? 17.5376);
+      setStoreLon(settingsData.store_longitude ?? 80.6210);
+      setStoreMapsUrl(settingsData.store_maps_url || 'https://share.google/e1aO3V8FJQ7USIKzU');
+      setDeliveryRadiusKm(settingsData.delivery_radius_km ?? 60);
       setMaxExpressRadiusKm(settingsData.max_express_radius_km ?? 15);
       setWhatsappNumber(settingsData.whatsapp_number || '919515159006');
 
@@ -145,6 +147,7 @@ export const DeliveryPage: React.FC = () => {
         store_pincode: storePincode.trim(),
         store_latitude: Number(storeLat),
         store_longitude: Number(storeLon),
+        store_maps_url: storeMapsUrl.trim(),
         delivery_radius_km: Number(deliveryRadiusKm),
         max_express_radius_km: Number(maxExpressRadiusKm),
         whatsapp_number: whatsappNumber.trim(),
@@ -331,9 +334,48 @@ export const DeliveryPage: React.FC = () => {
                 required
                 value={storeAddress}
                 onChange={(e) => setStoreAddress(e.target.value)}
-                placeholder="e.g. Road No. 36, Jubilee Hills"
+                placeholder="e.g. Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5 flex items-center justify-between">
+                <span>Store Google Maps Location Link (Official Store Location)</span>
+                {storeMapsUrl && (
+                  <a
+                    href={storeMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[11px] font-bold text-[#244B37] hover:underline flex items-center gap-1"
+                  >
+                    <MapPin className="w-3.5 h-3.5" />
+                    <span>View Store on Google Maps ↗</span>
+                  </a>
+                )}
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="url"
+                  value={storeMapsUrl}
+                  onChange={(e) => setStoreMapsUrl(e.target.value)}
+                  placeholder="https://share.google/e1aO3V8FJQ7USIKzU"
+                  className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+                />
+                {storeMapsUrl && (
+                  <a
+                    href={storeMapsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-2 rounded-xl bg-[#244B37] text-white text-xs font-semibold shrink-0 flex items-center gap-1 hover:bg-[#1b3829]"
+                  >
+                    <span>Open Map</span>
+                  </a>
+                )}
+              </div>
+              <p className="text-[10px] text-[#778176] mt-1">
+                Official store: Sri Aditya Organics & Oil Mill, Kothagudem (507101). Delivery distance is calculated from this location.
+              </p>
             </div>
 
             <div>
@@ -346,7 +388,7 @@ export const DeliveryPage: React.FC = () => {
                 maxLength={6}
                 value={storePincode}
                 onChange={(e) => setStorePincode(e.target.value)}
-                placeholder="e.g. 500033"
+                placeholder="507101"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
             </div>
@@ -360,7 +402,7 @@ export const DeliveryPage: React.FC = () => {
                 required
                 value={storeCity}
                 onChange={(e) => setStoreCity(e.target.value)}
-                placeholder="e.g. Hyderabad"
+                placeholder="Kothagudem"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
             </div>
@@ -373,7 +415,7 @@ export const DeliveryPage: React.FC = () => {
                 type="text"
                 value={storeDistrict}
                 onChange={(e) => setStoreDistrict(e.target.value)}
-                placeholder="e.g. Hyderabad or Bhadradri Kothagudem"
+                placeholder="Bhadradri Kothagudem"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
             </div>
@@ -401,7 +443,7 @@ export const DeliveryPage: React.FC = () => {
                 step="any"
                 value={storeLat}
                 onChange={(e) => setStoreLat(Number(e.target.value))}
-                placeholder="17.4319"
+                placeholder="17.5376"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
             </div>
@@ -415,7 +457,7 @@ export const DeliveryPage: React.FC = () => {
                 step="any"
                 value={storeLon}
                 onChange={(e) => setStoreLon(Number(e.target.value))}
-                placeholder="78.4073"
+                placeholder="80.6210"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
             </div>
@@ -446,7 +488,7 @@ export const DeliveryPage: React.FC = () => {
                 required
                 value={deliveryRadiusKm}
                 onChange={(e) => setDeliveryRadiusKm(Number(e.target.value))}
-                placeholder="35"
+                placeholder="60"
                 className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
               <p className="text-[10px] text-[#778176] mt-1">Beyond this: requires out-of-zone verification</p>

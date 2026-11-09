@@ -376,14 +376,15 @@ class DeliverySettingOut(BaseModel):
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
     whatsapp_number: Optional[str] = "919515159006"
-    store_name: Optional[str] = "Sri Adithya Organics"
-    store_address: Optional[str] = "Sri Adithya Organics, Hyderabad, Telangana, India"
-    store_city: Optional[str] = "Hyderabad"
-    store_district: Optional[str] = "Hyderabad"
+    store_name: Optional[str] = "Sri Aditya Organics & Oil Mill"
+    store_address: Optional[str] = "Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam"
+    store_city: Optional[str] = "Kothagudem"
+    store_district: Optional[str] = "Bhadradri Kothagudem"
     store_state: Optional[str] = "Telangana"
-    store_pincode: Optional[str] = "500001"
-    store_latitude: Optional[float] = 17.3850
-    store_longitude: Optional[float] = 78.4867
+    store_pincode: Optional[str] = "507101"
+    store_latitude: Optional[float] = 17.5376
+    store_longitude: Optional[float] = 80.6210
+    store_maps_url: Optional[str] = "https://share.google/e1aO3V8FJQ7USIKzU"
     delivery_radius_km: Optional[float] = 35.0
     max_express_radius_km: Optional[float] = 15.0
 
@@ -406,6 +407,7 @@ class DeliverySettingUpdate(BaseModel):
     store_pincode: Optional[str] = None
     store_latitude: Optional[float] = None
     store_longitude: Optional[float] = None
+    store_maps_url: Optional[str] = None
     delivery_radius_km: Optional[float] = None
     max_express_radius_km: Optional[float] = None
 
@@ -652,5 +654,6 @@ class ServiceabilityCheckOut(BaseModel):
     service_hub: str
     message: str
     store_address: Optional[str] = None
+    store_maps_url: Optional[str] = "https://share.google/e1aO3V8FJQ7USIKzU"
 
 

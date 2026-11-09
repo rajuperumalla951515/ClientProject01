@@ -21,21 +21,16 @@ router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
 
 # Telangana Regional Fulfillment Hubs for Hyperlocal Quick-Commerce & Scheduled Delivery
 KNOWN_LOCALITY_CLUSTERS = [
-    {"name": "Hyderabad Central (Abids / Koti)", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500001", "lat": 17.3850, "lon": 78.4867, "hub": "Sri Adithya Organics Central Hub", "minutes": 15},
-    {"name": "Banjara Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 20},
-    {"name": "Jubilee Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500033", "lat": 17.4319, "lon": 78.4073, "hub": "Hyderabad Central Hub", "minutes": 20},
-    {"name": "Madhapur / Hitec City", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500081", "lat": 17.4474, "lon": 78.3762, "hub": "Hyderabad Cyber Hub", "minutes": 25},
-    {"name": "Gachibowli", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500032", "lat": 17.4401, "lon": 78.3489, "hub": "Hyderabad Cyber Hub", "minutes": 25},
-    {"name": "Kondapur", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500084", "lat": 17.4699, "lon": 78.3578, "hub": "Hyderabad West Hub", "minutes": 25},
-    {"name": "Secunderabad", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500003", "lat": 17.4399, "lon": 78.4983, "hub": "North Hyderabad Hub", "minutes": 25},
-    {"name": "Kukatpally", "city": "Hyderabad", "district": "Medchal-Malkajgiri", "state": "Telangana", "pin": "500072", "lat": 17.4938, "lon": 78.3999, "hub": "North-West Hyderabad Hub", "minutes": 30},
-    {"name": "Begumpet", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500016", "lat": 17.4447, "lon": 78.4664, "hub": "Central Hyderabad Hub", "minutes": 20},
-    {"name": "Somajiguda", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500082", "lat": 17.4262, "lon": 78.4552, "hub": "Hyderabad Central Hub", "minutes": 20},
-    {"name": "Kothagudem", "city": "Kothagudem", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507101", "lat": 17.5526, "lon": 80.6190, "hub": "Bhadradri Regional Hub", "minutes": 35},
-    {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 40},
-    {"name": "Khammam", "city": "Khammam", "district": "Khammam", "state": "Telangana", "pin": "507001", "lat": 17.2473, "lon": 80.1514, "hub": "Khammam Regional Hub", "minutes": 40},
-    {"name": "Karimnagar", "city": "Karimnagar", "district": "Karimnagar", "state": "Telangana", "pin": "505001", "lat": 18.4386, "lon": 79.1288, "hub": "Karimnagar Regional Hub", "minutes": 45},
-    {"name": "Nizamabad", "city": "Nizamabad", "district": "Nizamabad", "state": "Telangana", "pin": "503001", "lat": 18.6725, "lon": 78.0941, "hub": "Nizamabad Regional Hub", "minutes": 45},
+    {"name": "Kothagudem (Babu Camp / Ganeshbasthi)", "city": "Kothagudem", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507101", "lat": 17.5376, "lon": 80.6210, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 15},
+    {"name": "Palwancha", "city": "Palwancha", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507115", "lat": 17.5968, "lon": 80.7061, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 25},
+    {"name": "Bhadrachalam", "city": "Bhadrachalam", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507111", "lat": 17.6689, "lon": 80.8936, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 45},
+    {"name": "Yellandu", "city": "Yellandu", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507123", "lat": 17.6015, "lon": 80.3340, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 45},
+    {"name": "Khammam Central", "city": "Khammam", "district": "Khammam", "state": "Telangana", "pin": "507001", "lat": 17.2473, "lon": 80.1514, "hub": "Khammam Regional Hub", "minutes": 40},
+    {"name": "Hyderabad Central (Abids / Koti)", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500001", "lat": 17.3850, "lon": 78.4867, "hub": "Sri Adithya Organics Central Hub", "minutes": 60},
+    {"name": "Banjara Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 60},
+    {"name": "Jubilee Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500033", "lat": 17.4319, "lon": 78.4073, "hub": "Hyderabad Central Hub", "minutes": 60},
+    {"name": "Madhapur / Hitec City", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500081", "lat": 17.4474, "lon": 78.3762, "hub": "Hyderabad Cyber Hub", "minutes": 60},
+    {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 60},
 ]
 
 # Indian Postal Region Mapping
@@ -252,11 +247,12 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
     min_order = 99.0
     free_thresh = 499.0
     std_fee = 39.0
-    store_lat = 17.3850
-    store_lon = 78.4867
+    store_lat = 17.5376
+    store_lon = 80.6210
     delivery_radius_km = 35.0
     max_express_radius_km = 15.0
-    store_addr = "Sri Adithya Organics, Hyderabad, Telangana, India"
+    store_addr = "Sri Aditya Organics & Oil Mill, Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam, Kothagudem, Telangana 507101"
+    store_maps = "https://share.google/e1aO3V8FJQ7USIKzU"
 
     try:
         setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
@@ -274,6 +270,8 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
                 max_express_radius_km = float(setting["max_express_radius_km"])
             if setting.get("store_address"):
                 store_addr = setting["store_address"]
+            if setting.get("store_maps_url"):
+                store_maps = setting["store_maps_url"]
     except Exception as e:
         print(f"[Serviceability] Settings fetch notice: {e}")
 
@@ -292,9 +290,10 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             distance_km=None,
             min_order_amount=min_order,
             free_delivery_threshold=free_thresh,
-            service_hub="Sri Adithya Organics Central Fulfillment Hub",
+            service_hub="Sri Aditya Organics & Oil Mill (Kothagudem)",
             message="Please provide a valid 6-digit postal code to check delivery availability.",
-            store_address=store_addr
+            store_address=store_addr,
+            store_maps_url=store_maps
         )
 
     # 2. Check if PIN exists in active delivery_zones table
@@ -318,10 +317,10 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
     # 4. Resolve City, Locality & Hub
     matching_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
     if zone:
-        city = "Hyderabad" if pin.startswith("500") else "Telangana"
+        city = "Kothagudem" if pin == "507101" else ("Hyderabad" if pin.startswith("500") else "Telangana")
         locality = zone["area_name"]
-        minutes = 20 if "15" in str(zone.get("estimated_delivery_time", "")) else 35
-        hub = "Sri Adithya Organics Direct Fulfillment Hub"
+        minutes = 15 if "15" in str(zone.get("estimated_delivery_time", "")) else 30
+        hub = "Sri Aditya Organics Direct Fulfillment Hub"
     elif matching_cluster:
         city = matching_cluster["city"]
         locality = matching_cluster["name"]
@@ -332,9 +331,9 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
         city = reg[0] if reg else "Telangana"
         locality = f"PIN {pin}"
         minutes = 45
-        hub = "Sri Adithya Organics Regional Delivery Hub"
+        hub = "Sri Aditya Organics Regional Delivery Hub"
 
-    # 5. Evaluate Eligibility & Applicable Fee
+    # 5. Evaluate Eligibility & Applicable Fee Calculated from Store Location
     is_free = (req.cart_subtotal or 0.0) >= free_thresh
     calc_fee = 0.0 if is_free else std_fee
 
@@ -355,12 +354,14 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             free_delivery_threshold=free_thresh,
             service_hub=hub,
             message=f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})",
-            store_address=store_addr
+            store_address=store_addr,
+            store_maps_url=store_maps
         )
 
-    # SCENARIO B: Coordinates available — check against store radius
+    # SCENARIO B: Coordinates available — calculate fee strictly from store distance
     if distance_km is not None:
-        if distance_km <= max_express_radius_km:
+        if distance_km <= 5.0:
+            local_fee = 0.0 if is_free else std_fee
             return ServiceabilityCheckOut(
                 is_serviceable=True,
                 status="Delivery Available",
@@ -368,29 +369,68 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
                 city=city,
                 locality=locality,
                 estimated_delivery_minutes=15,
-                delivery_fee=calc_fee,
+                delivery_fee=local_fee,
                 distance_km=distance_km,
                 min_order_amount=min_order,
                 free_delivery_threshold=free_thresh,
-                service_hub=hub,
-                message=f"Express Delivery Available: {distance_km} km from Sri Adithya Organics store.",
-                store_address=store_addr
+                service_hub="Sri Aditya Organics Mill Hub (Kothagudem)",
+                message=f"Hyperlocal Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
+                store_address=store_addr,
+                store_maps_url=store_maps
             )
-        elif distance_km <= delivery_radius_km:
+        elif distance_km <= max_express_radius_km:
+            express_tier_fee = 0.0 if is_free else (std_fee + 10.0)
             return ServiceabilityCheckOut(
                 is_serviceable=True,
                 status="Delivery Available",
                 postal_code=pin,
                 city=city,
                 locality=locality,
-                estimated_delivery_minutes=35,
-                delivery_fee=calc_fee,
+                estimated_delivery_minutes=25,
+                delivery_fee=express_tier_fee,
                 distance_km=distance_km,
                 min_order_amount=min_order,
                 free_delivery_threshold=free_thresh,
                 service_hub=hub,
-                message=f"Standard Delivery Available: {distance_km} km from Sri Adithya Organics store.",
-                store_address=store_addr
+                message=f"Express Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
+                store_address=store_addr,
+                store_maps_url=store_maps
+            )
+        elif distance_km <= delivery_radius_km:
+            std_tier_fee = 0.0 if is_free else (std_fee + 25.0)
+            return ServiceabilityCheckOut(
+                is_serviceable=True,
+                status="Delivery Available",
+                postal_code=pin,
+                city=city,
+                locality=locality,
+                estimated_delivery_minutes=45,
+                delivery_fee=std_tier_fee,
+                distance_km=distance_km,
+                min_order_amount=min_order,
+                free_delivery_threshold=free_thresh,
+                service_hub=hub,
+                message=f"Standard Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
+                store_address=store_addr,
+                store_maps_url=store_maps
+            )
+        elif distance_km <= 60.0:
+            extended_tier_fee = 0.0 if is_free else (std_fee + 40.0)
+            return ServiceabilityCheckOut(
+                is_serviceable=True,
+                status="Delivery Available with Additional Charges",
+                postal_code=pin,
+                city=city,
+                locality=locality,
+                estimated_delivery_minutes=90,
+                delivery_fee=extended_tier_fee,
+                distance_km=distance_km,
+                min_order_amount=min_order,
+                free_delivery_threshold=free_thresh,
+                service_hub=hub,
+                message=f"Regional Delivery Available: {distance_km} km from store (Extended zone fee applies).",
+                store_address=store_addr,
+                store_maps_url=store_maps
             )
         else:
             return ServiceabilityCheckOut(
@@ -400,32 +440,38 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
                 city=city,
                 locality=locality,
                 estimated_delivery_minutes=0,
-                delivery_fee=calc_fee,
+                delivery_fee=std_fee + 40.0,
                 distance_km=distance_km,
                 min_order_amount=min_order,
                 free_delivery_threshold=free_thresh,
                 service_hub=hub,
                 message=f"Delivery Not Available: Location is {distance_km} km away (Service radius: {int(delivery_radius_km)} km).",
-                store_address=store_addr
+                store_address=store_addr,
+                store_maps_url=store_maps
             )
 
     # SCENARIO C: PIN belongs to Telangana state (500xxx - 509xxx)
     if pin.startswith(("500", "501", "502", "503", "504", "505", "506", "507", "508", "509")):
-        extended_fee = 0.0 if is_free else (std_fee + 20.0)
+        # If in local Kothagudem pincode 507101
+        is_local_kothagudem = (pin == "507101")
+        pin_fee = 0.0 if is_free else (std_fee if is_local_kothagudem else (std_fee + 20.0))
+        pin_status = "Delivery Available" if is_local_kothagudem else "Delivery Available with Additional Charges"
+        pin_msg = "Local Delivery from Sri Aditya Organics Mill." if is_local_kothagudem else "Standard Telangana Regional Delivery Available."
         return ServiceabilityCheckOut(
             is_serviceable=True,
-            status="Delivery Available with Additional Charges",
+            status=pin_status,
             postal_code=pin,
             city=city,
             locality=locality,
-            estimated_delivery_minutes=45,
-            delivery_fee=extended_fee,
+            estimated_delivery_minutes=20 if is_local_kothagudem else 45,
+            delivery_fee=pin_fee,
             distance_km=None,
             min_order_amount=min_order,
             free_delivery_threshold=free_thresh,
             service_hub=hub,
-            message="Standard Telangana Delivery Available. Extended zone charge applies.",
-            store_address=store_addr
+            message=pin_msg,
+            store_address=store_addr,
+            store_maps_url=store_maps
         )
 
     # SCENARIO D: Outside Telangana and not in configured delivery zones
@@ -441,8 +487,9 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
         min_order_amount=min_order,
         free_delivery_threshold=free_thresh,
         service_hub=hub,
-        message=f"Delivery Not Available: Sri Adithya Organics currently serves Telangana delivery zones.",
-        store_address=store_addr
+        message=f"Delivery Not Available: Sri Aditya Organics currently serves Telangana delivery zones.",
+        store_address=store_addr,
+        store_maps_url=store_maps
     )
 
 

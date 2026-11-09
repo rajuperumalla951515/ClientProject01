@@ -395,7 +395,20 @@ export const OrdersPage: React.FC = () => {
                       {/* Customer */}
                       <td className="p-4">
                         <span className="font-bold text-[#26352B] block">{custName}</span>
-                        {phone && <span className="text-[11px] text-[#778176]">{phone}</span>}
+                        {phone && <span className="text-[11px] text-[#778176] block">{phone}</span>}
+                        {addr.latitude && addr.longitude ? (
+                          <a
+                            href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="inline-flex items-center gap-0.5 text-[10px] font-bold text-emerald-700 hover:underline mt-0.5"
+                            title="Open Customer Location on Google Maps"
+                          >
+                            <MapPin className="w-3 h-3" />
+                            <span>GPS Location ↗</span>
+                          </a>
+                        ) : null}
                       </td>
 
                       {/* Delivery Slot */}
@@ -614,11 +627,34 @@ export const OrdersPage: React.FC = () => {
                         addr.postal_code,
                       ].filter(Boolean).join(', ') || 'Standard Telangana Delivery Address'}
                     </p>
-                    {addr.postal_code && (
-                      <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-bold text-[#26352B]">
-                        PIN: {addr.postal_code}
-                      </span>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {addr.postal_code && (
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-bold text-[#26352B]">
+                          PIN: {addr.postal_code}
+                        </span>
+                      )}
+                      {addr.latitude && addr.longitude ? (
+                        <a
+                          href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors"
+                        >
+                          <MapPin className="w-3 h-3 text-emerald-600" />
+                          <span>Customer Location Map ({Number(addr.latitude).toFixed(4)}, {Number(addr.longitude).toFixed(4)}) ↗</span>
+                        </a>
+                      ) : (
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr.formatted_address || [addr.house_number, addr.street, addr.city, addr.postal_code].filter(Boolean).join(', '))}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-50 text-stone-700 border border-stone-200 text-[10px] font-bold hover:bg-stone-100 transition-colors"
+                        >
+                          <MapPin className="w-3 h-3 text-stone-500" />
+                          <span>Search Address in Maps ↗</span>
+                        </a>
+                      )}
+                    </div>
                   </div>
                 </div>
 

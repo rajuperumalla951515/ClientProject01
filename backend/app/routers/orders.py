@@ -19,6 +19,11 @@ from backend.app.phone_utils import (
     get_whatsapp_number_digits
 )
 
+try:
+    from backend.app.routers.addresses import calculate_distance
+except ImportError:
+    from app.routers.addresses import calculate_distance
+
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
 def generate_order_number() -> str:
@@ -38,8 +43,12 @@ def format_whatsapp_order_message(
     """
     Format WhatsApp checkout confirmation message strictly in the customer's own voice.
     This message is sent by the customer from their personal WhatsApp to Sri Adithya Organics.
+    Includes customer delivery address and Google Maps location link.
     """
     addr_line = "Delivery address provided"
+    lat = None
+    lon = None
+
     if address_dict:
         parts = [
             address_dict.get("house_number"),
@@ -52,6 +61,8 @@ def format_whatsapp_order_message(
             f"PIN: {address_dict.get('postal_code')}" if address_dict.get('postal_code') else None
         ]
         addr_line = ", ".join([str(p).strip() for p in parts if p and str(p).strip()])
+        lat = address_dict.get("latitude")
+        lon = address_dict.get("longitude")
     elif order_dict.get("delivery_address_json"):
         try:
             parsed = json.loads(order_dict["delivery_address_json"])
@@ -66,8 +77,25 @@ def format_whatsapp_order_message(
                 f"PIN: {parsed.get('postal_code')}" if parsed.get('postal_code') else None
             ]
             addr_line = ", ".join([str(p).strip() for p in parts if p and str(p).strip()])
+            lat = parsed.get("latitude")
+            lon = parsed.get("longitude")
         except Exception:
             addr_line = str(order_dict.get("delivery_address_json"))
+
+    location_block = ""
+    if lat is not None and lon is not None:
+        try:
+            f_lat = float(lat)
+            f_lon = float(lon)
+            dist_km = round(calculate_distance(17.5376, 80.6210, f_lat, f_lon), 1)
+            maps_link = f"https://maps.google.com/?q={f_lat:.6f},{f_lon:.6f}"
+            location_block = f"\n📍 Customer Location (Google Maps):\n{maps_link}\n(GPS: {f_lat:.5f}, {f_lon:.5f} | ~{dist_km} km from Kothagudem Mill)"
+        except Exception:
+            pass
+    elif addr_line and addr_line != "Delivery address provided":
+        encoded_addr = urllib.parse.quote(f"{addr_line}, Telangana, India")
+        search_link = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
+        location_block = f"\n📍 Customer Location (Google Maps):\n{search_link}"
 
     item_lines = []
     for it in items:
@@ -92,7 +120,7 @@ def format_whatsapp_order_message(
         f"Hello Sri Adithya Organics,\n\n"
         f"I would like to place an order{order_ref}.\n\n"
         f"Order Details:\n{items_block}\n\n"
-        f"Delivery Address:\n{addr_line}\n\n"
+        f"Delivery Address:\n{addr_line}{location_block}\n\n"
         f"Customer Name: {customer_name}\n"
         f"Phone Number: {formatted_phone}\n\n"
         f"Delivery Slot: {slot}\n"
@@ -287,10 +315,36 @@ async def checkout(
             "quantity": it["quantity"]
         })
 
+    # Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
+    store_lat = 17.5376
+    store_lon = 80.6210
+    try:
+        s_row = await d1.fetch_one("SELECT store_latitude, store_longitude FROM delivery_settings LIMIT 1")
+        if s_row and s_row.get("store_latitude") is not None:
+            store_lat = float(s_row["store_latitude"])
+            store_lon = float(s_row["store_longitude"])
+    except Exception:
+        pass
+
+    applicable_delivery_fee = standard_delivery
+    if address_snapshot.get("latitude") is not None and address_snapshot.get("longitude") is not None:
+        try:
+            dist_km = calculate_distance(store_lat, store_lon, float(address_snapshot["latitude"]), float(address_snapshot["longitude"]))
+            if dist_km <= 5.0:
+                applicable_delivery_fee = standard_delivery
+            elif dist_km <= 15.0:
+                applicable_delivery_fee = standard_delivery + 10.0
+            elif dist_km <= 35.0:
+                applicable_delivery_fee = standard_delivery + 25.0
+            else:
+                applicable_delivery_fee = standard_delivery + 40.0
+        except Exception:
+            pass
+
     fin = compute_financials(
         raw_fin_items,
         free_delivery_threshold=free_threshold,
-        standard_delivery_fee=standard_delivery
+        standard_delivery_fee=applicable_delivery_fee
     )
 
     # 5. Create Order
@@ -532,10 +586,36 @@ async def create_whatsapp_order(
     from backend.app.routers.cart import get_cached_delivery_settings
     free_threshold, standard_delivery = await get_cached_delivery_settings(d1)
 
+    # Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
+    store_lat = 17.5376
+    store_lon = 80.6210
+    try:
+        s_row = await d1.fetch_one("SELECT store_latitude, store_longitude FROM delivery_settings LIMIT 1")
+        if s_row and s_row.get("store_latitude") is not None:
+            store_lat = float(s_row["store_latitude"])
+            store_lon = float(s_row["store_longitude"])
+    except Exception:
+        pass
+
+    applicable_delivery_fee = standard_delivery
+    if address_snapshot.get("latitude") is not None and address_snapshot.get("longitude") is not None:
+        try:
+            dist_km = calculate_distance(store_lat, store_lon, float(address_snapshot["latitude"]), float(address_snapshot["longitude"]))
+            if dist_km <= 5.0:
+                applicable_delivery_fee = standard_delivery
+            elif dist_km <= 15.0:
+                applicable_delivery_fee = standard_delivery + 10.0
+            elif dist_km <= 35.0:
+                applicable_delivery_fee = standard_delivery + 25.0
+            else:
+                applicable_delivery_fee = standard_delivery + 40.0
+        except Exception:
+            pass
+
     fin = compute_financials(
         raw_fin_items,
         free_delivery_threshold=free_threshold,
-        standard_delivery_fee=standard_delivery
+        standard_delivery_fee=applicable_delivery_fee
     )
 
     now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")

@@ -28,6 +28,17 @@ const DEFAULT_SETTINGS: DeliverySetting = {
   ]),
   announcement_text: 'Traditional & Pure Sri Adithya Organics • 100% Traditional Wood-Pressed Oils & Farm Produce • Free delivery on orders over ₹499',
   whatsapp_number: '919515159006',
+  store_name: 'Sri Aditya Organics & Oil Mill',
+  store_address: 'Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam',
+  store_city: 'Kothagudem',
+  store_district: 'Bhadradri Kothagudem',
+  store_state: 'Telangana',
+  store_pincode: '507101',
+  store_latitude: 17.5376,
+  store_longitude: 80.6210,
+  store_maps_url: 'https://share.google/e1aO3V8FJQ7USIKzU',
+  delivery_radius_km: 60,
+  max_express_radius_km: 15,
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);

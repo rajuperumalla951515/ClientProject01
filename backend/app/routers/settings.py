@@ -10,14 +10,15 @@ from backend.app.events import broadcaster
 router = APIRouter(prefix="/settings", tags=["Store Settings"])
 
 STORE_LOCATION_COLUMNS = {
-    "store_name": "TEXT DEFAULT 'Sri Adithya Organics'",
-    "store_address": "TEXT DEFAULT 'Sri Adithya Organics, Hyderabad, Telangana, India'",
-    "store_city": "TEXT DEFAULT 'Hyderabad'",
-    "store_district": "TEXT DEFAULT 'Hyderabad'",
+    "store_name": "TEXT DEFAULT 'Sri Aditya Organics & Oil Mill'",
+    "store_address": "TEXT DEFAULT 'Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam'",
+    "store_city": "TEXT DEFAULT 'Kothagudem'",
+    "store_district": "TEXT DEFAULT 'Bhadradri Kothagudem'",
     "store_state": "TEXT DEFAULT 'Telangana'",
-    "store_pincode": "TEXT DEFAULT '500001'",
-    "store_latitude": "REAL DEFAULT 17.3850",
-    "store_longitude": "REAL DEFAULT 78.4867",
+    "store_pincode": "TEXT DEFAULT '507101'",
+    "store_latitude": "REAL DEFAULT 17.5376",
+    "store_longitude": "REAL DEFAULT 80.6210",
+    "store_maps_url": "TEXT DEFAULT 'https://share.google/e1aO3V8FJQ7USIKzU'",
     "delivery_radius_km": "REAL DEFAULT 35.0",
     "max_express_radius_km": "REAL DEFAULT 15.0",
 }
@@ -47,21 +48,22 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
                 min_order_amount, free_delivery_threshold, standard_delivery_fee, express_delivery_fee,
                 active_slots_json, announcement_text, whatsapp_number,
                 store_name, store_address, store_city, store_district, store_state, store_pincode,
-                store_latitude, store_longitude, delivery_radius_km, max_express_radius_km
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                store_latitude, store_longitude, store_maps_url, delivery_radius_km, max_express_radius_km
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             99.0, 499.0, 39.0, 59.0,
             '["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
             "Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
             "919515159006",
-            "Sri Adithya Organics",
-            "Sri Adithya Organics, Hyderabad, Telangana, India",
-            "Hyderabad",
-            "Hyderabad",
+            "Sri Aditya Organics & Oil Mill",
+            "Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam",
+            "Kothagudem",
+            "Bhadradri Kothagudem",
             "Telangana",
-            "500001",
-            17.3850,
-            78.4867,
+            "507101",
+            17.5376,
+            80.6210,
+            "https://share.google/e1aO3V8FJQ7USIKzU",
             35.0,
             15.0
         )
@@ -72,14 +74,15 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
 
     # Default fallback values for unpopulated store location fields
     defaults = {
-        "store_name": "Sri Adithya Organics",
-        "store_address": "Sri Adithya Organics, Hyderabad, Telangana, India",
-        "store_city": "Hyderabad",
-        "store_district": "Hyderabad",
+        "store_name": "Sri Aditya Organics & Oil Mill",
+        "store_address": "Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam",
+        "store_city": "Kothagudem",
+        "store_district": "Bhadradri Kothagudem",
         "store_state": "Telangana",
-        "store_pincode": "500001",
-        "store_latitude": 17.3850,
-        "store_longitude": 78.4867,
+        "store_pincode": "507101",
+        "store_latitude": 17.5376,
+        "store_longitude": 80.6210,
+        "store_maps_url": "https://share.google/e1aO3V8FJQ7USIKzU",
         "delivery_radius_km": 35.0,
         "max_express_radius_km": 15.0
     }
@@ -120,6 +123,7 @@ async def update_store_settings(
         "store_pincode",
         "store_latitude",
         "store_longitude",
+        "store_maps_url",
         "delivery_radius_km",
         "max_express_radius_km",
     }

@@ -11,16 +11,16 @@ import { Address, AddressSearchResult } from '../types';
 import { validateAndNormalizeIndianPhone } from '../utils/phoneUtils';
 
 const POPULAR_LOCALITIES = [
+  { name: 'Kothagudem (Babu Camp / Ganeshbasthi)', city: 'Kothagudem', pin: '507101' },
+  { name: 'Palwancha', city: 'Bhadradri Kothagudem', pin: '507115' },
+  { name: 'Bhadrachalam', city: 'Bhadradri Kothagudem', pin: '507111' },
+  { name: 'Yellandu', city: 'Bhadradri Kothagudem', pin: '507123' },
+  { name: 'Khammam Central', city: 'Khammam', pin: '507001' },
   { name: 'Jubilee Hills', city: 'Hyderabad', pin: '500033' },
   { name: 'Banjara Hills', city: 'Hyderabad', pin: '500034' },
   { name: 'Madhapur (HITEC City)', city: 'Hyderabad', pin: '500081' },
   { name: 'Gachibowli', city: 'Hyderabad', pin: '500032' },
-  { name: 'Kondapur', city: 'Hyderabad', pin: '500084' },
-  { name: 'Secunderabad', city: 'Hyderabad', pin: '500003' },
-  { name: 'Kukatpally', city: 'Hyderabad', pin: '500072' },
-  { name: 'Kothagudem', city: 'Bhadradri Kothagudem', pin: '507101' },
-  { name: 'Hanamkonda', city: 'Warangal', pin: '506001' },
-  { name: 'Khammam Central', city: 'Khammam', pin: '507001' },
+  { name: 'Warangal / Hanamkonda', city: 'Warangal', pin: '506001' },
 ];
 
 export const LocationModal: React.FC = () => {
@@ -94,7 +94,7 @@ export const LocationModal: React.FC = () => {
   const [apartment, setApartment] = useState('');
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [city, setCity] = useState('Hyderabad');
+  const [city, setCity] = useState('Kothagudem');
   const [state, setState] = useState('Telangana');
   const [postalCode, setPostalCode] = useState(selectedDeliveryAddress.postal_code || '');
   const [saveToAccount, setSaveToAccount] = useState(Boolean(user));
@@ -152,7 +152,7 @@ export const LocationModal: React.FC = () => {
       apartment: apartment.trim() || undefined,
       street: street.trim(),
       landmark: landmark.trim() || undefined,
-      city: city.trim() || 'Hyderabad',
+      city: city.trim() || 'Kothagudem',
       state: state.trim() || 'Telangana',
       postal_code: cleanPin,
       country: 'India',

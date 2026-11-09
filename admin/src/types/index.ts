@@ -310,6 +310,7 @@ export interface StoreSettings {
   store_pincode?: string;
   store_latitude?: number;
   store_longitude?: number;
+  store_maps_url?: string;
   delivery_radius_km?: number;
   max_express_radius_km?: number;
 }

@@ -106,21 +106,21 @@ interface LocationContextType {
 }
 
 const DEFAULT_DELIVERY_ADDRESS: SelectedDeliveryAddress = {
-  label: 'Default Fulfillment Hub',
-  street: 'Road No. 36',
-  locality: 'Jubilee Hills',
-  city: 'Hyderabad',
-  district: 'Hyderabad',
+  label: 'Sri Aditya Organics & Oil Mill',
+  street: 'Babu Camp Road, Ganeshbasthi',
+  locality: 'Opp. Babu Camp Ramalayam, Jilla Parishad Complex',
+  city: 'Kothagudem',
+  district: 'Bhadradri Kothagudem',
   state: 'Telangana',
-  postal_code: '500033',
+  postal_code: '507101',
   country: 'India',
-  latitude: 17.4319,
-  longitude: 78.4073,
+  latitude: 17.5376,
+  longitude: 80.6210,
   accuracy_meters: 10,
-  formatted_address: 'Road No. 36, Jubilee Hills, Hyderabad, Telangana - 500033',
+  formatted_address: 'Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Ramalayam, Kothagudem, Telangana - 507101',
   is_serviceable: true,
-  service_hub: 'Hyderabad Central Hub',
-  estimated_delivery_minutes: 25,
+  service_hub: 'Sri Aditya Organics & Oil Mill (Kothagudem)',
+  estimated_delivery_minutes: 15,
   source: 'preset_hub',
 };
 
@@ -274,9 +274,9 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       return detected;
     } catch (err: any) {
       // Client-side fallback if backend request fails
-      const fallbackLocality = 'Hyderabad Central';
-      const fallbackCity = 'Hyderabad';
-      const fallbackPin = '500001';
+      const fallbackLocality = 'Babu Camp Road, Ganeshbasthi';
+      const fallbackCity = 'Kothagudem';
+      const fallbackPin = '507101';
       const isExpress = isTelanganaPin(fallbackPin);
 
       return {
@@ -290,8 +290,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         longitude: lon,
         accuracy_meters: accuracy ?? null,
         is_serviceable: true,
-        estimated_delivery_minutes: isExpress ? 25 : 48 * 60,
-        service_hub: isExpress ? 'Hyderabad Central Hub' : 'Sri Adithya Organics Central Fulfillment Facility',
+        estimated_delivery_minutes: isExpress ? 15 : 48 * 60,
+        service_hub: isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility',
         message: 'Delivery Available to this area',
         is_incomplete: true,
         source: isManualPin ? 'map_pin' : 'gps_detected',
@@ -497,8 +497,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Select a saved address from customer account
   const selectSavedAddress = useCallback((addr: Address) => {
     const isExpress = isTelanganaPin(addr.postal_code);
-    const hub = isExpress ? 'Hyderabad Express Hub' : 'Sri Adithya Organics Central Fulfillment Facility';
-    const minutes = isExpress ? 25 : 48 * 60;
+    const hub = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
+    const minutes = isExpress ? 15 : 48 * 60;
 
     const newDeliveryAddress: SelectedDeliveryAddress = {
       id: addr.id,
@@ -557,8 +557,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const isExpress = isTelanganaPin(pin);
         serviceResult = {
           is_serviceable: true,
-          service_hub: isExpress ? 'Hyderabad Express Hub' : 'Sri Adithya Organics Central Fulfillment Facility',
-          estimated_delivery_minutes: isExpress ? 25 : 48 * 60,
+          service_hub: isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility',
+          estimated_delivery_minutes: isExpress ? 15 : 48 * 60,
         };
       }
 
@@ -575,13 +575,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
             house_number: input.house_number,
             locality: input.locality || input.city,
             landmark: input.landmark,
-            city: input.city || 'Hyderabad',
+            city: input.city || 'Kothagudem',
             state: input.state || 'Telangana',
             postal_code: pin,
             latitude: input.latitude,
             longitude: input.longitude,
             accuracy_meters: null,
-            formatted_address: `${input.street}, ${input.city || 'Hyderabad'} - ${pin}`,
+            formatted_address: `${input.street}, ${input.city || 'Kothagudem'} - ${pin}`,
             confirmed_at: new Date().toISOString(),
             is_default: false,
           });
@@ -633,21 +633,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Quick preset hub selection
   const setPresetHubLocation = useCallback(async (area: string, pin: string) => {
     try {
-      let hubName = 'Hyderabad Express Hub';
-      let minutes = 25;
+      let hubName = 'Sri Aditya Organics & Oil Mill (Kothagudem)';
+      let minutes = 15;
       let isServ = true;
-      let cityName = 'Hyderabad';
+      let cityName = 'Kothagudem';
 
       try {
         const serv = await api.checkServiceability(pin);
         hubName = serv.service_hub;
         minutes = serv.estimated_delivery_minutes;
         isServ = serv.is_serviceable;
-        cityName = serv.city || 'Hyderabad';
+        cityName = serv.city || 'Kothagudem';
       } catch {
         const isExpress = isTelanganaPin(pin);
-        hubName = isExpress ? 'Hyderabad Express Hub' : 'Sri Adithya Organics Central Fulfillment Facility';
-        minutes = isExpress ? 25 : 48 * 60;
+        hubName = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
+        minutes = isExpress ? 15 : 48 * 60;
       }
 
       const newDeliveryAddress: SelectedDeliveryAddress = {

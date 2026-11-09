@@ -74,3 +74,4 @@ def format_display_indian_phone(phone_input: Optional[str]) -> str:
     # +91 followed by 5 digits, space, 5 digits
     digits = normalized[3:]
     return f"+91 {digits[:5]} {digits[5:]}"
+
