@@ -20,8 +20,22 @@ from backend.app.phone_utils import (
 )
 
 try:
+    from backend.app.delivery import (
+        calculate_haversine_distance,
+        get_road_distance_km,
+        parse_distance_slabs,
+        calculate_distance_based_delivery_fee,
+        DEFAULT_DISTANCE_SLABS
+    )
     from backend.app.routers.addresses import calculate_distance
 except ImportError:
+    from app.delivery import (
+        calculate_haversine_distance,
+        get_road_distance_km,
+        parse_distance_slabs,
+        calculate_distance_based_delivery_fee,
+        DEFAULT_DISTANCE_SLABS
+    )
     from app.routers.addresses import calculate_distance
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
@@ -82,20 +96,34 @@ def format_whatsapp_order_message(
         except Exception:
             addr_line = str(order_dict.get("delivery_address_json"))
 
+    dist_km = order_dict.get("distance_km")
+    if dist_km is None and lat is not None and lon is not None:
+        try:
+            f_lat = float(lat)
+            f_lon = float(lon)
+            dist_km, _ = get_road_distance_km(17.5376, 80.6210, f_lat, f_lon)
+        except Exception:
+            pass
+
     location_block = ""
+    dist_line = ""
     if lat is not None and lon is not None:
         try:
             f_lat = float(lat)
             f_lon = float(lon)
-            dist_km = round(calculate_distance(17.5376, 80.6210, f_lat, f_lon), 1)
+            if dist_km is None:
+                dist_km, _ = get_road_distance_km(17.5376, 80.6210, f_lat, f_lon)
             maps_link = f"https://maps.google.com/?q={f_lat:.6f},{f_lon:.6f}"
-            location_block = f"\n📍 Customer Location (Google Maps):\n{maps_link}\n(GPS: {f_lat:.5f}, {f_lon:.5f} | ~{dist_km} km from Kothagudem Mill)"
+            location_block = f"\n📍 Customer Location (Google Maps):\n{maps_link}\n(GPS: {f_lat:.5f}, {f_lon:.5f} | ~{dist_km:.1f} km from Kothagudem Mill)"
+            dist_line = f"Delivery Distance: ~{dist_km:.1f} km (from Sri Aditya Organics Mill)\n"
         except Exception:
             pass
     elif addr_line and addr_line != "Delivery address provided":
         encoded_addr = urllib.parse.quote(f"{addr_line}, Telangana, India")
         search_link = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
         location_block = f"\n📍 Customer Location (Google Maps):\n{search_link}"
+        if dist_km is not None:
+            dist_line = f"Delivery Distance: ~{dist_km:.1f} km\n"
 
     item_lines = []
     for it in items:
@@ -116,6 +144,13 @@ def format_whatsapp_order_message(
     order_ref = f" (Order #{order_num})" if order_num else ""
     formatted_phone = format_display_indian_phone(customer_phone)
 
+    if del_fee == 0.0 and subtotal >= 499.0:
+        delivery_charges_display = "FREE (Orders over ₹499)"
+    elif del_fee == 0.0:
+        delivery_charges_display = "FREE"
+    else:
+        delivery_charges_display = f"₹{del_fee:.2f}"
+
     msg = (
         f"Hello Sri Adithya Organics,\n\n"
         f"I would like to place an order{order_ref}.\n\n"
@@ -124,6 +159,7 @@ def format_whatsapp_order_message(
         f"Customer Name: {customer_name}\n"
         f"Phone Number: {formatted_phone}\n\n"
         f"Delivery Slot: {slot}\n"
+        f"{dist_line}Delivery Charges: {delivery_charges_display}\n"
         f"Payment Preference: {payment_pref}\n"
         f"Total Amount: ₹{tot_amt:.2f}\n\n"
         f"Please confirm my order and delivery availability.\n\n"
@@ -315,31 +351,61 @@ async def checkout(
             "quantity": it["quantity"]
         })
 
-    # Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
+    # 4. Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
     store_lat = 17.5376
     store_lon = 80.6210
+    delivery_radius_km = 35.0
+    slabs_raw = None
     try:
-        s_row = await d1.fetch_one("SELECT store_latitude, store_longitude FROM delivery_settings LIMIT 1")
-        if s_row and s_row.get("store_latitude") is not None:
-            store_lat = float(s_row["store_latitude"])
-            store_lon = float(s_row["store_longitude"])
+        s_row = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+        if s_row:
+            if s_row.get("store_latitude") is not None:
+                store_lat = float(s_row["store_latitude"])
+            if s_row.get("store_longitude") is not None:
+                store_lon = float(s_row["store_longitude"])
+            if s_row.get("delivery_radius_km") is not None:
+                delivery_radius_km = float(s_row["delivery_radius_km"])
+            if s_row.get("free_delivery_threshold") is not None:
+                free_threshold = float(s_row["free_delivery_threshold"])
+            if s_row.get("standard_delivery_fee") is not None:
+                standard_delivery = float(s_row["standard_delivery_fee"])
+            slabs_raw = s_row.get("distance_slabs_json")
     except Exception:
         pass
 
-    applicable_delivery_fee = standard_delivery
-    if address_snapshot.get("latitude") is not None and address_snapshot.get("longitude") is not None:
+    slabs = parse_distance_slabs(slabs_raw)
+    items_subtotal = sum(float(item["unit_price"]) * int(item["quantity"]) for item in raw_fin_items)
+
+    # Resolve customer coordinates
+    cust_lat = address_snapshot.get("latitude")
+    cust_lon = address_snapshot.get("longitude")
+    if (cust_lat is None or cust_lon is None) and address_snapshot.get("postal_code"):
+        pin = str(address_snapshot["postal_code"]).strip()
+        from backend.app.routers.addresses import KNOWN_LOCALITY_CLUSTERS
+        matched_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
+        if matched_cluster and matched_cluster.get("lat") is not None:
+            cust_lat = matched_cluster["lat"]
+            cust_lon = matched_cluster["lon"]
+
+    distance_km = None
+    routing_source = None
+    if cust_lat is not None and cust_lon is not None:
         try:
-            dist_km = calculate_distance(store_lat, store_lon, float(address_snapshot["latitude"]), float(address_snapshot["longitude"]))
-            if dist_km <= 5.0:
-                applicable_delivery_fee = standard_delivery
-            elif dist_km <= 15.0:
-                applicable_delivery_fee = standard_delivery + 10.0
-            elif dist_km <= 35.0:
-                applicable_delivery_fee = standard_delivery + 25.0
-            else:
-                applicable_delivery_fee = standard_delivery + 40.0
+            distance_km, routing_source = get_road_distance_km(store_lat, store_lon, float(cust_lat), float(cust_lon))
         except Exception:
             pass
+
+    applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
+        distance_km=distance_km,
+        slabs=slabs,
+        subtotal=items_subtotal,
+        free_delivery_threshold=free_threshold,
+        max_delivery_radius_km=delivery_radius_km,
+        default_fallback_fee=standard_delivery
+    )
+
+    if not is_serv:
+        raise HTTPException(status_code=400, detail=serv_msg)
 
     fin = compute_financials(
         raw_fin_items,
@@ -356,8 +422,8 @@ async def checkout(
         INSERT INTO orders (
             order_number, user_id, status, subtotal, discount, delivery_fee,
             tax, total_amount, delivery_slot, delivery_address_json, notes,
-            payment_method, payment_status, payment_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            payment_method, payment_status, payment_id, created_at, updated_at, distance_km
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     new_order_id = await d1.execute_insert(
         sql_order,
@@ -376,7 +442,8 @@ async def checkout(
         "pending",
         payment_token,
         now,
-        now
+        now,
+        distance_km
     )
 
     # 6. Insert Order Items & Decrement Stock
@@ -589,28 +656,58 @@ async def create_whatsapp_order(
     # Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
     store_lat = 17.5376
     store_lon = 80.6210
+    delivery_radius_km = 35.0
+    slabs_raw = None
     try:
-        s_row = await d1.fetch_one("SELECT store_latitude, store_longitude FROM delivery_settings LIMIT 1")
-        if s_row and s_row.get("store_latitude") is not None:
-            store_lat = float(s_row["store_latitude"])
-            store_lon = float(s_row["store_longitude"])
+        s_row = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+        if s_row:
+            if s_row.get("store_latitude") is not None:
+                store_lat = float(s_row["store_latitude"])
+            if s_row.get("store_longitude") is not None:
+                store_lon = float(s_row["store_longitude"])
+            if s_row.get("delivery_radius_km") is not None:
+                delivery_radius_km = float(s_row["delivery_radius_km"])
+            if s_row.get("free_delivery_threshold") is not None:
+                free_threshold = float(s_row["free_delivery_threshold"])
+            if s_row.get("standard_delivery_fee") is not None:
+                standard_delivery = float(s_row["standard_delivery_fee"])
+            slabs_raw = s_row.get("distance_slabs_json")
     except Exception:
         pass
 
-    applicable_delivery_fee = standard_delivery
-    if address_snapshot.get("latitude") is not None and address_snapshot.get("longitude") is not None:
+    slabs = parse_distance_slabs(slabs_raw)
+    items_subtotal = sum(float(item["unit_price"]) * int(item["quantity"]) for item in raw_fin_items)
+
+    # Resolve customer coordinates
+    cust_lat = address_snapshot.get("latitude")
+    cust_lon = address_snapshot.get("longitude")
+    if (cust_lat is None or cust_lon is None) and address_snapshot.get("postal_code"):
+        pin = str(address_snapshot["postal_code"]).strip()
+        from backend.app.routers.addresses import KNOWN_LOCALITY_CLUSTERS
+        matched_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
+        if matched_cluster and matched_cluster.get("lat") is not None:
+            cust_lat = matched_cluster["lat"]
+            cust_lon = matched_cluster["lon"]
+
+    distance_km = None
+    routing_source = None
+    if cust_lat is not None and cust_lon is not None:
         try:
-            dist_km = calculate_distance(store_lat, store_lon, float(address_snapshot["latitude"]), float(address_snapshot["longitude"]))
-            if dist_km <= 5.0:
-                applicable_delivery_fee = standard_delivery
-            elif dist_km <= 15.0:
-                applicable_delivery_fee = standard_delivery + 10.0
-            elif dist_km <= 35.0:
-                applicable_delivery_fee = standard_delivery + 25.0
-            else:
-                applicable_delivery_fee = standard_delivery + 40.0
+            distance_km, routing_source = get_road_distance_km(store_lat, store_lon, float(cust_lat), float(cust_lon))
         except Exception:
             pass
+
+    applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
+        distance_km=distance_km,
+        slabs=slabs,
+        subtotal=items_subtotal,
+        free_delivery_threshold=free_threshold,
+        max_delivery_radius_km=delivery_radius_km,
+        default_fallback_fee=standard_delivery
+    )
+
+    if not is_serv:
+        raise HTTPException(status_code=400, detail=serv_msg)
 
     fin = compute_financials(
         raw_fin_items,
@@ -626,8 +723,8 @@ async def create_whatsapp_order(
         INSERT INTO orders (
             order_number, user_id, status, subtotal, discount, delivery_fee,
             tax, total_amount, delivery_slot, delivery_address_json, notes,
-            payment_method, payment_status, payment_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            payment_method, payment_status, payment_id, created_at, updated_at, distance_km
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     new_order_id = await d1.execute_insert(
         sql_order,
@@ -646,7 +743,8 @@ async def create_whatsapp_order(
         "pending",
         f"WA-{order_in.idempotency_key}" if order_in.idempotency_key else None,
         now,
-        now
+        now,
+        distance_km
     )
 
     for calc_it in fin.items:

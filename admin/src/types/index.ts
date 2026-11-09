@@ -129,6 +129,7 @@ export interface Order {
   subtotal: number;
   discount: number;
   delivery_fee: number;
+  distance_km?: number;
   tax: number;
   total_amount: number;
   delivery_slot: string;
@@ -293,6 +294,12 @@ export interface CustomerDetail extends CustomerMetric {
   orders: Order[];
 }
 
+export interface DistanceSlab {
+  min_km: number;
+  max_km: number;
+  fee: number;
+}
+
 export interface StoreSettings {
   id?: number;
   min_order_amount: number;
@@ -313,6 +320,7 @@ export interface StoreSettings {
   store_maps_url?: string;
   delivery_radius_km?: number;
   max_express_radius_km?: number;
+  distance_slabs_json?: string;
 }
 
 export interface ToastMessage {

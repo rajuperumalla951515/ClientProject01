@@ -308,6 +308,7 @@ class OrderOut(BaseModel):
     subtotal: float
     discount: float
     delivery_fee: float
+    distance_km: Optional[float] = None
     tax: float
     total_amount: float
     delivery_slot: str
@@ -387,6 +388,7 @@ class DeliverySettingOut(BaseModel):
     store_maps_url: Optional[str] = "https://share.google/e1aO3V8FJQ7USIKzU"
     delivery_radius_km: Optional[float] = 35.0
     max_express_radius_km: Optional[float] = 15.0
+    distance_slabs_json: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -410,6 +412,7 @@ class DeliverySettingUpdate(BaseModel):
     store_maps_url: Optional[str] = None
     delivery_radius_km: Optional[float] = None
     max_express_radius_km: Optional[float] = None
+    distance_slabs_json: Optional[str] = None
 
 
 # --- Admin Dashboard Stats & Operations ---
@@ -649,6 +652,8 @@ class ServiceabilityCheckOut(BaseModel):
     estimated_delivery_minutes: int
     delivery_fee: float = 39.0
     distance_km: Optional[float] = None
+    distance_source: Optional[str] = None
+    matched_slab: Optional[str] = None
     min_order_amount: float
     free_delivery_threshold: float
     service_hub: str

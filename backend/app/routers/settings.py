@@ -21,6 +21,7 @@ STORE_LOCATION_COLUMNS = {
     "store_maps_url": "TEXT DEFAULT 'https://share.google/e1aO3V8FJQ7USIKzU'",
     "delivery_radius_km": "REAL DEFAULT 35.0",
     "max_express_radius_km": "REAL DEFAULT 15.0",
+    "distance_slabs_json": "TEXT DEFAULT '[{\"min_km\":0,\"max_km\":2,\"fee\":20},{\"min_km\":2,\"max_km\":4,\"fee\":30},{\"min_km\":4,\"max_km\":6,\"fee\":40},{\"min_km\":6,\"max_km\":8,\"fee\":50},{\"min_km\":8,\"max_km\":10,\"fee\":60},{\"min_km\":10,\"max_km\":15,\"fee\":75},{\"min_km\":15,\"max_km\":35,\"fee\":99},{\"min_km\":35,\"max_km\":60,\"fee\":149}]'",
 }
 
 async def ensure_store_settings_schema(d1: D1Database):
@@ -33,6 +34,15 @@ async def ensure_store_settings_schema(d1: D1Database):
                     await d1.execute(f"ALTER TABLE delivery_settings ADD COLUMN {col_name} {col_def}")
                 except Exception:
                     pass
+
+        # Also ensure orders table has distance_km column
+        order_cols = await d1.fetch_all("PRAGMA table_info(orders)")
+        order_col_names = {c["name"] for c in order_cols} if order_cols else set()
+        if "distance_km" not in order_col_names:
+            try:
+                await d1.execute("ALTER TABLE orders ADD COLUMN distance_km REAL DEFAULT NULL")
+            except Exception:
+                pass
     except Exception as e:
         print(f"[Settings] Migration notice: {e}")
 
@@ -84,7 +94,8 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
         "store_longitude": 80.6210,
         "store_maps_url": "https://share.google/e1aO3V8FJQ7USIKzU",
         "delivery_radius_km": 35.0,
-        "max_express_radius_km": 15.0
+        "max_express_radius_km": 15.0,
+        "distance_slabs_json": '[{"min_km":0,"max_km":2,"fee":20},{"min_km":2,"max_km":4,"fee":30},{"min_km":4,"max_km":6,"fee":40},{"min_km":6,"max_km":8,"fee":50},{"min_km":8,"max_km":10,"fee":60},{"min_km":10,"max_km":15,"fee":75},{"min_km":15,"max_km":35,"fee":99},{"min_km":35,"max_km":60,"fee":149}]'
     }
     for k, v in defaults.items():
         if setting.get(k) is None:
@@ -126,6 +137,7 @@ async def update_store_settings(
         "store_maps_url",
         "delivery_radius_km",
         "max_express_radius_km",
+        "distance_slabs_json",
     }
     valid_data = {k: v for k, v in update_data.items() if k in ALLOWED_SETTINGS_COLS}
 
@@ -164,6 +176,7 @@ async def update_store_settings(
         "express_delivery_fee": float(setting.get("express_delivery_fee")) if setting.get("express_delivery_fee") is not None else None,
         "announcement_text": setting.get("announcement_text"),
         "whatsapp_number": setting.get("whatsapp_number"),
-        "active_slots_json": setting.get("active_slots_json")
+        "active_slots_json": setting.get("active_slots_json"),
+        "distance_slabs_json": setting.get("distance_slabs_json")
     })
     return DeliverySettingOut(**setting)

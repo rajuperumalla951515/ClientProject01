@@ -40,6 +40,10 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
     openLocationModal,
     deliveryMinutes,
     serviceHub,
+    deliveryFee: locationDeliveryFee,
+    distanceKm: locationDistanceKm,
+    matchedSlab: locationMatchedSlab,
+    recalculateDeliveryFee,
   } = useLocation();
 
   // Form states
@@ -83,19 +87,30 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
     }
   };
 
-  if (!isOpen) return null;
-
   // Calculate pricing
-  const { freeDeliveryThreshold, standardDeliveryFee, minOrderAmount } = useStoreSettings();
+  const { freeDeliveryThreshold, minOrderAmount } = useStoreSettings();
   const isDirect = Boolean(directItem);
   const itemsCount = isDirect ? 1 : cart.items.length;
   const subtotal = isDirect
     ? round2(directItem!.variant.price * directItem!.quantity)
     : cart.subtotal;
   const freeThreshold = freeDeliveryThreshold;
-  const standardFee = standardDeliveryFee;
-  const deliveryFee = subtotal >= freeThreshold ? 0.0 : standardFee;
+
+  // Real-time distance and delivery fee
+  const distanceKm = selectedDeliveryAddress.distance_km ?? locationDistanceKm;
+  const matchedSlab = selectedDeliveryAddress.matched_slab || locationMatchedSlab;
+  const rawDeliveryFee = selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? 20.0;
+  const deliveryFee = subtotal >= freeThreshold ? 0.0 : rawDeliveryFee;
   const totalAmount = round2(subtotal + deliveryFee);
+
+  // Recalculate distance and fee when address or subtotal changes
+  useEffect(() => {
+    if (isOpen && selectedDeliveryAddress.postal_code) {
+      recalculateDeliveryFee(subtotal);
+    }
+  }, [isOpen, selectedDeliveryAddress.postal_code, selectedDeliveryAddress.latitude, selectedDeliveryAddress.longitude, subtotal, recalculateDeliveryFee]);
+
+  if (!isOpen) return null;
 
   function round2(num: number) {
     return Math.round(num * 100) / 100;
@@ -309,6 +324,14 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span className="text-stone-900 font-black">₹{orderResult.order.total_amount}</span>
                 </div>
                 <div className="flex justify-between font-semibold">
+                  <span className="text-stone-500">Delivery Distance:</span>
+                  <span className="text-stone-900 font-bold">
+                    {orderResult.order.distance_km != null
+                      ? `~${Number(orderResult.order.distance_km).toFixed(1)} km from Kothagudem Mill`
+                      : (distanceKm != null ? `~${distanceKm.toFixed(1)} km` : 'Calculated via Mill Route')}
+                  </span>
+                </div>
+                <div className="flex justify-between font-semibold">
                   <span className="text-stone-500">Delivery Destination:</span>
                   <span className="text-stone-900 truncate max-w-[200px]">{locationLabel}</span>
                 </div>
@@ -462,6 +485,21 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
 
                 <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
                   <p className="font-bold text-stone-900 leading-snug">{locationLabel}</p>
+
+                  {/* Distance & Delivery Fee Slab Info */}
+                  {distanceKm !== null && distanceKm !== undefined && (
+                    <div className="flex items-center justify-between text-[11px] text-stone-700 bg-amber-50/80 border border-amber-200/70 px-2.5 py-1.5 rounded-lg">
+                      <div className="flex items-center gap-1.5 font-semibold text-amber-900">
+                        <Truck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                        <span>Road Distance: ~{distanceKm.toFixed(1)} km from Kothagudem Mill</span>
+                      </div>
+                      {matchedSlab && (
+                        <span className="font-mono text-[10px] text-amber-900 bg-amber-200/80 font-bold px-1.5 py-0.5 rounded">
+                          {matchedSlab}
+                        </span>
+                      )}
+                    </div>
+                  )}
                   
                   {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude ? (
                     <div className="flex items-center justify-between text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200/70">
@@ -590,10 +628,19 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span>Subtotal</span>
                   <span className="font-semibold text-stone-900">₹{subtotal}</span>
                 </div>
-                <div className="flex justify-between text-stone-600">
-                  <span>Delivery Partner Fee</span>
+                <div className="flex justify-between text-stone-600 items-center">
+                  <div>
+                    <span>Delivery Partner Fee</span>
+                    {distanceKm !== null && distanceKm !== undefined && (
+                      <span className="text-[10px] text-stone-400 block font-normal">
+                        Road Distance: ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
+                      </span>
+                    )}
+                  </div>
                   {deliveryFee === 0 ? (
-                    <span className="font-bold text-emerald-700 uppercase">FREE</span>
+                    <span className="font-bold text-emerald-700 uppercase">
+                      {subtotal >= freeThreshold ? `FREE (Orders over ₹${freeThreshold})` : 'FREE'}
+                    </span>
                   ) : (
                     <span className="font-semibold text-stone-900">₹{deliveryFee}</span>
                   )}

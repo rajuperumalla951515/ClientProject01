@@ -21,6 +21,10 @@ export const CheckoutPage: React.FC = () => {
     pincode: currentPincode,
     locationLabel,
     selectedDeliveryAddress,
+    deliveryFee: locationDeliveryFee,
+    distanceKm: locationDistanceKm,
+    matchedSlab: locationMatchedSlab,
+    recalculateDeliveryFee,
   } = useLocation();
 
   const [addresses, setAddresses] = useState<Address[]>([]);
@@ -29,6 +33,20 @@ export const CheckoutPage: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState<'upi' | 'card' | 'netbanking' | 'cod'>('upi');
   const [orderNotes, setOrderNotes] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+
+  // Dynamic Distance & Delivery Fee Calculation
+  const distanceKm = selectedDeliveryAddress?.distance_km ?? locationDistanceKm;
+  const matchedSlab = selectedDeliveryAddress?.matched_slab || locationMatchedSlab;
+  const isFreeDelivery = cart.subtotal >= cart.free_delivery_threshold;
+  const deliveryFee = isFreeDelivery ? 0 : (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? 20.0);
+  const totalPayable = Math.round((cart.subtotal - cart.discount + deliveryFee) * 100) / 100;
+
+  // Recalculate fee dynamically when address or cart subtotal changes
+  useEffect(() => {
+    if (selectedDeliveryAddress?.postal_code) {
+      recalculateDeliveryFee(cart.subtotal);
+    }
+  }, [selectedAddressId, cart.subtotal, recalculateDeliveryFee, selectedDeliveryAddress?.postal_code]);
   
   // New Address form modal (prefilled from global selected delivery address)
   const [isAddingAddress, setIsAddingAddress] = useState(false);
@@ -196,6 +214,7 @@ export const CheckoutPage: React.FC = () => {
                       onClick={() => {
                         setSelectedAddressId(addr.id);
                         setGlobalLocation(addr);
+                        recalculateDeliveryFee(cart.subtotal);
                       }}
                       className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                         isSelected
@@ -462,17 +481,26 @@ export const CheckoutPage: React.FC = () => {
                   <span>-₹{cart.discount}</span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span>Delivery Partner Fee</span>
-                {cart.delivery_fee === 0 ? (
-                  <span className="font-bold text-emerald-700">FREE</span>
+              <div className="flex justify-between items-center">
+                <div>
+                  <span>Delivery Partner Fee</span>
+                  {distanceKm !== null && distanceKm !== undefined && (
+                    <span className="text-[10px] text-stone-400 block font-normal">
+                      Road Distance: ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
+                    </span>
+                  )}
+                </div>
+                {deliveryFee === 0 ? (
+                  <span className="font-bold text-emerald-700 uppercase">
+                    {cart.subtotal >= cart.free_delivery_threshold ? `FREE (Orders over ₹${cart.free_delivery_threshold})` : 'FREE'}
+                  </span>
                 ) : (
-                  <span className="font-bold text-stone-900">₹{cart.delivery_fee}</span>
+                  <span className="font-bold text-stone-900">₹{deliveryFee}</span>
                 )}
               </div>
               <div className="border-t border-stone-100 pt-3 flex justify-between text-base font-black text-stone-900">
                 <span>Total Payable</span>
-                <span className="text-rootly-forest">₹{cart.total_amount}</span>
+                <span className="text-rootly-forest">₹{totalPayable}</span>
               </div>
             </div>
 

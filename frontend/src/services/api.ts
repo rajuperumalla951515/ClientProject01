@@ -459,20 +459,20 @@ export const api = {
     return request(`/addresses/search?q=${encoded}`);
   },
 
-  async checkServiceability(postalCode?: string, latitude?: number, longitude?: number): Promise<{
-    is_serviceable: boolean;
-    postal_code?: string;
-    city: string;
-    locality: string;
-    estimated_delivery_minutes: number;
-    min_order_amount: number;
-    free_delivery_threshold: number;
-    service_hub: string;
-    message: string;
-  }> {
+  async checkServiceability(
+    postalCode?: string,
+    latitude?: number,
+    longitude?: number,
+    cartSubtotal?: number
+  ): Promise<import('../types').ServiceabilityResult> {
     return request('/addresses/check-serviceability', {
       method: 'POST',
-      body: JSON.stringify({ postal_code: postalCode, latitude, longitude }),
+      body: JSON.stringify({
+        postal_code: postalCode,
+        latitude,
+        longitude,
+        cart_subtotal: cartSubtotal,
+      }),
     });
   },
 

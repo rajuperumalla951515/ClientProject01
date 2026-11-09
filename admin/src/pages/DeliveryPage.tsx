@@ -15,7 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { StoreSettings, DeliveryZone } from '../types';
+import { StoreSettings, DeliveryZone, DistanceSlab } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -50,6 +50,21 @@ export const DeliveryPage: React.FC = () => {
   const [deliveryRadiusKm, setDeliveryRadiusKm] = useState<number>(60);
   const [maxExpressRadiusKm, setMaxExpressRadiusKm] = useState<number>(15);
   const [whatsappNumber, setWhatsappNumber] = useState('919515159006');
+
+  // Dynamic Distance Pricing Slabs State
+  const [distanceSlabs, setDistanceSlabs] = useState<DistanceSlab[]>([
+    { min_km: 0, max_km: 2, fee: 20 },
+    { min_km: 2, max_km: 4, fee: 30 },
+    { min_km: 4, max_km: 6, fee: 40 },
+    { min_km: 6, max_km: 8, fee: 50 },
+    { min_km: 8, max_km: 10, fee: 60 },
+    { min_km: 10, max_km: 15, fee: 75 },
+    { min_km: 15, max_km: 35, fee: 99 },
+    { min_km: 35, max_km: 60, fee: 149 },
+  ]);
+  const [newSlabMin, setNewSlabMin] = useState<number>(10);
+  const [newSlabMax, setNewSlabMax] = useState<number>(15);
+  const [newSlabFee, setNewSlabFee] = useState<number>(75);
 
   // Zone Modal State
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
@@ -113,6 +128,15 @@ export const DeliveryPage: React.FC = () => {
         ]);
       }
 
+      if (settingsData.distance_slabs_json) {
+        try {
+          const parsed = JSON.parse(settingsData.distance_slabs_json);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setDistanceSlabs(parsed);
+          }
+        } catch {}
+      }
+
       setZones(zonesData);
       if (isManual) {
         showSuccess('Delivery configurations synced from Cloudflare D1.', 'Synchronized');
@@ -139,6 +163,7 @@ export const DeliveryPage: React.FC = () => {
         standard_delivery_fee: Number(standardFee),
         express_delivery_fee: Number(expressFee),
         active_slots_json: JSON.stringify(deliverySlots),
+        distance_slabs_json: JSON.stringify(distanceSlabs),
         store_name: storeName.trim(),
         store_address: storeAddress.trim(),
         store_city: storeCity.trim(),
@@ -152,13 +177,55 @@ export const DeliveryPage: React.FC = () => {
         max_express_radius_km: Number(maxExpressRadiusKm),
         whatsapp_number: whatsappNumber.trim(),
       });
-      showSuccess('Delivery fees, store hub location, and operational boundaries saved to D1.', 'Settings Saved');
+      showSuccess('Delivery distance slabs, fees, and store location saved to D1.', 'Settings Saved');
       loadData();
     } catch (err: any) {
       showError(err.message || 'Failed to update delivery settings.');
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const handleAddSlab = () => {
+    if (newSlabMin < 0 || newSlabMax <= newSlabMin || newSlabFee < 0) {
+      showError('Please provide valid distance range (Min < Max) and positive fee.');
+      return;
+    }
+    const updated = [...distanceSlabs, { min_km: newSlabMin, max_km: newSlabMax, fee: newSlabFee }].sort(
+      (a, b) => a.min_km - b.min_km
+    );
+    setDistanceSlabs(updated);
+    setNewSlabMin(newSlabMax);
+    setNewSlabMax(newSlabMax + 5);
+    setNewSlabFee(newSlabFee + 15);
+  };
+
+  const handleUpdateSlab = (index: number, field: keyof DistanceSlab, value: number) => {
+    const updated = [...distanceSlabs];
+    updated[index] = { ...updated[index], [field]: value };
+    setDistanceSlabs(updated);
+  };
+
+  const handleRemoveSlab = (index: number) => {
+    if (distanceSlabs.length <= 1) {
+      showError('At least one distance slab is required for distance calculations.');
+      return;
+    }
+    setDistanceSlabs(distanceSlabs.filter((_, i) => i !== index));
+  };
+
+  const handleResetDefaultSlabs = () => {
+    setDistanceSlabs([
+      { min_km: 0, max_km: 2, fee: 20 },
+      { min_km: 2, max_km: 4, fee: 30 },
+      { min_km: 4, max_km: 6, fee: 40 },
+      { min_km: 6, max_km: 8, fee: 50 },
+      { min_km: 8, max_km: 10, fee: 60 },
+      { min_km: 10, max_km: 15, fee: 75 },
+      { min_km: 15, max_km: 35, fee: 99 },
+      { min_km: 35, max_km: 60, fee: 149 },
+    ]);
+    showSuccess('Reset to recommended distance pricing slabs (₹20, ₹30, ₹40, ₹50, ₹60...).');
   };
 
   const handleAddSlot = () => {
@@ -628,15 +695,154 @@ export const DeliveryPage: React.FC = () => {
               </button>
             </div>
           </div>
+        </div>
 
-          <div className="flex justify-end pt-2">
+        {/* Distance-Based Delivery Pricing Slabs Card */}
+        <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-5">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-[#E6E7DD]">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
+                <Sliders className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-[#26352B]">Distance-Based Delivery Fee Slabs</h3>
+                <p className="text-xs text-[#778176]">
+                  Calculates customer delivery charges dynamically based on actual driving road distance from Sri Aditya Organics Mill
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDefaultSlabs}
+              className="text-xs font-semibold text-[#244B37] hover:underline self-start sm:self-auto"
+            >
+              Reset to Recommended Slabs
+            </button>
+          </div>
+
+          {/* Slabs Table */}
+          <div className="overflow-x-auto border border-[#E6E7DD] rounded-xl">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-[#FAF9F5] border-b border-[#E6E7DD] text-[11px] font-bold text-[#778176] uppercase tracking-wider">
+                  <th className="p-3">Distance Slab (km)</th>
+                  <th className="p-3">Min Distance</th>
+                  <th className="p-3">Max Distance</th>
+                  <th className="p-3">Delivery Charge (₹)</th>
+                  <th className="p-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E6E7DD]">
+                {distanceSlabs.map((slab, index) => (
+                  <tr key={index} className="hover:bg-[#FAF9F5]/70 transition-colors">
+                    <td className="p-3 font-bold text-[#26352B]">
+                      {slab.min_km} – {slab.max_km} km
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={slab.min_km}
+                        onChange={(e) => handleUpdateSlab(index, 'min_km', Number(e.target.value))}
+                        className="w-20 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-mono text-[#26352B]"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.5"
+                        value={slab.max_km}
+                        onChange={(e) => handleUpdateSlab(index, 'max_km', Number(e.target.value))}
+                        className="w-20 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-mono text-[#26352B]"
+                      />
+                    </td>
+                    <td className="p-3">
+                      <div className="relative inline-block w-24">
+                        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-stone-400 font-bold">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={slab.fee}
+                          onChange={(e) => handleUpdateSlab(index, 'fee', Number(e.target.value))}
+                          className="w-full pl-6 pr-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-bold text-emerald-800 font-mono"
+                        />
+                      </div>
+                    </td>
+                    <td className="p-3 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveSlab(index)}
+                        className="p-1 text-stone-400 hover:text-rose-700 transition-colors"
+                        title="Remove Distance Slab"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Add Slab Row */}
+          <div className="p-3.5 bg-[#FAF9F5] rounded-xl border border-[#E6E7DD] flex flex-wrap items-center gap-3">
+            <span className="text-xs font-bold text-[#26352B] whitespace-nowrap">Add New Distance Slab:</span>
+            <div className="flex items-center gap-1.5 text-xs text-stone-600">
+              <span>Min km:</span>
+              <input
+                type="number"
+                min="0"
+                step="0.5"
+                value={newSlabMin}
+                onChange={(e) => setNewSlabMin(Number(e.target.value))}
+                className="w-16 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-mono bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-stone-600">
+              <span>Max km:</span>
+              <input
+                type="number"
+                min="0.5"
+                step="0.5"
+                value={newSlabMax}
+                onChange={(e) => setNewSlabMax(Number(e.target.value))}
+                className="w-16 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-mono bg-white"
+              />
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-stone-600">
+              <span>Fee (₹):</span>
+              <input
+                type="number"
+                min="0"
+                value={newSlabFee}
+                onChange={(e) => setNewSlabFee(Number(e.target.value))}
+                className="w-20 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-bold text-emerald-800 font-mono bg-white"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleAddSlab}
+              className="px-3.5 py-1.5 rounded-lg bg-[#244B37] text-white text-xs font-semibold hover:bg-[#1b3829] transition-colors ml-auto flex items-center gap-1"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Slab</span>
+            </button>
+          </div>
+
+          <p className="text-[11px] text-[#778176] leading-relaxed">
+            💡 Slabs are evaluated in order of distance. If customer order qualifies for Free Delivery (Subtotal ≥ ₹{freeThreshold}), distance fee is waived automatically. Deliveries exceeding the maximum configured distance ({deliveryRadiusKm} km) will be marked as unserviceable.
+          </p>
+
+          <div className="flex justify-end pt-3 border-t border-[#E6E7DD]">
             <button
               type="submit"
               disabled={isSavingSettings}
-              className="px-5 py-2 rounded-xl bg-[#244B37] hover:bg-[#1b3829] text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-2"
+              className="px-5 py-2.5 rounded-xl bg-[#244B37] hover:bg-[#1b3829] text-white text-xs font-semibold shadow-xs transition-colors flex items-center gap-2"
             >
               {isSavingSettings ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              <span>Save Delivery Rules</span>
+              <span>Save Delivery Distance Rules & Pricing</span>
             </button>
           </div>
         </div>

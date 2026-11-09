@@ -217,6 +217,7 @@ export const OrdersPage: React.FC = () => {
       'Customer Name',
       'Phone',
       'Delivery Slot',
+      'Distance (km)',
       'Items Count',
       'Payment Method',
       'Payment Status',
@@ -234,6 +235,7 @@ export const OrdersPage: React.FC = () => {
         `"${(o.customer_name || addr.recipient_name || 'Customer').replace(/"/g, '""')}"`,
         `"${o.phone || addr.phone || ''}"`,
         `"${o.delivery_slot || 'Standard'}"`,
+        o.distance_km != null ? o.distance_km : '',
         o.items?.length || 0,
         `"${o.payment_method}"`,
         `"${o.payment_status}"`,
@@ -631,6 +633,11 @@ export const OrdersPage: React.FC = () => {
                       {addr.postal_code && (
                         <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-bold text-[#26352B]">
                           PIN: {addr.postal_code}
+                        </span>
+                      )}
+                      {selectedOrder.distance_km != null && (
+                        <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-800">
+                          Road Distance: ~{selectedOrder.distance_km} km
                         </span>
                       )}
                       {addr.latitude && addr.longitude ? (

@@ -38,6 +38,10 @@ export interface SelectedDeliveryAddress {
   is_serviceable: boolean;
   service_hub: string;
   estimated_delivery_minutes: number;
+  delivery_fee?: number;
+  distance_km?: number | null;
+  distance_source?: string | null;
+  matched_slab?: string | null;
   source: 'gps_confirmed' | 'manual_entry' | 'saved_address' | 'preset_hub' | 'map_pin';
   confirmed_at?: string;
 }
@@ -85,6 +89,15 @@ interface LocationContextType {
   isServiceable: boolean;
   serviceHub: string;
   deliveryMinutes: number;
+  deliveryFee: number;
+  distanceKm: number | null;
+  matchedSlab?: string;
+  recalculateDeliveryFee: (subtotal?: number) => Promise<{
+    fee: number;
+    distance_km: number | null;
+    is_serviceable: boolean;
+    matched_slab?: string | null;
+  }>;
 
   // Backward compatibility alias for saved address
   selectedAddress: Address | null;
@@ -121,6 +134,9 @@ const DEFAULT_DELIVERY_ADDRESS: SelectedDeliveryAddress = {
   is_serviceable: true,
   service_hub: 'Sri Aditya Organics & Oil Mill (Kothagudem)',
   estimated_delivery_minutes: 15,
+  delivery_fee: 20.0,
+  distance_km: 0.1,
+  matched_slab: '0–2 km',
   source: 'preset_hub',
 };
 
@@ -432,7 +448,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Action: Customer confirms "Yes, deliver here" with optional house/flat details
   const confirmDeliveryToDetectedLocation = useCallback(
-    (additionalDetails?: { flatNumber?: string; landmark?: string }) => {
+    async (additionalDetails?: { flatNumber?: string; landmark?: string }) => {
       if (!detectedLocation) return;
 
       const flat = additionalDetails?.flatNumber?.trim() || detectedLocation.house_number || detectedLocation.building || '';
@@ -445,6 +461,31 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       ].filter(Boolean);
 
       const finalStreet = streetParts.length > 0 ? streetParts.join(', ') : detectedLocation.locality;
+      const targetLat = pinCoordinates?.lat ?? detectedLocation.latitude;
+      const targetLon = pinCoordinates?.lon ?? detectedLocation.longitude;
+
+      let servFee = 20.0;
+      let distKm: number | null = null;
+      let distSource: string | null = null;
+      let matchedSlab: string | null = null;
+      let estMinutes = detectedLocation.estimated_delivery_minutes;
+      let isServ = detectedLocation.is_serviceable;
+
+      try {
+        const serv = await api.checkServiceability(
+          detectedLocation.postal_code,
+          targetLat,
+          targetLon
+        );
+        servFee = serv.delivery_fee;
+        distKm = serv.distance_km ?? null;
+        distSource = serv.distance_source ?? null;
+        matchedSlab = serv.matched_slab ?? null;
+        estMinutes = serv.estimated_delivery_minutes;
+        isServ = serv.is_serviceable;
+      } catch (err) {
+        console.warn('Could not verify serviceability on confirm:', err);
+      }
 
       const newDeliveryAddress: SelectedDeliveryAddress = {
         label: 'Confirmed Delivery Location',
@@ -458,13 +499,17 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         state: detectedLocation.state,
         postal_code: detectedLocation.postal_code,
         country: detectedLocation.country || 'India',
-        latitude: pinCoordinates?.lat ?? detectedLocation.latitude,
-        longitude: pinCoordinates?.lon ?? detectedLocation.longitude,
+        latitude: targetLat,
+        longitude: targetLon,
         accuracy_meters: detectedLocation.accuracy_meters,
         formatted_address: detectedLocation.formatted_address,
-        is_serviceable: detectedLocation.is_serviceable,
+        is_serviceable: isServ,
         service_hub: detectedLocation.service_hub,
-        estimated_delivery_minutes: detectedLocation.estimated_delivery_minutes,
+        estimated_delivery_minutes: estMinutes,
+        delivery_fee: servFee,
+        distance_km: distKm,
+        distance_source: distSource,
+        matched_slab: matchedSlab,
         source: accuracyLevel === 'manual' ? 'map_pin' : 'gps_confirmed',
         confirmed_at: new Date().toISOString(),
       };
@@ -495,10 +540,28 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, []);
 
   // Select a saved address from customer account
-  const selectSavedAddress = useCallback((addr: Address) => {
+  const selectSavedAddress = useCallback(async (addr: Address) => {
+    let fee = 20.0;
+    let dist: number | null = null;
+    let distSource: string | null = null;
+    let slab: string | null = null;
     const isExpress = isTelanganaPin(addr.postal_code);
-    const hub = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
-    const minutes = isExpress ? 15 : 48 * 60;
+    let hub = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
+    let minutes = isExpress ? 15 : 48 * 60;
+    let isServ = true;
+
+    try {
+      const serv = await api.checkServiceability(addr.postal_code, addr.latitude ?? undefined, addr.longitude ?? undefined);
+      fee = serv.delivery_fee;
+      dist = serv.distance_km ?? null;
+      distSource = serv.distance_source ?? null;
+      slab = serv.matched_slab ?? null;
+      hub = serv.service_hub;
+      minutes = serv.estimated_delivery_minutes;
+      isServ = serv.is_serviceable;
+    } catch {
+      // fallback
+    }
 
     const newDeliveryAddress: SelectedDeliveryAddress = {
       id: addr.id,
@@ -518,9 +581,13 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       longitude: addr.longitude ?? undefined,
       accuracy_meters: addr.accuracy_meters ?? undefined,
       formatted_address: addr.formatted_address || `${addr.street}, ${addr.city} - ${addr.postal_code}`,
-      is_serviceable: true,
+      is_serviceable: isServ,
       service_hub: hub,
       estimated_delivery_minutes: minutes,
+      delivery_fee: fee,
+      distance_km: dist,
+      distance_source: distSource,
+      matched_slab: slab,
       source: 'saved_address',
       confirmed_at: addr.confirmed_at || new Date().toISOString(),
     };
@@ -544,6 +611,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         is_serviceable: true,
         service_hub: 'Sri Adithya Organics Central Fulfillment Facility',
         estimated_delivery_minutes: 48 * 60,
+        delivery_fee: 39.0,
+        distance_km: null as number | null,
+        distance_source: null as string | null,
+        matched_slab: null as string | null,
       };
 
       try {
@@ -552,6 +623,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           is_serviceable: serv.is_serviceable,
           service_hub: serv.service_hub,
           estimated_delivery_minutes: serv.estimated_delivery_minutes,
+          delivery_fee: serv.delivery_fee,
+          distance_km: serv.distance_km ?? null,
+          distance_source: serv.distance_source ?? null,
+          matched_slab: serv.matched_slab ?? null,
         };
       } catch {
         const isExpress = isTelanganaPin(pin);
@@ -559,6 +634,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           is_serviceable: true,
           service_hub: isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility',
           estimated_delivery_minutes: isExpress ? 15 : 48 * 60,
+          delivery_fee: isExpress ? 20.0 : 39.0,
+          distance_km: null,
+          distance_source: null,
+          matched_slab: null,
         };
       }
 
@@ -615,6 +694,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         is_serviceable: serviceResult.is_serviceable,
         service_hub: serviceResult.service_hub,
         estimated_delivery_minutes: serviceResult.estimated_delivery_minutes,
+        delivery_fee: serviceResult.delivery_fee,
+        distance_km: serviceResult.distance_km,
+        distance_source: serviceResult.distance_source,
+        matched_slab: serviceResult.matched_slab,
         source: createdAddressId ? 'saved_address' : 'manual_entry',
         confirmed_at: new Date().toISOString(),
       };
@@ -637,6 +720,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let minutes = 15;
       let isServ = true;
       let cityName = 'Kothagudem';
+      let fee = 20.0;
+      let dist: number | null = 0.1;
+      let distSource: string | null = null;
+      let slab: string | null = '0–2 km';
 
       try {
         const serv = await api.checkServiceability(pin);
@@ -644,10 +731,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         minutes = serv.estimated_delivery_minutes;
         isServ = serv.is_serviceable;
         cityName = serv.city || 'Kothagudem';
+        fee = serv.delivery_fee;
+        dist = serv.distance_km ?? null;
+        distSource = serv.distance_source ?? null;
+        slab = serv.matched_slab ?? null;
       } catch {
         const isExpress = isTelanganaPin(pin);
         hubName = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
         minutes = isExpress ? 15 : 48 * 60;
+        fee = isExpress ? 20.0 : 39.0;
       }
 
       const newDeliveryAddress: SelectedDeliveryAddress = {
@@ -661,6 +753,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         is_serviceable: isServ,
         service_hub: hubName,
         estimated_delivery_minutes: minutes,
+        delivery_fee: fee,
+        distance_km: dist,
+        distance_source: distSource,
+        matched_slab: slab,
         formatted_address: `${area}, ${cityName}, Telangana - ${pin}`,
         source: 'preset_hub',
         confirmed_at: new Date().toISOString(),
@@ -674,6 +770,50 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       setLocationError(e.message || 'Could not set hub location.');
     }
   }, []);
+
+  // Dynamic delivery fee recalculation based on actual distance & subtotal
+  const recalculateDeliveryFee = useCallback(
+    async (subtotal?: number) => {
+      try {
+        const pin = selectedDeliveryAddress.postal_code;
+        const lat = selectedDeliveryAddress.latitude;
+        const lon = selectedDeliveryAddress.longitude;
+        const serv = await api.checkServiceability(pin, lat, lon, subtotal);
+
+        setSelectedDeliveryAddress((prev) => {
+          const updated: SelectedDeliveryAddress = {
+            ...prev,
+            delivery_fee: serv.delivery_fee,
+            distance_km: serv.distance_km,
+            distance_source: serv.distance_source,
+            matched_slab: serv.matched_slab,
+            estimated_delivery_minutes: serv.estimated_delivery_minutes,
+            is_serviceable: serv.is_serviceable,
+          };
+          try {
+            localStorage.setItem('sri_adithya_delivery_address', JSON.stringify(updated));
+          } catch {}
+          return updated;
+        });
+
+        return {
+          fee: serv.delivery_fee,
+          distance_km: serv.distance_km ?? null,
+          is_serviceable: serv.is_serviceable,
+          matched_slab: serv.matched_slab ?? null,
+        };
+      } catch (err) {
+        console.warn('Recalculate delivery fee notice:', err);
+        return {
+          fee: selectedDeliveryAddress.delivery_fee ?? 20.0,
+          distance_km: selectedDeliveryAddress.distance_km ?? null,
+          is_serviceable: selectedDeliveryAddress.is_serviceable,
+          matched_slab: selectedDeliveryAddress.matched_slab ?? null,
+        };
+      }
+    },
+    [selectedDeliveryAddress]
+  );
 
   // Address Autocomplete Search
   const searchAddresses = useCallback(async (query: string): Promise<AddressSearchResult[]> => {
@@ -741,6 +881,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isServiceable: selectedDeliveryAddress.is_serviceable,
         serviceHub: selectedDeliveryAddress.service_hub,
         deliveryMinutes: selectedDeliveryAddress.estimated_delivery_minutes,
+        deliveryFee: selectedDeliveryAddress.delivery_fee ?? 20.0,
+        distanceKm: selectedDeliveryAddress.distance_km ?? null,
+        matchedSlab: selectedDeliveryAddress.matched_slab || undefined,
+        recalculateDeliveryFee,
 
         selectedAddress,
         setSelectedAddress: handleSetSelectedAddress,

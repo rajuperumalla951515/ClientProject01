@@ -17,6 +17,23 @@ from backend.app.schemas import (
 from backend.app.deps import get_current_user
 from backend.app.phone_utils import validate_and_normalize_indian_phone
 
+try:
+    from backend.app.delivery import (
+        calculate_haversine_distance,
+        get_road_distance_km,
+        parse_distance_slabs,
+        calculate_distance_based_delivery_fee,
+        DEFAULT_DISTANCE_SLABS
+    )
+except ImportError:
+    from app.delivery import (
+        calculate_haversine_distance,
+        get_road_distance_km,
+        parse_distance_slabs,
+        calculate_distance_based_delivery_fee,
+        DEFAULT_DISTANCE_SLABS
+    )
+
 router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
 
 # Telangana Regional Fulfillment Hubs for Hyperlocal Quick-Commerce & Scheduled Delivery
@@ -306,188 +323,116 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
     except Exception:
         pass
 
-    # 3. Calculate distance if coordinates provided
+    # 3. Calculate distance if coordinates provided or match cluster
     distance_km = None
+    distance_source = None
     if req.latitude is not None and req.longitude is not None:
         try:
-            distance_km = round(calculate_distance(store_lat, store_lon, req.latitude, req.longitude), 1)
+            distance_km, distance_source = get_road_distance_km(store_lat, store_lon, float(req.latitude), float(req.longitude))
+        except Exception:
+            pass
+    elif matching_cluster and matching_cluster.get("lat") is not None and matching_cluster.get("lon") is not None:
+        try:
+            distance_km, distance_source = get_road_distance_km(store_lat, store_lon, float(matching_cluster["lat"]), float(matching_cluster["lon"]))
         except Exception:
             pass
 
     # 4. Resolve City, Locality & Hub
-    matching_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
     if zone:
         city = "Kothagudem" if pin == "507101" else ("Hyderabad" if pin.startswith("500") else "Telangana")
         locality = zone["area_name"]
-        minutes = 15 if "15" in str(zone.get("estimated_delivery_time", "")) else 30
         hub = "Sri Aditya Organics Direct Fulfillment Hub"
     elif matching_cluster:
         city = matching_cluster["city"]
         locality = matching_cluster["name"]
-        minutes = matching_cluster["minutes"]
         hub = matching_cluster["hub"]
     else:
         reg = PIN_REGION_MAP.get(pin[:2])
         city = reg[0] if reg else "Telangana"
         locality = f"PIN {pin}"
-        minutes = 45
-        hub = "Sri Aditya Organics Regional Delivery Hub"
+        hub = "Sri Aditya Organics Regional Fulfillment Hub"
 
-    # 5. Evaluate Eligibility & Applicable Fee Calculated from Store Location
-    is_free = (req.cart_subtotal or 0.0) >= free_thresh
-    calc_fee = 0.0 if is_free else std_fee
+    # 5. Evaluate dynamic distance-based delivery fee
+    slabs = parse_distance_slabs(setting.get("distance_slabs_json") if setting else None)
+    subtotal = float(req.cart_subtotal or 0.0)
 
-    # SCENARIO A: PIN is an explicitly configured active delivery zone
+    calculated_fee, is_serv, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
+        distance_km=distance_km,
+        slabs=slabs,
+        subtotal=subtotal,
+        free_delivery_threshold=free_thresh,
+        max_delivery_radius_km=delivery_radius_km,
+        default_fallback_fee=std_fee
+    )
+
+    # Zone configuration override (if explicit active zone defined for this pincode)
     if zone:
+        is_serv = True
         zone_fee = float(zone.get("delivery_fee") or 0.0)
-        final_fee = 0.0 if is_free else max(std_fee, zone_fee)
-        return ServiceabilityCheckOut(
-            is_serviceable=True,
-            status="Delivery Available",
-            postal_code=pin,
-            city=city,
-            locality=locality,
-            estimated_delivery_minutes=minutes,
-            delivery_fee=final_fee,
-            distance_km=distance_km,
-            min_order_amount=min_order,
-            free_delivery_threshold=free_thresh,
-            service_hub=hub,
-            message=f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})",
-            store_address=store_addr,
-            store_maps_url=store_maps
-        )
+        if subtotal >= free_thresh:
+            calculated_fee = 0.0
+        elif zone_fee > 0:
+            calculated_fee = max(calculated_fee, zone_fee)
+        fee_msg = f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})"
 
-    # SCENARIO B: Coordinates available — calculate fee strictly from store distance
+    # Calculate estimated delivery minutes based on road distance
     if distance_km is not None:
-        if distance_km <= 5.0:
-            local_fee = 0.0 if is_free else std_fee
-            return ServiceabilityCheckOut(
-                is_serviceable=True,
-                status="Delivery Available",
-                postal_code=pin,
-                city=city,
-                locality=locality,
-                estimated_delivery_minutes=15,
-                delivery_fee=local_fee,
-                distance_km=distance_km,
-                min_order_amount=min_order,
-                free_delivery_threshold=free_thresh,
-                service_hub="Sri Aditya Organics Mill Hub (Kothagudem)",
-                message=f"Hyperlocal Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
-                store_address=store_addr,
-                store_maps_url=store_maps
-            )
-        elif distance_km <= max_express_radius_km:
-            express_tier_fee = 0.0 if is_free else (std_fee + 10.0)
-            return ServiceabilityCheckOut(
-                is_serviceable=True,
-                status="Delivery Available",
-                postal_code=pin,
-                city=city,
-                locality=locality,
-                estimated_delivery_minutes=25,
-                delivery_fee=express_tier_fee,
-                distance_km=distance_km,
-                min_order_amount=min_order,
-                free_delivery_threshold=free_thresh,
-                service_hub=hub,
-                message=f"Express Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
-                store_address=store_addr,
-                store_maps_url=store_maps
-            )
-        elif distance_km <= delivery_radius_km:
-            std_tier_fee = 0.0 if is_free else (std_fee + 25.0)
-            return ServiceabilityCheckOut(
-                is_serviceable=True,
-                status="Delivery Available",
-                postal_code=pin,
-                city=city,
-                locality=locality,
-                estimated_delivery_minutes=45,
-                delivery_fee=std_tier_fee,
-                distance_km=distance_km,
-                min_order_amount=min_order,
-                free_delivery_threshold=free_thresh,
-                service_hub=hub,
-                message=f"Standard Delivery Available: {distance_km} km from Sri Aditya Organics Mill.",
-                store_address=store_addr,
-                store_maps_url=store_maps
-            )
+        if distance_km <= 2.0:
+            minutes = 15
+        elif distance_km <= 5.0:
+            minutes = 20
+        elif distance_km <= 15.0:
+            minutes = 30
+        elif distance_km <= 35.0:
+            minutes = 45
         elif distance_km <= 60.0:
-            extended_tier_fee = 0.0 if is_free else (std_fee + 40.0)
-            return ServiceabilityCheckOut(
-                is_serviceable=True,
-                status="Delivery Available with Additional Charges",
-                postal_code=pin,
-                city=city,
-                locality=locality,
-                estimated_delivery_minutes=90,
-                delivery_fee=extended_tier_fee,
-                distance_km=distance_km,
-                min_order_amount=min_order,
-                free_delivery_threshold=free_thresh,
-                service_hub=hub,
-                message=f"Regional Delivery Available: {distance_km} km from store (Extended zone fee applies).",
-                store_address=store_addr,
-                store_maps_url=store_maps
-            )
+            minutes = 75
         else:
-            return ServiceabilityCheckOut(
-                is_serviceable=False,
-                status="Delivery Not Available",
-                postal_code=pin,
-                city=city,
-                locality=locality,
-                estimated_delivery_minutes=0,
-                delivery_fee=std_fee + 40.0,
-                distance_km=distance_km,
-                min_order_amount=min_order,
-                free_delivery_threshold=free_thresh,
-                service_hub=hub,
-                message=f"Delivery Not Available: Location is {distance_km} km away (Service radius: {int(delivery_radius_km)} km).",
-                store_address=store_addr,
-                store_maps_url=store_maps
-            )
+            minutes = 90
+    elif matching_cluster:
+        minutes = matching_cluster["minutes"]
+    elif zone and zone.get("estimated_delivery_time"):
+        minutes = 15 if "15" in str(zone.get("estimated_delivery_time")) else 30
+    else:
+        minutes = 45
 
-    # SCENARIO C: PIN belongs to Telangana state (500xxx - 509xxx)
-    if pin.startswith(("500", "501", "502", "503", "504", "505", "506", "507", "508", "509")):
-        # If in local Kothagudem pincode 507101
-        is_local_kothagudem = (pin == "507101")
-        pin_fee = 0.0 if is_free else (std_fee if is_local_kothagudem else (std_fee + 20.0))
-        pin_status = "Delivery Available" if is_local_kothagudem else "Delivery Available with Additional Charges"
-        pin_msg = "Local Delivery from Sri Aditya Organics Mill." if is_local_kothagudem else "Standard Telangana Regional Delivery Available."
+    if not is_serv:
         return ServiceabilityCheckOut(
-            is_serviceable=True,
-            status=pin_status,
+            is_serviceable=False,
+            status="Delivery Not Available",
             postal_code=pin,
             city=city,
             locality=locality,
-            estimated_delivery_minutes=20 if is_local_kothagudem else 45,
-            delivery_fee=pin_fee,
-            distance_km=None,
+            estimated_delivery_minutes=0,
+            delivery_fee=calculated_fee,
+            distance_km=distance_km,
+            distance_source=distance_source,
+            matched_slab=matched_slab,
             min_order_amount=min_order,
             free_delivery_threshold=free_thresh,
             service_hub=hub,
-            message=pin_msg,
+            message=fee_msg,
             store_address=store_addr,
             store_maps_url=store_maps
         )
 
-    # SCENARIO D: Outside Telangana and not in configured delivery zones
+    status_label = "Delivery Available" if (distance_km is not None and distance_km <= max_express_radius_km) or (subtotal >= free_thresh) else "Delivery Available with Distance Charges"
+
     return ServiceabilityCheckOut(
-        is_serviceable=False,
-        status="Delivery Not Available",
+        is_serviceable=True,
+        status=status_label,
         postal_code=pin,
         city=city,
         locality=locality,
-        estimated_delivery_minutes=0,
-        delivery_fee=std_fee,
-        distance_km=None,
+        estimated_delivery_minutes=minutes,
+        delivery_fee=calculated_fee,
+        distance_km=distance_km,
+        distance_source=distance_source,
+        matched_slab=matched_slab,
         min_order_amount=min_order,
         free_delivery_threshold=free_thresh,
         service_hub=hub,
-        message=f"Delivery Not Available: Sri Aditya Organics currently serves Telangana delivery zones.",
+        message=fee_msg,
         store_address=store_addr,
         store_maps_url=store_maps
     )

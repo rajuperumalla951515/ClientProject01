@@ -11,8 +11,13 @@ export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
   const { cart, isDrawerOpen, closeDrawer, incrementItem, decrementItem, setItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, openLocationModal } = useLocation();
+  const { locationLabel, openLocationModal, distanceKm, matchedSlab, deliveryFee: locationDeliveryFee } = useLocation();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
+
+  const computedDeliveryFee = cart.subtotal >= cart.free_delivery_threshold || cart.subtotal === 0
+    ? 0
+    : (locationDeliveryFee ?? cart.delivery_fee);
+  const grandTotal = Math.round((cart.subtotal - cart.discount + computedDeliveryFee) * 100) / 100;
 
   if (!isDrawerOpen) return null;
 
@@ -196,17 +201,24 @@ export const CartDrawer: React.FC = () => {
                     <span className="font-semibold">-₹{cart.discount}</span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>Delivery Partner Fee</span>
-                  {cart.delivery_fee === 0 ? (
+                <div className="flex justify-between items-center">
+                  <div>
+                    <span>Delivery Partner Fee</span>
+                    {distanceKm !== null && distanceKm !== undefined && (
+                      <span className="text-[10px] text-stone-400 block font-normal">
+                        ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
+                      </span>
+                    )}
+                  </div>
+                  {computedDeliveryFee === 0 ? (
                     <span className="font-bold text-emerald-700 uppercase tracking-tight">FREE</span>
                   ) : (
-                    <span className="font-semibold text-stone-900">₹{cart.delivery_fee}</span>
+                    <span className="font-semibold text-stone-900">₹{computedDeliveryFee}</span>
                   )}
                 </div>
                 <div className="border-t border-stone-100 pt-1.5 flex justify-between text-sm font-extrabold text-stone-900">
                   <span>Grand Total</span>
-                  <span className="text-base text-rootly-forest">₹{cart.total_amount}</span>
+                  <span className="text-base text-rootly-forest">₹{grandTotal}</span>
                 </div>
               </div>
 
@@ -244,7 +256,7 @@ export const CartDrawer: React.FC = () => {
               >
                 <div className="text-left leading-tight">
                   <span className="text-[9px] block text-rootly-sagePale font-medium">To Pay</span>
-                  <span className="text-sm font-extrabold">₹{cart.total_amount}</span>
+                  <span className="text-sm font-extrabold">₹{grandTotal}</span>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wider text-rootly-sagePale group-hover:text-white">
                   <span>Standard Checkout</span>

@@ -130,6 +130,12 @@ export interface OrderItem {
   image_url?: string;
 }
 
+export interface DistanceSlab {
+  min_km: number;
+  max_km: number;
+  fee: number;
+}
+
 export interface Order {
   id: number;
   order_number: string;
@@ -138,6 +144,7 @@ export interface Order {
   subtotal: number;
   discount: number;
   delivery_fee: number;
+  distance_km?: number;
   tax: number;
   total_amount: number;
   delivery_slot: string;
@@ -172,6 +179,7 @@ export interface DeliverySetting {
   store_maps_url?: string;
   delivery_radius_km?: number;
   max_express_radius_km?: number;
+  distance_slabs_json?: string;
 }
 
 export interface PhoneOtpResponse {
@@ -238,6 +246,25 @@ export interface DashboardStats {
   pending_orders: number;
   low_stock_products: number;
   recent_orders: Order[];
+}
+
+export interface ServiceabilityResult {
+  is_serviceable: boolean;
+  status: string;
+  postal_code?: string;
+  city: string;
+  locality: string;
+  estimated_delivery_minutes: number;
+  delivery_fee: number;
+  distance_km?: number | null;
+  distance_source?: string | null;
+  matched_slab?: string | null;
+  min_order_amount: number;
+  free_delivery_threshold: number;
+  service_hub: string;
+  message: string;
+  store_address?: string;
+  store_maps_url?: string;
 }
 
 export interface ReverseGeocodeResult {
