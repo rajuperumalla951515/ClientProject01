@@ -1070,15 +1070,9 @@ export const AdminDashboardPage: React.FC = () => {
               {/* Order Bill Summary */}
               <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
                 <div className="flex justify-between text-stone-600">
-                  <span>Subtotal:</span>
+                  <span>Item Subtotal (Selling Price):</span>
                   <span className="font-semibold text-stone-900">₹{selectedOrderForModal.subtotal}</span>
                 </div>
-                {selectedOrderForModal.discount > 0 && (
-                  <div className="flex justify-between text-emerald-700 font-semibold">
-                    <span>Discount:</span>
-                    <span>-₹{selectedOrderForModal.discount}</span>
-                  </div>
-                )}
                 <div className="flex justify-between text-stone-600">
                   <span>Delivery Fee:</span>
                   <span className="font-semibold text-stone-900">₹{selectedOrderForModal.delivery_fee}</span>
@@ -1087,6 +1081,12 @@ export const AdminDashboardPage: React.FC = () => {
                   <span>Final Total:</span>
                   <span className="text-rootly-forest">₹{selectedOrderForModal.total_amount}</span>
                 </div>
+                {selectedOrderForModal.discount > 0 && (
+                  <div className="flex justify-between text-emerald-700 text-[11px] pt-1">
+                    <span>MRP Savings (Informational):</span>
+                    <span className="font-bold">₹{selectedOrderForModal.discount} saved</span>
+                  </div>
+                )}
               </div>
 
               {/* Customer Instructions if any */}

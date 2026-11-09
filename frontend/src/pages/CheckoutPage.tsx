@@ -41,10 +41,13 @@ export const CheckoutPage: React.FC = () => {
   const matchedSlab = selectedDeliveryAddress?.matched_slab || locationMatchedSlab;
   const isCourier = selectedDeliveryAddress?.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
   const isServiceable = selectedDeliveryAddress?.is_serviceable !== false;
-  const isFreeDelivery = cart.subtotal >= cart.free_delivery_threshold;
-  const rawFee = isServiceable ? (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
+  const effectiveFreeThreshold = isCourier ? 999 : (cart.free_delivery_threshold || 499);
+  const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;
+  const rawFee = isServiceable ? (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? (isCourier ? 49.0 : 20.0)) : 0.0;
   const deliveryFee = isFreeDelivery ? 0 : rawFee;
-  const totalPayable = Math.round((cart.subtotal - cart.discount + deliveryFee) * 100) / 100;
+  // FINAL RULE: Customer Amount = Product Selling Price (cart.subtotal) + Delivery Fee.
+  // Never subtract MRP savings!
+  const totalPayable = Math.round((cart.subtotal + deliveryFee) * 100) / 100;
 
   useEffect(() => {
     if (isCourier) {
@@ -572,15 +575,9 @@ export const CheckoutPage: React.FC = () => {
             {/* Bill breakdown */}
             <div className="space-y-2 text-xs text-stone-600 pt-3 border-t border-stone-100">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Item Total (Selling Price)</span>
                 <span className="font-semibold text-stone-900">₹{cart.subtotal}</span>
               </div>
-              {cart.discount > 0 && (
-                <div className="flex justify-between text-emerald-700 font-semibold">
-                  <span>Organic Savings</span>
-                  <span>-₹{cart.discount}</span>
-                </div>
-              )}
               <div className="flex justify-between items-center">
                 <div>
                   <span>{isCourier ? 'Nationwide Courier Shipping' : 'Delivery Partner Fee'}</span>
@@ -596,9 +593,9 @@ export const CheckoutPage: React.FC = () => {
                 </div>
                 {!isServiceable ? (
                   <span className="font-bold text-rose-600">Unavailable</span>
-                ) : deliveryFee === 0 ? (
+                ) : deliveryFee === 0 && isFreeDelivery ? (
                   <span className="font-bold text-emerald-700 uppercase">
-                    {cart.subtotal >= cart.free_delivery_threshold ? `FREE (Orders over ₹${cart.free_delivery_threshold})` : 'FREE'}
+                    FREE (Orders over ₹{effectiveFreeThreshold})
                   </span>
                 ) : (
                   <span className="font-bold text-stone-900">₹{deliveryFee}</span>
@@ -608,6 +605,17 @@ export const CheckoutPage: React.FC = () => {
                 <span>Total Payable</span>
                 <span className="text-rootly-forest">₹{totalPayable}</span>
               </div>
+
+              {/* Informational Savings Badge — NEVER subtracted from selling price! */}
+              {cart.discount > 0 && (
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs text-emerald-800">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Total MRP Savings:</span>
+                  </span>
+                  <strong className="font-bold text-emerald-700">₹{cart.discount} saved on MRP</strong>
+                </div>
+              )}
             </div>
 
             {/* Serviceability Warning */}

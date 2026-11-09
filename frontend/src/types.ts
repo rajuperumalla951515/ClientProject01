@@ -111,6 +111,7 @@ export interface CartData {
   item_count: number;
   subtotal: number;
   discount: number;
+  mrp_savings?: number;
   delivery_fee: number;
   taxes: number;
   total_amount: number;
@@ -145,6 +146,7 @@ export interface Order {
   status: 'pending_whatsapp' | 'pending' | 'confirmed' | 'processing' | 'packed' | 'out_for_delivery' | 'delivered' | 'cancelled' | string;
   subtotal: number;
   discount: number;
+  mrp_savings?: number;
   delivery_fee: number;
   distance_km?: number;
   tax: number;

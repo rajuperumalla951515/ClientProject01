@@ -32,10 +32,11 @@ class PricingCalculationResult(BaseModel):
     item_count: int
     subtotal: float
     total_mrp: float
-    discount: float  # Savings from MRP
+    discount: float  # Informational savings on MRP (total_mrp - subtotal)
+    mrp_savings: float = 0.0  # Explicit informational savings on MRP
     delivery_fee: float
     tax: float
-    total_amount: float
+    total_amount: float  # Selling price subtotal + delivery_fee + tax (NEVER subtracts MRP savings!)
     free_delivery_threshold: float
     free_delivery_progress: float
     amount_needed_for_free_delivery: float
@@ -102,6 +103,8 @@ def compute_financials(
 
     discount_dec = max(Decimal("0.00"), total_mrp_dec - subtotal_dec)
     tax_dec = Decimal("0.00")
+    # Rule: Final Customer Amount = Product Selling Price (subtotal) + Delivery Fee + Other explicitly applicable charges.
+    # The MRP savings (discount_dec) are purely informational and are NEVER deducted from the selling price!
     total_amount_dec = round_currency(subtotal_dec + delivery_fee_dec + tax_dec)
 
     return PricingCalculationResult(
@@ -110,6 +113,7 @@ def compute_financials(
         subtotal=float(subtotal_dec),
         total_mrp=float(total_mrp_dec),
         discount=float(discount_dec),
+        mrp_savings=float(discount_dec),
         delivery_fee=float(delivery_fee_dec),
         tax=float(tax_dec),
         total_amount=float(total_amount_dec),

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   X, MapPin, Truck, Zap, AlertCircle, Loader2, CheckCircle2,
   Clock, ShieldCheck, ArrowRight, User as UserIcon, Phone, FileText, Navigation,
-  Copy, Check
+  Copy, Check, Sparkles
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { PhoneVerificationInput } from './PhoneVerificationInput';
@@ -95,16 +95,23 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   const subtotal = isDirect
     ? round2(directItem!.variant.price * directItem!.quantity)
     : cart.subtotal;
-  const freeThreshold = freeDeliveryThreshold;
-
+  
   // Real-time distance and delivery fee
   const distanceKm = selectedDeliveryAddress.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress.matched_slab || locationMatchedSlab;
   const isCourier = selectedDeliveryAddress.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
+  const effectiveFreeThreshold = isCourier ? 999 : (freeDeliveryThreshold || 499);
+  const isFreeDelivery = subtotal > 0 && subtotal >= effectiveFreeThreshold;
   const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
-  const rawDeliveryFee = isServiceable ? (selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
-  const deliveryFee = subtotal >= freeThreshold ? 0.0 : rawDeliveryFee;
+  const rawDeliveryFee = isServiceable ? (selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? (isCourier ? 49.0 : 20.0)) : 0.0;
+  // Apply free delivery only when genuine conditions are satisfied
+  const deliveryFee = isFreeDelivery ? 0.0 : rawDeliveryFee;
+  // FINAL RULE: Customer Amount = Product Selling Price (subtotal) + Delivery Fee.
+  // Never subtract MRP savings!
   const totalAmount = round2(subtotal + deliveryFee);
+  const mrpSavings = isDirect
+    ? Math.max(0, round2(((directItem!.variant.mrp || directItem!.variant.price) - directItem!.variant.price) * directItem!.quantity))
+    : (cart.discount || 0);
 
   // Sync delivery slot based on delivery mode
   useEffect(() => {
@@ -761,9 +768,9 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   </div>
                   {!isServiceable ? (
                     <span className="font-bold text-rose-600">Unavailable</span>
-                  ) : deliveryFee === 0 ? (
+                  ) : deliveryFee === 0 && isFreeDelivery ? (
                     <span className="font-bold text-emerald-700 uppercase">
-                      {subtotal >= freeThreshold ? `FREE (Orders over ₹${freeThreshold})` : 'FREE'}
+                      FREE (Orders over ₹{effectiveFreeThreshold})
                     </span>
                   ) : (
                     <span className="font-semibold text-stone-900">₹{deliveryFee}</span>
@@ -773,6 +780,17 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span>Final Total</span>
                   <span className="text-rootly-forest text-base">₹{totalAmount}</span>
                 </div>
+
+                {/* Informational Savings Badge — NEVER subtracted from selling price! */}
+                {mrpSavings > 0 && (
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-emerald-800 bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-100 font-medium">
+                    <span className="flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span>Total MRP Savings:</span>
+                    </span>
+                    <strong className="font-bold text-emerald-700">₹{mrpSavings} saved on MRP</strong>
+                  </div>
+                )}
               </div>
 
               {/* Informational Message */}

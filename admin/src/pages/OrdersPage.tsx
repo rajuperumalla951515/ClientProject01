@@ -775,23 +775,23 @@ export const OrdersPage: React.FC = () => {
                   {/* Order Totals Summary */}
                   <div className="p-4 bg-[#FAF9F5] border-t border-[#E6E7DD] space-y-1.5 text-xs">
                     <div className="flex justify-between text-[#778176]">
-                      <span>Subtotal</span>
-                      <span>₹{selectedOrder.subtotal}</span>
+                      <span>Item Subtotal (Selling Price)</span>
+                      <span className="font-semibold text-[#26352B]">₹{selectedOrder.subtotal}</span>
                     </div>
-                    {selectedOrder.discount > 0 && (
-                      <div className="flex justify-between text-[#496B45] font-semibold">
-                        <span>Discount Applied</span>
-                        <span>-₹{selectedOrder.discount}</span>
-                      </div>
-                    )}
                     <div className="flex justify-between text-[#778176]">
                       <span>Delivery Fee</span>
-                      <span>₹{selectedOrder.delivery_fee}</span>
+                      <span className="font-semibold text-[#26352B]">₹{selectedOrder.delivery_fee}</span>
                     </div>
                     <div className="flex justify-between text-[#26352B] font-bold text-sm pt-2 border-t border-[#E6E7DD]">
                       <span>Total Amount</span>
                       <span>{formatCurrency(selectedOrder.total_amount)}</span>
                     </div>
+                    {selectedOrder.discount > 0 && (
+                      <div className="flex justify-between text-[#496B45] text-[11px] pt-1">
+                        <span>MRP Savings (Informational)</span>
+                        <span className="font-bold">₹{selectedOrder.discount} saved</span>
+                      </div>
+                    )}
                   </div>
                 </div>
 

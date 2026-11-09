@@ -263,6 +263,7 @@ class CartOut(BaseModel):
     item_count: int = 0
     subtotal: float = 0.0
     discount: float = 0.0
+    mrp_savings: float = 0.0
     delivery_fee: float = 0.0
     taxes: float = 0.0
     total_amount: float = 0.0
@@ -307,6 +308,7 @@ class OrderOut(BaseModel):
     status: str
     subtotal: float
     discount: float
+    mrp_savings: Optional[float] = 0.0
     delivery_fee: float
     distance_km: Optional[float] = None
     tax: float

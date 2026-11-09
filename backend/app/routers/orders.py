@@ -177,11 +177,14 @@ def format_whatsapp_order_message(
         )
 
     if del_fee == 0.0 and subtotal >= 499.0:
-        delivery_charges_display = "FREE (Orders over threshold)"
+        delivery_charges_display = "FREE (Free delivery threshold satisfied)"
     elif del_fee == 0.0:
         delivery_charges_display = "FREE"
     else:
         delivery_charges_display = f"₹{del_fee:.2f}"
+
+    disc_val = float(order_dict.get("discount") or order_dict.get("mrp_savings") or 0.0)
+    savings_line = f"🎉 Total MRP Savings: ₹{disc_val:.2f} (Included in discounted prices)\n" if disc_val > 0 else ""
 
     msg = (
         f"Hello Sri Adithya Organics,\n\n"
@@ -191,7 +194,9 @@ def format_whatsapp_order_message(
         f"Customer Name: {customer_name}\n"
         f"Phone Number: {formatted_phone}\n\n"
         f"{delivery_section}"
-        f"Delivery Charges: {delivery_charges_display}\n"
+        f"Item Subtotal (Selling Price): ₹{subtotal:.2f}\n"
+        f"Delivery Fee: {delivery_charges_display}\n"
+        f"{savings_line}"
         f"Payment Preference: {payment_pref}\n"
         f"Total Amount: ₹{tot_amt:.2f}\n\n"
         f"Please confirm my order and delivery availability.\n\n"
@@ -217,6 +222,7 @@ async def load_order_with_items(d1: D1Database, order_id_or_number: Any) -> Opti
         status=order["status"],
         subtotal=float(order["subtotal"]),
         discount=float(order.get("discount") or 0.0),
+        mrp_savings=float(order.get("discount") or 0.0),
         delivery_fee=float(order.get("delivery_fee") or 0.0),
         tax=float(order.get("tax") or 0.0),
         total_amount=float(order["total_amount"]),
@@ -266,6 +272,7 @@ async def load_orders_with_items(d1: D1Database, orders: List[Dict[str, Any]]) -
             status=order["status"],
             subtotal=float(order["subtotal"]),
             discount=float(order.get("discount") or 0.0),
+            mrp_savings=float(order.get("discount") or 0.0),
             delivery_fee=float(order.get("delivery_fee") or 0.0),
             tax=float(order.get("tax") or 0.0),
             total_amount=float(order["total_amount"]),

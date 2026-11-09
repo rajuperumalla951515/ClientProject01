@@ -26,8 +26,10 @@ function calculateCartTotals(items: CartItem[], freeThreshold = 499, standardFee
     item_count: items.reduce((acc, i) => acc + i.quantity, 0),
     subtotal: Math.round(subtotal * 100) / 100,
     discount: Math.round(discount * 100) / 100,
+    mrp_savings: Math.round(discount * 100) / 100,
     delivery_fee,
     taxes: 0,
+    // FINAL RULE: Customer pays selling price (subtotal) + applicable delivery fee. Never subtract MRP savings!
     total_amount: Math.round((subtotal + delivery_fee) * 100) / 100,
     free_delivery_threshold: freeThreshold,
     free_delivery_progress: subtotal === 0 ? 0 : Math.min(100, Math.round((subtotal / freeThreshold) * 100)),

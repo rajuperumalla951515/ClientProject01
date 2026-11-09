@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useLocation, Link } from 'react-router-dom';
-import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle, Navigation } from 'lucide-react';
+import { CheckCircle2, Package, MapPin, Clock, ArrowRight, ShieldCheck, Download, Check, AlertCircle, Navigation, Sparkles } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { useStoreSettings } from '../context/SettingsContext';
 import { api } from '../services/api';
@@ -237,15 +237,9 @@ export const OrderConfirmationPage: React.FC = () => {
           <h4 className="font-display font-bold text-sm text-stone-900">Payment Breakdown</h4>
           <div className="space-y-1.5 text-xs text-stone-600">
             <div className="flex justify-between">
-              <span>Subtotal</span>
+              <span>Item Total (Selling Price)</span>
               <span className="font-semibold text-stone-900">₹{order.subtotal}</span>
             </div>
-            {order.discount > 0 && (
-              <div className="flex justify-between text-emerald-700 font-semibold">
-                <span>Organic Discount</span>
-                <span>-₹{order.discount}</span>
-              </div>
-            )}
             <div className="flex justify-between">
               <span>Delivery Fee</span>
               <span>{order.delivery_fee === 0 ? 'FREE' : `₹${order.delivery_fee}`}</span>
@@ -254,6 +248,15 @@ export const OrderConfirmationPage: React.FC = () => {
               <span>Total Paid</span>
               <span className="text-rootly-forest">₹{order.total_amount}</span>
             </div>
+            {order.discount > 0 && (
+              <div className="mt-2 p-2 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-between text-xs text-emerald-800 font-medium">
+                <span className="flex items-center gap-1">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                  <span>Total MRP Savings:</span>
+                </span>
+                <strong className="font-bold text-emerald-700">₹{order.discount} saved on MRP</strong>
+              </div>
+            )}
             <div className="pt-1 text-[11px] text-stone-400">
               Payment Method: <strong className="uppercase text-stone-700">{order.payment_method}</strong> ({order.payment_status})
             </div>

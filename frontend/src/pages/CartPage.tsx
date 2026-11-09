@@ -11,8 +11,38 @@ export const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, incrementItem, decrementItem, setItemQuantity, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes, isServiceable, deliveryMode, estimatedDeliveryDays } = useLocation();
+  const {
+    locationLabel,
+    openLocationModal,
+    serviceHub,
+    deliveryMinutes,
+    isServiceable,
+    deliveryMode,
+    estimatedDeliveryDays,
+    deliveryFee: locationDeliveryFee,
+    distanceKm,
+    matchedSlab,
+    recalculateDeliveryFee,
+  } = useLocation();
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
+
+  // Delivery Mode and Free Delivery Threshold evaluation
+  const isCourier = deliveryMode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
+  const effectiveFreeThreshold = isCourier ? 999 : (cart.free_delivery_threshold || 499);
+  const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;
+  const amountNeeded = Math.max(0, Math.round((effectiveFreeThreshold - cart.subtotal) * 100) / 100);
+
+  // Applicable delivery fee: ONLY 0 if genuine free delivery qualification is satisfied!
+  // If not eligible for free delivery, show the actual delivery charge instead of FREE.
+  const baseDeliveryFee = (locationDeliveryFee && locationDeliveryFee > 0)
+    ? locationDeliveryFee
+    : (cart.delivery_fee > 0 ? cart.delivery_fee : (isCourier ? 49.0 : 20.0));
+
+  const computedDeliveryFee = isFreeDelivery || cart.subtotal === 0 ? 0 : baseDeliveryFee;
+
+  // FINAL RULE: Customer Amount = Product Selling Price (cart.subtotal) + Delivery Fee.
+  // Never subtract MRP savings!
+  const totalAmount = Math.round((cart.subtotal + computedDeliveryFee) * 100) / 100;
 
   const handleCheckout = () => {
     if (!user) {
@@ -62,23 +92,23 @@ export const CartPage: React.FC = () => {
             <div className="flex items-center justify-between text-xs font-semibold mb-2">
               <span className="flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-rootly-sagePale" />
-                {cart.amount_needed_for_free_delivery > 0 ? (
+                {!isFreeDelivery && amountNeeded > 0 ? (
                   <span>
-                    Add <strong className="text-rootly-sagePale">₹{cart.amount_needed_for_free_delivery}</strong> more for <strong>FREE Delivery!</strong>
+                    Add <strong className="text-rootly-sagePale">₹{amountNeeded}</strong> more for <strong>FREE Delivery!</strong>
                   </span>
                 ) : (
                   <span className="text-emerald-300 font-bold flex items-center gap-1.5">
                     <CheckCircle className="w-4 h-4 text-emerald-300" />
-                    <span>FREE Delivery unlocked!</span>
+                    <span>FREE {isCourier ? 'Nationwide Courier' : 'Express'} Delivery unlocked!</span>
                   </span>
                 )}
               </span>
-              <span className="text-stone-300 font-mono text-xs">₹{cart.free_delivery_threshold} goal</span>
+              <span className="text-stone-300 font-mono text-xs">₹{effectiveFreeThreshold} goal</span>
             </div>
             <div className="w-full bg-white/20 h-2 rounded-full overflow-hidden">
               <div
                 className="bg-rootly-sagePale h-full transition-all duration-500"
-                style={{ width: `${cart.free_delivery_progress}%` }}
+                style={{ width: `${Math.min(100, Math.round((cart.subtotal / effectiveFreeThreshold) * 100))}%` }}
               />
             </div>
           </div>
@@ -212,27 +242,39 @@ export const CartPage: React.FC = () => {
 
             <div className="space-y-2 text-xs text-stone-600">
               <div className="flex justify-between">
-                <span>Subtotal</span>
+                <span>Item Total (Selling Price)</span>
                 <span className="font-bold text-stone-900">₹{cart.subtotal}</span>
               </div>
-              {cart.discount > 0 && (
-                <div className="flex justify-between text-emerald-700 font-semibold">
-                  <span>Organic Discount</span>
-                  <span>-₹{cart.discount}</span>
+              <div className="flex justify-between items-center">
+                <div>
+                  <span>{isCourier ? 'Nationwide Courier Shipping' : 'Delivery Partner Fee'}</span>
+                  {distanceKm !== null && distanceKm !== undefined && (
+                    <span className="text-[10px] text-stone-400 block font-normal">
+                      ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
+                    </span>
+                  )}
                 </div>
-              )}
-              <div className="flex justify-between">
-                <span>Delivery Partner Fee</span>
-                {cart.delivery_fee === 0 ? (
-                  <span className="font-bold text-emerald-700">FREE</span>
+                {computedDeliveryFee === 0 && isFreeDelivery ? (
+                  <span className="font-bold text-emerald-700 uppercase">FREE</span>
                 ) : (
-                  <span className="font-bold text-stone-900">₹{cart.delivery_fee}</span>
+                  <span className="font-bold text-stone-900">₹{computedDeliveryFee}</span>
                 )}
               </div>
               <div className="border-t border-stone-100 pt-3 flex justify-between text-base font-black text-stone-900">
                 <span>Total Amount</span>
-                <span className="text-rootly-forest">₹{cart.total_amount}</span>
+                <span className="text-rootly-forest">₹{totalAmount}</span>
               </div>
+
+              {/* Informational Savings Banner — NEVER subtracted from selling price! */}
+              {cart.discount > 0 && (
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-between text-xs text-emerald-800">
+                  <span className="font-medium flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Total MRP Savings:</span>
+                  </span>
+                  <strong className="font-bold text-emerald-700">₹{cart.discount} saved on MRP</strong>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2.5 pt-1">
