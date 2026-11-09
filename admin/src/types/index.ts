@@ -86,7 +86,9 @@ export interface DeliveryAddressSnapshot {
   locality?: string;
   landmark?: string;
   city: string;
+  district?: string;
   state?: string;
+  country?: string;
   postal_code: string;
   latitude?: number;
   longitude?: number;

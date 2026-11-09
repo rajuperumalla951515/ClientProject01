@@ -608,7 +608,9 @@ class ReverseGeocodeOut(BaseModel):
     formatted_address: str
     house_number: Optional[str] = None
     building: Optional[str] = None
+    apartment: Optional[str] = None
     road: Optional[str] = None
+    street: Optional[str] = None
     locality: str
     neighbourhood: Optional[str] = None
     landmark: Optional[str] = None
@@ -620,10 +622,11 @@ class ReverseGeocodeOut(BaseModel):
     latitude: float
     longitude: float
     accuracy_meters: Optional[float] = None
-    is_serviceable: bool
-    estimated_delivery_minutes: int
-    service_hub: str
-    message: str
+    is_serviceable: bool = True
+    estimated_delivery_minutes: int = 30
+    service_hub: str = "Sri Aditya Organics & Oil Mill (Kothagudem)"
+    message: str = "Delivery location resolved"
+    distance_km: Optional[float] = None
     is_incomplete: bool = False
     source: str = "gps_detected"
 
@@ -632,6 +635,7 @@ class AddressSearchResultItem(BaseModel):
     formatted_address: str
     locality: str
     city: str
+    district: Optional[str] = None
     state: str
     postal_code: str
     latitude: float

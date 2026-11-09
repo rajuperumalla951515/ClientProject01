@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { Address, ReverseGeocodeResult, AddressSearchResult } from '../types';
 import { api } from '../services/api';
+import { useAuth } from './AuthContext';
 
 export const ACCURACY_THRESHOLDS = {
   GOOD: 35,     // < 35m: High Accuracy GPS
@@ -44,6 +45,8 @@ export interface SelectedDeliveryAddress {
   matched_slab?: string | null;
   source: 'gps_confirmed' | 'manual_entry' | 'saved_address' | 'preset_hub' | 'map_pin';
   confirmed_at?: string;
+  is_confirmed: boolean;
+  message?: string;
 }
 
 export interface ManualAddressInput {
@@ -87,6 +90,7 @@ interface LocationContextType {
   locationLabel: string;
   pincode: string;
   isServiceable: boolean;
+  isLocationConfirmed: boolean;
   serviceHub: string;
   deliveryMinutes: number;
   deliveryFee: number;
@@ -138,6 +142,7 @@ const DEFAULT_DELIVERY_ADDRESS: SelectedDeliveryAddress = {
   distance_km: 0.1,
   matched_slab: '0–2 km',
   source: 'preset_hub',
+  is_confirmed: false,
 };
 
 const isTelanganaPin = (pin?: string | null): boolean => {
@@ -149,6 +154,8 @@ const isTelanganaPin = (pin?: string | null): boolean => {
 const LocationContext = createContext<LocationContextType | undefined>(undefined);
 
 export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+
   // 1. Centralized Selected Delivery Address (Single Source of Truth)
   const [selectedDeliveryAddress, setSelectedDeliveryAddress] = useState<SelectedDeliveryAddress>(() => {
     if (typeof window !== 'undefined') {
@@ -156,7 +163,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          if (parsed && parsed.postal_code) {
+          if (parsed && parsed.postal_code && parsed.is_confirmed) {
             return parsed;
           }
         } catch {
@@ -289,26 +296,21 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       };
       return detected;
     } catch (err: any) {
-      // Client-side fallback if backend request fails
-      const fallbackLocality = 'Babu Camp Road, Ganeshbasthi';
-      const fallbackCity = 'Kothagudem';
-      const fallbackPin = '507101';
-      const isExpress = isTelanganaPin(fallbackPin);
-
+      // Client-side fallback if backend request fails (Never invent coordinates or mock address)
       return {
-        formatted_address: `${fallbackLocality}, ${fallbackCity}, Telangana - ${fallbackPin}`,
-        locality: fallbackLocality,
-        city: fallbackCity,
-        state: 'Telangana',
-        postal_code: fallbackPin,
+        formatted_address: `Delivery Coordinates (${lat.toFixed(4)}, ${lon.toFixed(4)})`,
+        locality: 'Delivery Location',
+        city: 'Local Area',
+        state: 'India',
+        postal_code: '',
         country: 'India',
         latitude: lat,
         longitude: lon,
         accuracy_meters: accuracy ?? null,
         is_serviceable: true,
-        estimated_delivery_minutes: isExpress ? 15 : 48 * 60,
-        service_hub: isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility',
-        message: 'Delivery Available to this area',
+        estimated_delivery_minutes: 30,
+        service_hub: 'Sri Aditya Organics Fulfillment Network',
+        message: 'Delivery location marked on map',
         is_incomplete: true,
         source: isManualPin ? 'map_pin' : 'gps_detected',
         accuracy_level: isManualPin ? 'manual' : computeAccuracyLevel(accuracy),
@@ -512,6 +514,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         matched_slab: matchedSlab,
         source: accuracyLevel === 'manual' ? 'map_pin' : 'gps_confirmed',
         confirmed_at: new Date().toISOString(),
+        is_confirmed: true,
       };
 
       setSelectedDeliveryAddress(newDeliveryAddress);
@@ -549,6 +552,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     let hub = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
     let minutes = isExpress ? 15 : 48 * 60;
     let isServ = true;
+    let servMsg: string | undefined = undefined;
 
     try {
       const serv = await api.checkServiceability(addr.postal_code, addr.latitude ?? undefined, addr.longitude ?? undefined);
@@ -559,6 +563,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       hub = serv.service_hub;
       minutes = serv.estimated_delivery_minutes;
       isServ = serv.is_serviceable;
+      servMsg = serv.message;
     } catch {
       // fallback
     }
@@ -590,6 +595,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       matched_slab: slab,
       source: 'saved_address',
       confirmed_at: addr.confirmed_at || new Date().toISOString(),
+      is_confirmed: true,
+      message: servMsg,
     };
 
     setSelectedDeliveryAddress(newDeliveryAddress);
@@ -597,6 +604,18 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     localStorage.setItem('sri_adithya_delivery_address', JSON.stringify(newDeliveryAddress));
     setIsLocationModalOpen(false);
   }, []);
+
+  // Synchronize authenticated user's default saved address if current address is unconfirmed
+  useEffect(() => {
+    if (user && !selectedDeliveryAddress.is_confirmed) {
+      api.getAddresses().then((addrs) => {
+        if (addrs && addrs.length > 0) {
+          const defaultAddr = addrs.find((a) => a.is_default) || addrs[0];
+          selectSavedAddress(defaultAddr);
+        }
+      }).catch(() => {});
+    }
+  }, [user, selectedDeliveryAddress.is_confirmed, selectSavedAddress]);
 
   // Enter a delivery address manually
   const setManualDeliveryAddress = useCallback(async (input: ManualAddressInput): Promise<boolean> => {
@@ -700,6 +719,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         matched_slab: serviceResult.matched_slab,
         source: createdAddressId ? 'saved_address' : 'manual_entry',
         confirmed_at: new Date().toISOString(),
+        is_confirmed: true,
       };
 
       setSelectedDeliveryAddress(newDeliveryAddress);
@@ -760,6 +780,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         formatted_address: `${area}, ${cityName}, Telangana - ${pin}`,
         source: 'preset_hub',
         confirmed_at: new Date().toISOString(),
+        is_confirmed: true,
       };
 
       setSelectedDeliveryAddress(newDeliveryAddress);
@@ -853,9 +874,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [selectSavedAddress]);
 
   // Formatted location label for Header and Cards
-  const locationLabel = selectedDeliveryAddress.apartment || selectedDeliveryAddress.house_number
-    ? `${selectedDeliveryAddress.apartment || selectedDeliveryAddress.house_number}, ${selectedDeliveryAddress.street}, ${selectedDeliveryAddress.city} - ${selectedDeliveryAddress.postal_code}`
-    : `${selectedDeliveryAddress.locality || selectedDeliveryAddress.street}, ${selectedDeliveryAddress.city} - ${selectedDeliveryAddress.postal_code}`;
+  const locationLabel = !selectedDeliveryAddress.is_confirmed
+    ? 'Select Delivery Location'
+    : selectedDeliveryAddress.apartment || selectedDeliveryAddress.house_number
+    ? `${selectedDeliveryAddress.apartment || selectedDeliveryAddress.house_number}, ${selectedDeliveryAddress.street}, ${selectedDeliveryAddress.city}${selectedDeliveryAddress.postal_code ? ` - ${selectedDeliveryAddress.postal_code}` : ''}`
+    : `${selectedDeliveryAddress.locality || selectedDeliveryAddress.street}, ${selectedDeliveryAddress.city}${selectedDeliveryAddress.postal_code ? ` - ${selectedDeliveryAddress.postal_code}` : ''}`;
 
   return (
     <LocationContext.Provider
@@ -879,6 +902,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         locationLabel,
         pincode: selectedDeliveryAddress.postal_code,
         isServiceable: selectedDeliveryAddress.is_serviceable,
+        isLocationConfirmed: selectedDeliveryAddress.is_confirmed,
         serviceHub: selectedDeliveryAddress.service_hub,
         deliveryMinutes: selectedDeliveryAddress.estimated_delivery_minutes,
         deliveryFee: selectedDeliveryAddress.delivery_fee ?? 20.0,

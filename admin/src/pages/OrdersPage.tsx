@@ -21,7 +21,8 @@ import {
   User,
   ArrowRight,
   ShieldCheck,
-  Package
+  Package,
+  Navigation
 } from 'lucide-react';
 import { api } from '../services/api';
 import { Order, OrderStatus } from '../types';
@@ -612,54 +613,125 @@ export const OrdersPage: React.FC = () => {
                   </div>
 
                   {/* Delivery Address */}
-                  <div className="p-4 rounded-2xl border border-[#E6E7DD] bg-white space-y-2">
+                  <div className="p-4 rounded-2xl border border-[#E6E7DD] bg-white space-y-3">
                     <div className="flex items-center justify-between pb-2 border-b border-[#E6E7DD]">
-                      <span className="text-xs font-bold text-[#26352B] uppercase tracking-wider">
-                        Delivery Address
-                      </span>
-                      <MapPin className="w-3.5 h-3.5 text-[#496B45]" />
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4 text-[#496B45]" />
+                        <span className="text-xs font-bold text-[#26352B] uppercase tracking-wider">
+                          Delivery Address & Location
+                        </span>
+                      </div>
+                      {addr.label && (
+                        <span className="px-2 py-0.5 rounded-full bg-[#F1F4EC] text-[#244B37] text-[10px] font-bold border border-[#E6E7DD]">
+                          {addr.label}
+                        </span>
+                      )}
                     </div>
-                    <p className="text-xs text-[#26352B] font-medium leading-relaxed">
-                      {addr.formatted_address || [
-                        addr.house_number,
-                        addr.street,
-                        addr.locality,
-                        addr.landmark ? `Near ${addr.landmark}` : null,
-                        addr.city,
-                        addr.postal_code,
-                      ].filter(Boolean).join(', ') || 'Standard Telangana Delivery Address'}
-                    </p>
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
+
+                    {/* Formatted Address */}
+                    <div>
+                      <p className="text-xs text-[#26352B] font-semibold leading-relaxed">
+                        {addr.formatted_address || [
+                          addr.house_number,
+                          addr.apartment,
+                          addr.street,
+                          addr.locality,
+                          addr.city,
+                          addr.postal_code,
+                        ].filter(Boolean).join(', ')}
+                      </p>
+                    </div>
+
+                    {/* Door / Flat & Landmark */}
+                    {(addr.house_number || addr.apartment || addr.landmark) && (
+                      <div className="p-2.5 rounded-xl bg-[#FAF9F5] border border-[#E6E7DD] text-[11px] text-[#26352B] space-y-0.5">
+                        {(addr.house_number || addr.apartment) && (
+                          <p>
+                            <span className="text-[#778176] font-medium">Door/Flat: </span>
+                            <span className="font-semibold">{[addr.house_number, addr.apartment].filter(Boolean).join(', ')}</span>
+                          </p>
+                        )}
+                        {addr.landmark && (
+                          <p>
+                            <span className="text-[#778176] font-medium">Landmark: </span>
+                            <span className="font-semibold">{addr.landmark}</span>
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Regional Badges: City, District, State, PIN */}
+                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                      {addr.city && (
+                        <span className="px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-semibold text-[#26352B]">
+                          City: <strong className="font-bold">{addr.city}</strong>
+                        </span>
+                      )}
+                      {addr.district && (
+                        <span className="px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-semibold text-[#26352B]">
+                          District: <strong className="font-bold">{addr.district}</strong>
+                        </span>
+                      )}
+                      {addr.state && (
+                        <span className="px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-semibold text-[#26352B]">
+                          State: <strong className="font-bold">{addr.state}</strong>
+                        </span>
+                      )}
                       {addr.postal_code && (
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-bold text-[#26352B]">
+                        <span className="px-2 py-0.5 rounded-md bg-stone-100 border border-stone-200 text-[10px] font-mono font-bold text-stone-800">
                           PIN: {addr.postal_code}
                         </span>
                       )}
-                      {selectedOrder.distance_km != null && (
-                        <span className="inline-block px-2 py-0.5 rounded-md bg-emerald-50 border border-emerald-200 text-[10px] font-bold text-emerald-800">
-                          Road Distance: ~{selectedOrder.distance_km} km
+                    </div>
+
+                    {/* Mill Route Metrics & GPS Coordinates */}
+                    <div className="pt-2 border-t border-[#E6E7DD]/70 space-y-2">
+                      <div className="flex flex-wrap items-center justify-between gap-2 text-[11px]">
+                        <div className="flex items-center gap-1.5 font-bold text-[#244B37]">
+                          <Truck className="w-3.5 h-3.5 text-[#496B45]" />
+                          <span>
+                            {selectedOrder.distance_km != null
+                              ? `~${Number(selectedOrder.distance_km).toFixed(1)} km from Kothagudem Mill`
+                              : 'Distance Calculated via Mill Route'}
+                          </span>
+                        </div>
+                        <span className="font-bold text-[#26352B] bg-[#E2E8D7] px-2 py-0.5 rounded text-[10px]">
+                          Fee: ₹{selectedOrder.delivery_fee}
                         </span>
-                      )}
+                      </div>
+
                       {addr.latitude && addr.longitude ? (
-                        <a
-                          href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors"
-                        >
-                          <MapPin className="w-3 h-3 text-emerald-600" />
-                          <span>Customer Location Map ({Number(addr.latitude).toFixed(4)}, {Number(addr.longitude).toFixed(4)}) ↗</span>
-                        </a>
+                        <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                          <div className="flex items-center gap-1 text-[10px] text-emerald-800 font-mono">
+                            <Navigation className="w-3 h-3 text-[#496B45]" />
+                            <span>GPS: {Number(addr.latitude).toFixed(4)}, {Number(addr.longitude).toFixed(4)}</span>
+                            {addr.accuracy_meters && (
+                              <span className="text-[#778176]"> (±{Math.round(addr.accuracy_meters)}m)</span>
+                            )}
+                          </div>
+                          <a
+                            href={`https://maps.google.com/?q=${addr.latitude},${addr.longitude}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] font-bold hover:bg-emerald-100 transition-colors"
+                          >
+                            <span>Open Map ↗</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       ) : (
-                        <a
-                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr.formatted_address || [addr.house_number, addr.street, addr.city, addr.postal_code].filter(Boolean).join(', '))}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-stone-50 text-stone-700 border border-stone-200 text-[10px] font-bold hover:bg-stone-100 transition-colors"
-                        >
-                          <MapPin className="w-3 h-3 text-stone-500" />
-                          <span>Search Address in Maps ↗</span>
-                        </a>
+                        <div className="flex items-center justify-between gap-2 pt-1">
+                          <span className="text-[10px] text-[#778176]">No raw GPS coordinates attached</span>
+                          <a
+                            href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addr.formatted_address || [addr.house_number, addr.street, addr.city, addr.postal_code].filter(Boolean).join(', '))}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#FAF9F5] text-[#26352B] border border-[#E6E7DD] text-[10px] font-bold hover:bg-[#F1F4EC] transition-colors"
+                          >
+                            <span>Search in Maps ↗</span>
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                        </div>
                       )}
                     </div>
                   </div>

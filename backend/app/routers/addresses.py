@@ -50,18 +50,81 @@ KNOWN_LOCALITY_CLUSTERS = [
     {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 60},
 ]
 
-# Indian Postal Region Mapping
+# Comprehensive Indian Postal Region Mapping (All 2-digit circles)
 PIN_REGION_MAP = {
-    "50": ("Hyderabad", "Telangana"),
+    "11": ("New Delhi", "Delhi"),
+    "12": ("Gurgaon / Faridabad", "Haryana"),
+    "13": ("Ambala / Kurukshetra", "Haryana"),
+    "14": ("Amritsar / Jalandhar", "Punjab"),
+    "15": ("Bathinda / Firozpur", "Punjab"),
+    "16": ("Chandigarh", "Chandigarh"),
+    "17": ("Shimla / Kangra", "Himachal Pradesh"),
+    "18": ("Jammu", "Jammu and Kashmir"),
+    "19": ("Srinagar", "Jammu and Kashmir"),
+    "20": ("Aligarh / Meerut", "Uttar Pradesh"),
+    "21": ("Prayagraj / Kanpur", "Uttar Pradesh"),
+    "22": ("Lucknow / Varanasi", "Uttar Pradesh"),
+    "23": ("Mirzapur / Sonbhadra", "Uttar Pradesh"),
+    "24": ("Dehradun / Haridwar", "Uttarakhand"),
+    "25": ("Noida / Ghaziabad", "Uttar Pradesh"),
+    "26": ("Bareilly / Pilibhit", "Uttar Pradesh"),
+    "27": ("Gorakhpur / Basti", "Uttar Pradesh"),
+    "28": ("Jhansi / Agra", "Uttar Pradesh"),
+    "30": ("Jaipur", "Rajasthan"),
+    "31": ("Udaipur / Kota", "Rajasthan"),
+    "32": ("Ajmer / Bikaner", "Rajasthan"),
+    "33": ("Jodhpur / Barmer", "Rajasthan"),
+    "34": ("Jaisalmer / Nagaur", "Rajasthan"),
+    "36": ("Rajkot / Jamnagar", "Gujarat"),
+    "37": ("Kutch / Bhuj", "Gujarat"),
+    "38": ("Ahmedabad / Gandhinagar", "Gujarat"),
+    "39": ("Surat / Vadodara", "Gujarat"),
+    "40": ("Mumbai", "Maharashtra"),
+    "41": ("Pune / Kolhapur", "Maharashtra"),
+    "42": ("Nashik / Jalgaon", "Maharashtra"),
+    "43": ("Chhatrapati Sambhajinagar", "Maharashtra"),
+    "44": ("Nagpur / Amravati", "Maharashtra"),
+    "45": ("Indore / Ujjain", "Madhya Pradesh"),
+    "46": ("Bhopal / Hoshangabad", "Madhya Pradesh"),
+    "47": ("Gwalior / Morena", "Madhya Pradesh"),
+    "48": ("Jabalpur / Chhindwara", "Madhya Pradesh"),
+    "49": ("Raipur / Bilaspur", "Chhattisgarh"),
+    "50": ("Kothagudem / Hyderabad", "Telangana"),
     "51": ("Tirupati / Rayalaseema", "Andhra Pradesh"),
     "52": ("Vijayawada / Guntur", "Andhra Pradesh"),
     "53": ("Visakhapatnam", "Andhra Pradesh"),
     "56": ("Bengaluru", "Karnataka"),
+    "57": ("Mangaluru / Udupi", "Karnataka"),
+    "58": ("Hubballi / Belagavi", "Karnataka"),
+    "59": ("Kalaburagi / Ballari", "Karnataka"),
     "60": ("Chennai", "Tamil Nadu"),
-    "64": ("Coimbatore", "Tamil Nadu"),
-    "40": ("Mumbai", "Maharashtra"),
-    "11": ("New Delhi", "Delhi"),
+    "61": ("Thanjavur / Tiruchirappalli", "Tamil Nadu"),
+    "62": ("Madurai / Dindigul", "Tamil Nadu"),
+    "63": ("Salem / Vellore", "Tamil Nadu"),
+    "64": ("Coimbatore / Tiruppur", "Tamil Nadu"),
+    "67": ("Kozhikode / Kannur", "Kerala"),
+    "68": ("Kochi / Thrissur", "Kerala"),
+    "69": ("Thiruvananthapuram / Kollam", "Kerala"),
+    "70": ("Kolkata", "West Bengal"),
+    "71": ("Howrah / Hooghly", "West Bengal"),
+    "72": ("Midnapore", "West Bengal"),
+    "73": ("Siliguri / Darjeeling", "West Bengal"),
+    "74": ("Nadia / Murshidabad", "West Bengal"),
+    "75": ("Bhubaneswar / Cuttack", "Odisha"),
+    "76": ("Berhampur / Koraput", "Odisha"),
+    "77": ("Rourkela / Sambalpur", "Odisha"),
+    "78": ("Guwahati / Kamrup", "Assam"),
+    "79": ("Shillong / Agartala / Imphal", "North East India"),
+    "80": ("Patna / Gaya", "Bihar"),
+    "81": ("Bhagalpur / Munger", "Bihar"),
+    "82": ("Dhanbad / Bokaro", "Jharkhand"),
+    "83": ("Ranchi / Jamshedpur", "Jharkhand"),
+    "84": ("Muzaffarpur / Darbhanga", "Bihar"),
+    "85": ("Purnia / Katihar", "Bihar"),
 }
+
+# Reverse-geocoding in-memory cache to prevent repeated external network requests (Requirement 10)
+REVERSE_GEOCODE_CACHE: Dict[str, ReverseGeocodeOut] = {}
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """
@@ -80,6 +143,12 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     lat, lon = geo.latitude, geo.longitude
     accuracy = geo.accuracy
 
+    # 0. Check in-memory reverse-geocoding cache (~11m coordinate resolution)
+    cache_key = f"{round(lat, 4)}_{round(lon, 4)}"
+    if cache_key in REVERSE_GEOCODE_CACHE:
+        cached = REVERSE_GEOCODE_CACHE[cache_key]
+        return cached.model_copy(update={"accuracy_meters": accuracy})
+
     house_number = None
     building = None
     road = None
@@ -89,12 +158,22 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     resolved_district = None
     resolved_state = None
     resolved_pin = None
+    resolved_country = "India"
     resolved_formatted = None
     landmark = None
 
-    # 1. Google Maps Geocoding API if key configured
+    # Check proximity to actual store: Sri Aditya Organics & Oil Mill (17.5376, 80.6210)
+    store_dist = calculate_distance(lat, lon, 17.5376, 80.6210)
+    if store_dist <= 2.5:
+        resolved_locality = "Babu Camp / Ganeshbasthi"
+        resolved_city = "Kothagudem"
+        resolved_district = "Bhadradri Kothagudem"
+        resolved_state = "Telangana"
+        resolved_pin = "507101"
+
+    # 1. Google Maps Geocoding API if configured
     google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
-    if google_key:
+    if google_key and not resolved_city:
         try:
             g_url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lon}&key={google_key}&language=en"
             req = urllib.request.Request(g_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
@@ -125,10 +204,12 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
                                 resolved_state = name
                             elif "postal_code" in types:
                                 resolved_pin = name
+                            elif "country" in types:
+                                resolved_country = name
         except Exception:
             pass
 
-    # 2. OpenStreetMap Nominatim reverse geocode
+    # 2. OpenStreetMap Nominatim reverse geocode (Pan-India)
     if not resolved_city or not resolved_pin:
         try:
             url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&addressdetails=1"
@@ -142,89 +223,134 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
                     building = building or addr.get("building") or addr.get("commercial") or addr.get("residential")
                     road = road or addr.get("road") or addr.get("pedestrian") or addr.get("street")
                     neighbourhood = neighbourhood or addr.get("neighbourhood") or addr.get("suburb")
-                    resolved_locality = resolved_locality or addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential")
-                    resolved_city = resolved_city or addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county")
+                    resolved_locality = resolved_locality or addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or addr.get("village")
+                    resolved_city = resolved_city or addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or addr.get("county")
                     resolved_district = resolved_district or addr.get("state_district") or addr.get("county")
                     resolved_state = resolved_state or addr.get("state")
                     resolved_pin = resolved_pin or addr.get("postcode")
+                    resolved_country = addr.get("country") or resolved_country
         except Exception:
             pass
 
-    # 3. Nearest Telangana Cluster fallback
-    closest_cluster = None
-    min_dist = float("inf")
-    for cluster in KNOWN_LOCALITY_CLUSTERS:
-        dist = calculate_distance(lat, lon, cluster["lat"], cluster["lon"])
-        if dist < min_dist:
-            min_dist = dist
-            closest_cluster = cluster
+    # 3. If Nominatim could not resolve, check known locality clusters
+    if not resolved_city:
+        closest_cluster = None
+        min_dist = float("inf")
+        for cluster in KNOWN_LOCALITY_CLUSTERS:
+            dist = calculate_distance(lat, lon, cluster["lat"], cluster["lon"])
+            if dist < min_dist:
+                min_dist = dist
+                closest_cluster = cluster
 
-    if closest_cluster and (not resolved_city or min_dist < 30.0):
-        if not resolved_locality:
-            resolved_locality = closest_cluster["name"]
-        if not resolved_city:
+        if closest_cluster and min_dist <= 25.0:
+            resolved_locality = resolved_locality or closest_cluster["name"]
             resolved_city = closest_cluster["city"]
-        if not resolved_district:
             resolved_district = closest_cluster.get("district")
-        if not resolved_state:
             resolved_state = closest_cluster["state"]
-        if not resolved_pin:
-            resolved_pin = closest_cluster["pin"]
+            resolved_pin = resolved_pin or closest_cluster["pin"]
 
-    # 4. Final Safe Fallbacks: Strictly Telangana-based
-    resolved_locality = resolved_locality or "Hyderabad Central"
-    resolved_city = resolved_city or "Hyderabad"
-    resolved_district = resolved_district or "Hyderabad"
-    resolved_state = resolved_state or "Telangana"
-    resolved_pin = (resolved_pin or "500001").strip()
+    # 4. Fallback from coordinates / postal region without assuming Bangalore/Hyderabad
+    if not resolved_city:
+        resolved_city = resolved_district or "Delivery Location"
+    if not resolved_locality:
+        resolved_locality = resolved_city
+    if not resolved_state:
+        resolved_state = "India"
+    if not resolved_pin:
+        resolved_pin = "507101" if store_dist <= 15.0 else ""
 
     street_parts = [p for p in [building, road, neighbourhood] if p]
     street_line = ", ".join(street_parts) if street_parts else resolved_locality
 
     if not resolved_formatted:
-        resolved_formatted = f"{street_line}, {resolved_locality}, {resolved_city}, {resolved_state} - {resolved_pin}"
+        pin_suffix = f" - {resolved_pin}" if resolved_pin else ""
+        resolved_formatted = f"{street_line}, {resolved_locality}, {resolved_city}, {resolved_state}{pin_suffix}"
 
-    return ReverseGeocodeOut(
+    # Calculate actual road distance from Kothagudem store (17.5376, 80.6210)
+    road_dist = store_dist * 1.22
+    try:
+        dist_km_calc, _ = get_road_distance_km(17.5376, 80.6210, lat, lon)
+        if dist_km_calc is not None:
+            road_dist = dist_km_calc
+    except Exception:
+        pass
+
+    # Serviceability evaluation (Max delivery radius default: 60 km)
+    is_serviceable = road_dist <= 60.0 or (resolved_pin and resolved_pin.startswith("507"))
+    if road_dist <= 2.0:
+        est_minutes = 15
+    elif road_dist <= 5.0:
+        est_minutes = 20
+    elif road_dist <= 15.0:
+        est_minutes = 30
+    elif road_dist <= 35.0:
+        est_minutes = 45
+    elif road_dist <= 60.0:
+        est_minutes = 75
+    else:
+        est_minutes = 0
+
+    if is_serviceable:
+        serv_msg = f"Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
+        serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)" if road_dist <= 35.0 else "Sri Aditya Organics Regional Hub"
+    else:
+        serv_msg = f"Delivery currently unavailable to {resolved_city}, {resolved_state} (~{road_dist:.0f} km from Kothagudem facility)."
+        serv_hub = "Out of Delivery Range"
+
+    out = ReverseGeocodeOut(
         latitude=lat,
         longitude=lon,
         accuracy_meters=accuracy,
         house_number=house_number,
+        building=building,
         apartment=building,
+        road=road,
         street=street_line,
         locality=resolved_locality,
+        neighbourhood=neighbourhood,
         landmark=landmark,
         city=resolved_city,
         district=resolved_district,
         state=resolved_state,
-        postal_code=resolved_pin,
+        postal_code=resolved_pin or "",
+        country=resolved_country,
         formatted_address=resolved_formatted,
-        delivery_cluster=closest_cluster["name"] if closest_cluster else "Hyderabad Central",
-        estimated_delivery_minutes=closest_cluster["minutes"] if closest_cluster else 25,
-        service_hub=closest_cluster["hub"] if closest_cluster else "Sri Adithya Organics Central Fulfillment Hub"
+        is_serviceable=is_serviceable,
+        estimated_delivery_minutes=est_minutes,
+        service_hub=serv_hub,
+        message=serv_msg,
+        distance_km=round(road_dist, 1),
+        source="gps_detected"
     )
+
+    REVERSE_GEOCODE_CACHE[cache_key] = out
+    return out
 
 
 @router.get("/search", response_model=List[AddressSearchResultItem])
 def search_address(query: str = Query(..., min_length=2)):
     results = []
+    q_clean = query.strip()
     try:
-        encoded = urllib.parse.quote(f"{query}, Telangana, India")
-        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=6"
-        req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
-        with urllib.request.urlopen(req, timeout=3.0) as resp:
+        encoded = urllib.parse.quote(q_clean)
+        url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=8"
+        req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
             if resp.status == 200:
                 data = json.loads(resp.read().decode("utf-8"))
                 for it in data:
                     addr = it.get("address", {})
                     pin = addr.get("postcode", "")
-                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county", "Hyderabad")
-                    st = addr.get("state", "Telangana")
-                    loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or it.get("name")
+                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("municipality") or addr.get("state_district") or addr.get("county") or ""
+                    st = addr.get("state", "")
+                    dist = addr.get("state_district") or addr.get("county") or ""
+                    loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or addr.get("road") or it.get("name") or ""
                     results.append(AddressSearchResultItem(
                         place_id=str(it.get("place_id")),
                         formatted_address=it.get("display_name"),
                         locality=loc,
                         city=city,
+                        district=dist,
                         state=st,
                         postal_code=pin,
                         latitude=float(it["lat"]),
@@ -234,7 +360,7 @@ def search_address(query: str = Query(..., min_length=2)):
         pass
 
     if not results:
-        q_lower = query.lower()
+        q_lower = q_clean.lower()
         for c in KNOWN_LOCALITY_CLUSTERS:
             if q_lower in c["name"].lower() or q_lower in c["city"].lower() or q_lower == c["pin"]:
                 results.append(AddressSearchResultItem(
@@ -242,6 +368,7 @@ def search_address(query: str = Query(..., min_length=2)):
                     formatted_address=f"{c['name']}, {c['city']}, {c['state']} - {c['pin']}",
                     locality=c["name"],
                     city=c["city"],
+                    district=c.get("district"),
                     state=c["state"],
                     postal_code=c["pin"],
                     latitude=c["lat"],
@@ -484,6 +611,14 @@ async def create_address(
             confirmed_at, is_default, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
+    clean_pin = address_in.postal_code.strip()
+    fallback_city, fallback_state = ("Kothagudem", "Telangana")
+    if len(clean_pin) >= 2 and clean_pin[:2] in PIN_REGION_MAP:
+        fallback_city, fallback_state = PIN_REGION_MAP[clean_pin[:2]]
+
+    resolved_city = (address_in.city or "").strip() or fallback_city
+    resolved_state = (address_in.state or "").strip() or fallback_state
+
     new_id = await d1.execute_insert(
         sql,
         user_id,
@@ -495,9 +630,9 @@ async def create_address(
         address_in.house_number,
         address_in.locality,
         address_in.landmark,
-        address_in.city or "Hyderabad",
-        address_in.state or "Telangana",
-        address_in.postal_code.strip(),
+        resolved_city,
+        resolved_state,
+        clean_pin,
         address_in.latitude,
         address_in.longitude,
         address_in.accuracy_meters,

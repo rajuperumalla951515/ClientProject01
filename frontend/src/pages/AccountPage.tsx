@@ -2,9 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import {
   User, Package, MapPin, Heart, LogOut, Plus, Edit2, Trash2, Home,
-  Briefcase, Building, ChevronRight, Clock, ShieldCheck, Check
+  Briefcase, Building, ChevronRight, Clock, ShieldCheck, Check, Navigation, X
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from '../context/LocationContext';
 import { api } from '../services/api';
 import { Order, Address, Product } from '../types';
 import { ProductCard } from '../components/ProductCard';
@@ -15,6 +16,7 @@ export const AccountPage: React.FC = () => {
   const currentTab = searchParams.get('tab') || 'orders';
 
   const { user, logout, refreshUser } = useAuth();
+  const { selectSavedAddress, selectedDeliveryAddress } = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
@@ -26,9 +28,23 @@ export const AccountPage: React.FC = () => {
   const [newRecipient, setNewRecipient] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newStreet, setNewStreet] = useState('');
-  const [newCity, setNewCity] = useState('Hyderabad');
+  const [newApartment, setNewApartment] = useState('');
+  const [newLandmark, setNewLandmark] = useState('');
+  const [newCity, setNewCity] = useState('Kothagudem');
   const [newState, setNewState] = useState('Telangana');
-  const [newPostalCode, setNewPostalCode] = useState('500033');
+  const [newPostalCode, setNewPostalCode] = useState('507101');
+
+  // Address Edit Modal
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [editLabel, setEditLabel] = useState('Home');
+  const [editRecipient, setEditRecipient] = useState('');
+  const [editPhoneNum, setEditPhoneNum] = useState('');
+  const [editStreet, setEditStreet] = useState('');
+  const [editApartment, setEditApartment] = useState('');
+  const [editLandmark, setEditLandmark] = useState('');
+  const [editCity, setEditCity] = useState('');
+  const [editState, setEditState] = useState('');
+  const [editPostalCode, setEditPostalCode] = useState('');
 
   // Profile Edit modal
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -85,6 +101,48 @@ export const AccountPage: React.FC = () => {
     }
   };
 
+  const openEditModal = (addr: Address) => {
+    setEditingAddress(addr);
+    setEditLabel(addr.label || 'Home');
+    setEditRecipient(addr.recipient_name || '');
+    setEditPhoneNum(addr.phone || '');
+    setEditStreet(addr.street || '');
+    setEditApartment(addr.apartment || '');
+    setEditLandmark(addr.landmark || '');
+    setEditCity(addr.city || 'Kothagudem');
+    setEditState(addr.state || 'Telangana');
+    setEditPostalCode(addr.postal_code || '');
+  };
+
+  const handleUpdateAddress = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAddress) return;
+    try {
+      const updated = await api.updateAddress(editingAddress.id, {
+        label: editLabel,
+        recipient_name: editRecipient,
+        phone: editPhoneNum,
+        street: editStreet,
+        apartment: editApartment,
+        landmark: editLandmark,
+        city: editCity,
+        state: editState,
+        postal_code: editPostalCode,
+        latitude: editingAddress.latitude,
+        longitude: editingAddress.longitude,
+        accuracy_meters: editingAddress.accuracy_meters,
+        formatted_address: `${editApartment ? `${editApartment}, ` : ''}${editStreet}, ${editCity} - ${editPostalCode}`,
+      });
+      setAddresses(addresses.map((a) => (a.id === updated.id ? updated : a)));
+      if (selectedDeliveryAddress?.id === updated.id) {
+        selectSavedAddress(updated);
+      }
+      setEditingAddress(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update address.');
+    }
+  };
+
   const handleCreateAddress = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -93,13 +151,19 @@ export const AccountPage: React.FC = () => {
         recipient_name: newRecipient,
         phone: newPhone,
         street: newStreet,
-        city: newCity || 'Hyderabad',
+        apartment: newApartment || undefined,
+        landmark: newLandmark || undefined,
+        city: newCity || 'Kothagudem',
         state: newState || 'Telangana',
         postal_code: newPostalCode,
+        formatted_address: `${newApartment ? `${newApartment}, ` : ''}${newStreet}, ${newCity} - ${newPostalCode}`,
         is_default: addresses.length === 0,
       });
       setAddresses([...addresses, created]);
       setIsAddingAddress(false);
+      setNewStreet('');
+      setNewApartment('');
+      setNewLandmark('');
     } catch (err: any) {
       alert(err.message || 'Failed to add address.');
     }
@@ -413,14 +477,37 @@ export const AccountPage: React.FC = () => {
                     </div>
                   </div>
 
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">Apartment / Flat / House No.</label>
+                      <input
+                        type="text"
+                        value={newApartment}
+                        onChange={(e) => setNewApartment(e.target.value)}
+                        placeholder="e.g. Flat 301, Block A"
+                        className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-stone-700 mb-1">Landmark (Optional)</label>
+                      <input
+                        type="text"
+                        value={newLandmark}
+                        onChange={(e) => setNewLandmark(e.target.value)}
+                        placeholder="e.g. Opp. Ramalayam"
+                        className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">Street Address</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Street Address *</label>
                     <input
                       type="text"
                       required
                       value={newStreet}
                       onChange={(e) => setNewStreet(e.target.value)}
-                      placeholder="Flat No, Apartment, Street name"
+                      placeholder="Road, Locality, Area name"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
@@ -435,7 +522,7 @@ export const AccountPage: React.FC = () => {
                     </button>
                     <button
                       type="submit"
-                      className="px-5 py-2 rounded-xl bg-rootly-forest text-white text-xs font-bold"
+                      className="px-5 py-2 rounded-xl bg-rootly-forest text-white text-xs font-bold shadow-lift"
                     >
                       Save Address
                     </button>
@@ -447,10 +534,14 @@ export const AccountPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {addresses.map((addr) => {
                   const Icon = addr.label.toLowerCase() === 'work' ? Briefcase : addr.label.toLowerCase() === 'home' ? Home : Building;
+                  const isCurrentDelivery = selectedDeliveryAddress?.id === addr.id;
+
                   return (
                     <div
                       key={addr.id}
-                      className="p-5 rounded-3xl bg-white border border-stone-200 shadow-soft flex flex-col justify-between space-y-3"
+                      className={`p-5 rounded-3xl bg-white border transition-all shadow-soft flex flex-col justify-between space-y-3 ${
+                        isCurrentDelivery ? 'border-rootly-forest ring-2 ring-rootly-forest/20' : 'border-stone-200'
+                      }`}
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
@@ -458,39 +549,228 @@ export const AccountPage: React.FC = () => {
                             <Icon className="w-4 h-4 text-rootly-forest" />
                             {addr.label}
                           </span>
-                          {addr.is_default && (
-                            <span className="text-[10px] font-bold text-rootly-forest bg-rootly-sageMist px-2 py-0.5 rounded-md">
-                              Default Address
-                            </span>
-                          )}
+                          <div className="flex items-center gap-1.5">
+                            {isCurrentDelivery && (
+                              <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <Check className="w-3 h-3 stroke-[3]" />
+                                Active Delivery
+                              </span>
+                            )}
+                            {addr.is_default && (
+                              <span className="text-[10px] font-bold text-rootly-forest bg-rootly-sageMist px-2 py-0.5 rounded-md">
+                                Default Address
+                              </span>
+                            )}
+                          </div>
                         </div>
+
                         <p className="text-xs font-bold text-stone-800">{addr.recipient_name} ({addr.phone})</p>
-                        <p className="text-xs text-stone-600 mt-1">{addr.street}</p>
-                        <p className="text-[11px] text-stone-400 font-mono">{addr.city} - {addr.postal_code}</p>
+                        <p className="text-xs text-stone-600 mt-1">
+                          {addr.apartment ? `${addr.apartment}, ` : ''}{addr.street}
+                        </p>
+                        {addr.landmark && (
+                          <p className="text-[11px] text-stone-500">Landmark: {addr.landmark}</p>
+                        )}
+                        <p className="text-[11px] text-stone-400 font-mono mt-0.5">
+                          {addr.city}, {addr.state} - {addr.postal_code}
+                        </p>
+
+                        {addr.latitude && addr.longitude && (
+                          <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-1 rounded-lg border border-emerald-200/60">
+                            <Navigation className="w-3 h-3" />
+                            <span>GPS: {addr.latitude.toFixed(4)}, {addr.longitude.toFixed(4)}</span>
+                            {addr.accuracy_meters && (
+                              <span className="text-stone-400"> (±{Math.round(addr.accuracy_meters)}m)</span>
+                            )}
+                          </div>
+                        )}
                       </div>
 
-                      <div className="flex items-center justify-between pt-3 border-t border-stone-100 text-xs">
-                        {!addr.is_default ? (
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-stone-100 text-xs">
+                        <div className="flex items-center gap-2">
+                          {!isCurrentDelivery && (
+                            <button
+                              type="button"
+                              onClick={() => selectSavedAddress(addr)}
+                              className="text-rootly-forest hover:underline font-bold text-[11px]"
+                            >
+                              Deliver Here
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleSetDefaultAddress(addr.id)}
-                            className="text-stone-500 hover:text-rootly-forest font-semibold"
+                            type="button"
+                            onClick={() => openEditModal(addr)}
+                            className="text-stone-600 hover:text-stone-900 font-semibold flex items-center gap-1 text-[11px]"
                           >
-                            Set as default
+                            <Edit2 className="w-3 h-3" />
+                            <span>Edit</span>
                           </button>
-                        ) : (
-                          <span />
-                        )}
-                        <button
-                          onClick={() => handleDeleteAddress(addr.id)}
-                          className="text-red-500 hover:underline font-semibold"
-                        >
-                          Delete
-                        </button>
+                        </div>
+
+                        <div className="flex items-center gap-2.5">
+                          {!addr.is_default && (
+                            <button
+                              onClick={() => handleSetDefaultAddress(addr.id)}
+                              className="text-stone-500 hover:text-rootly-forest font-semibold text-[11px]"
+                            >
+                              Set as default
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteAddress(addr.id)}
+                            className="text-red-500 hover:underline font-semibold text-[11px] flex items-center gap-0.5"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            <span>Delete</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })}
               </div>
+
+              {/* Edit Address Modal */}
+              {editingAddress && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm animate-fadeIn">
+                  <div className="relative w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-stone-200 space-y-4 max-h-[90vh] overflow-y-auto">
+                    <div className="flex items-center justify-between pb-3 border-b border-stone-100">
+                      <div className="flex items-center gap-2">
+                        <Edit2 className="w-4 h-4 text-rootly-forest" />
+                        <h4 className="font-display font-bold text-base text-stone-900">Edit Delivery Address</h4>
+                      </div>
+                      <button
+                        onClick={() => setEditingAddress(null)}
+                        className="p-1 rounded-xl text-stone-400 hover:text-stone-700 hover:bg-stone-100"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <form onSubmit={handleUpdateAddress} className="space-y-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">Label</label>
+                          <select
+                            value={editLabel}
+                            onChange={(e) => setEditLabel(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold"
+                          >
+                            <option value="Home">Home</option>
+                            <option value="Work">Work</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">Recipient Name</label>
+                          <input
+                            type="text"
+                            required
+                            value={editRecipient}
+                            onChange={(e) => setEditRecipient(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">Phone Number</label>
+                          <input
+                            type="tel"
+                            required
+                            value={editPhoneNum}
+                            onChange={(e) => setEditPhoneNum(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">PIN Code</label>
+                          <input
+                            type="text"
+                            maxLength={6}
+                            required
+                            value={editPostalCode}
+                            onChange={(e) => setEditPostalCode(e.target.value.replace(/\D/g, ''))}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">Apartment / Flat / House No.</label>
+                          <input
+                            type="text"
+                            value={editApartment}
+                            onChange={(e) => setEditApartment(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">Landmark</label>
+                          <input
+                            type="text"
+                            value={editLandmark}
+                            onChange={(e) => setEditLandmark(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-bold text-stone-700 mb-1">Street Address *</label>
+                        <input
+                          type="text"
+                          required
+                          value={editStreet}
+                          onChange={(e) => setEditStreet(e.target.value)}
+                          className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">City / Town</label>
+                          <input
+                            type="text"
+                            required
+                            value={editCity}
+                            onChange={(e) => setEditCity(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-stone-700 mb-1">State</label>
+                          <input
+                            type="text"
+                            required
+                            value={editState}
+                            onChange={(e) => setEditState(e.target.value)}
+                            className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex justify-end gap-2 pt-3 border-t border-stone-100">
+                        <button
+                          type="button"
+                          onClick={() => setEditingAddress(null)}
+                          className="px-4 py-2 rounded-xl text-xs font-bold text-stone-600 hover:bg-stone-100"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="px-5 py-2 rounded-xl bg-rootly-forest text-white text-xs font-bold shadow-lift hover:bg-rootly-dark"
+                        >
+                          Save Changes
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 

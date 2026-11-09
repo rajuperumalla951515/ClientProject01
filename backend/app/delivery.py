@@ -179,3 +179,4 @@ def calculate_distance_based_delivery_fee(
     label = f"> {last_slab['max_km']} km"
     msg = f"Extended delivery fee ₹{extended_fee:.0f} for {distance_km:.1f} km distance."
     return (extended_fee, True, msg, label)
+

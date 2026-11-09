@@ -20,6 +20,8 @@ export const CheckoutPage: React.FC = () => {
     setSelectedAddress: setGlobalLocation,
     pincode: currentPincode,
     locationLabel,
+    isLocationConfirmed,
+    openLocationModal,
     selectedDeliveryAddress,
     deliveryFee: locationDeliveryFee,
     distanceKm: locationDistanceKm,
@@ -56,9 +58,10 @@ export const CheckoutPage: React.FC = () => {
   const [newStreet, setNewStreet] = useState(selectedDeliveryAddress?.street || '');
   const [newApartment, setNewApartment] = useState(selectedDeliveryAddress?.apartment || '');
   const [newLandmark, setNewLandmark] = useState(selectedDeliveryAddress?.landmark || '');
-  const [newCity, setNewCity] = useState(selectedDeliveryAddress?.city || 'Hyderabad');
-  const [newState, setNewState] = useState(selectedDeliveryAddress?.state || 'Telangana');
-  const [newPostalCode, setNewPostalCode] = useState(selectedDeliveryAddress?.postal_code || currentPincode || '500033');
+  const [newCity, setNewCity] = useState(selectedDeliveryAddress?.city || '');
+  const [newDistrict, setNewDistrict] = useState(selectedDeliveryAddress?.district || '');
+  const [newState, setNewState] = useState(selectedDeliveryAddress?.state || '');
+  const [newPostalCode, setNewPostalCode] = useState(selectedDeliveryAddress?.postal_code || currentPincode || '');
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -76,10 +79,12 @@ export const CheckoutPage: React.FC = () => {
         if (addrs.length > 0) {
           const matchingAddr = selectedDeliveryAddress?.id
             ? addrs.find((a) => a.id === selectedDeliveryAddress.id)
-            : addrs.find((a) => a.postal_code === selectedDeliveryAddress.postal_code);
+            : (selectedDeliveryAddress?.postal_code ? addrs.find((a) => a.postal_code === selectedDeliveryAddress.postal_code) : null);
           const defaultAddr = matchingAddr || addrs.find((a) => a.is_default) || addrs[0];
           setSelectedAddressId(defaultAddr.id);
-          setGlobalLocation(defaultAddr);
+          if (!selectedDeliveryAddress?.id || selectedDeliveryAddress.id !== defaultAddr.id) {
+            setGlobalLocation(defaultAddr);
+          }
         } else {
           setIsAddingAddress(true);
         }
@@ -88,7 +93,30 @@ export const CheckoutPage: React.FC = () => {
       }
     };
     loadAddresses();
-  }, [user, navigate, selectedDeliveryAddress, setGlobalLocation]);
+  }, [user, navigate]);
+
+  const handlePincodeChange = (pin: string) => {
+    const cleaned = pin.replace(/\D/g, '').slice(0, 6);
+    setNewPostalCode(cleaned);
+    if (cleaned.length === 6 && !newCity && !newState) {
+      const prefix = cleaned.slice(0, 2);
+      const pinMap: Record<string, { city: string; state: string }> = {
+        '50': { city: 'Kothagudem / Hyderabad', state: 'Telangana' },
+        '51': { city: 'Tirupati / Kadapa', state: 'Andhra Pradesh' },
+        '52': { city: 'Vijayawada / Guntur', state: 'Andhra Pradesh' },
+        '53': { city: 'Visakhapatnam / Rajahmundry', state: 'Andhra Pradesh' },
+        '56': { city: 'Bengaluru', state: 'Karnataka' },
+        '57': { city: 'Mangaluru / Mysuru', state: 'Karnataka' },
+        '60': { city: 'Chennai', state: 'Tamil Nadu' },
+        '11': { city: 'Delhi', state: 'Delhi' },
+        '40': { city: 'Mumbai', state: 'Maharashtra' },
+      };
+      if (pinMap[prefix]) {
+        setNewCity(pinMap[prefix].city);
+        setNewState(pinMap[prefix].state);
+      }
+    }
+  };
 
   const handleCreateAddress = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,11 +126,12 @@ export const CheckoutPage: React.FC = () => {
         recipient_name: newRecipient,
         phone: newPhone,
         street: newStreet,
-        apartment: newApartment,
-        landmark: newLandmark,
-        city: newCity || 'Hyderabad',
-        state: newState || 'Telangana',
-        postal_code: newPostalCode,
+        apartment: newApartment || undefined,
+        landmark: newLandmark || undefined,
+        city: newCity.trim(),
+        district: newDistrict.trim() || undefined,
+        state: newState.trim(),
+        postal_code: newPostalCode.trim(),
         is_default: addresses.length === 0,
       });
       setAddresses([...addresses, created]);
@@ -117,6 +146,10 @@ export const CheckoutPage: React.FC = () => {
   const handlePlaceOrder = async () => {
     if (!selectedAddressId) {
       setCheckoutError('Please select or add a delivery address.');
+      return;
+    }
+    if (selectedDeliveryAddress?.is_serviceable === false) {
+      setCheckoutError(selectedDeliveryAddress.message || 'Delivery is currently not available to the selected address. Please select or add an address within our delivery area.');
       return;
     }
     if (cart.items.length === 0) {
@@ -218,7 +251,7 @@ export const CheckoutPage: React.FC = () => {
                       }}
                       className={`p-4 rounded-2xl border cursor-pointer transition-all ${
                         isSelected
-                          ? 'border-rootly-forest bg-rootly-sageMist/30 shadow-sm'
+                          ? 'border-rootly-forest bg-rootly-sageMist/30 shadow-sm ring-1 ring-rootly-forest/20'
                           : 'border-stone-200 hover:border-stone-300 bg-stone-50/50'
                       }`}
                     >
@@ -234,8 +267,21 @@ export const CheckoutPage: React.FC = () => {
                         )}
                       </div>
                       <p className="text-xs font-semibold text-stone-800">{addr.recipient_name} ({addr.phone})</p>
-                      <p className="text-xs text-stone-500 mt-1 line-clamp-2">{addr.street}, {addr.apartment || ''}</p>
-                      <p className="text-[11px] text-stone-400 font-mono mt-0.5">{addr.city} - {addr.postal_code}</p>
+                      <p className="text-xs text-stone-600 mt-1 line-clamp-2">
+                        {addr.house_number ? `${addr.house_number}, ` : ''}{addr.street}{addr.apartment ? `, ${addr.apartment}` : ''}
+                      </p>
+                      {addr.landmark && (
+                        <p className="text-[11px] text-stone-500 italic">Near {addr.landmark}</p>
+                      )}
+                      <p className="text-[11px] text-stone-700 font-medium mt-1">
+                        {[addr.city, addr.district, addr.state].filter(Boolean).join(', ')} - <span className="font-mono">{addr.postal_code}</span>
+                      </p>
+                      {addr.latitude && addr.longitude && (
+                        <div className="mt-2 flex items-center gap-1 text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded-md w-fit">
+                          <MapPin className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>GPS Pin Attached</span>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -259,12 +305,13 @@ export const CheckoutPage: React.FC = () => {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">Recipient Name</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Recipient Name *</label>
                     <input
                       type="text"
                       required
                       value={newRecipient}
                       onChange={(e) => setNewRecipient(e.target.value)}
+                      placeholder="e.g. Rahul Sharma"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
@@ -272,62 +319,96 @@ export const CheckoutPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">Phone Number</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Phone Number *</label>
                     <input
                       type="tel"
                       required
                       value={newPhone}
                       onChange={(e) => setNewPhone(e.target.value)}
+                      placeholder="e.g. 9876543210"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">PIN Code</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Postal PIN Code *</label>
                     <input
                       type="text"
                       maxLength={6}
                       required
                       value={newPostalCode}
-                      onChange={(e) => setNewPostalCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="e.g. 500033 / 500001"
+                      onChange={(e) => handlePincodeChange(e.target.value)}
+                      placeholder="e.g. 507101 / 500033"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">City / Town *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newCity}
+                      onChange={(e) => setNewCity(e.target.value)}
+                      placeholder="e.g. Kothagudem / Hyderabad"
+                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">District</label>
+                    <input
+                      type="text"
+                      value={newDistrict}
+                      onChange={(e) => setNewDistrict(e.target.value)}
+                      placeholder="e.g. Bhadradri Kothagudem"
+                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">State *</label>
+                    <input
+                      type="text"
+                      required
+                      value={newState}
+                      onChange={(e) => setNewState(e.target.value)}
+                      placeholder="e.g. Telangana / Andhra Pradesh"
+                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">City / Town</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Apartment / Flat / Door No.</label>
                     <input
                       type="text"
-                      required
-                      value={newCity}
-                      onChange={(e) => setNewCity(e.target.value)}
-                      placeholder="e.g. Hyderabad / Kothagudem"
+                      value={newApartment}
+                      onChange={(e) => setNewApartment(e.target.value)}
+                      placeholder="e.g. Flat 302, Green Acres"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-stone-700 mb-1">State</label>
+                    <label className="block text-xs font-bold text-stone-700 mb-1">Landmark (Optional)</label>
                     <input
                       type="text"
-                      required
-                      value={newState}
-                      onChange={(e) => setNewState(e.target.value)}
-                      placeholder="Telangana"
+                      value={newLandmark}
+                      onChange={(e) => setNewLandmark(e.target.value)}
+                      placeholder="e.g. Near Ramalayam Temple"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">Street Address & Landmark</label>
+                  <label className="block text-xs font-bold text-stone-700 mb-1">Street Address *</label>
                   <input
                     type="text"
                     required
                     value={newStreet}
                     onChange={(e) => setNewStreet(e.target.value)}
-                    placeholder="House/Flat No., Building Name, Street"
+                    placeholder="House/Street Name, Road, Locality"
                     className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                   />
                 </div>
@@ -504,21 +585,44 @@ export const CheckoutPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Serviceability Warning */}
+            {selectedDeliveryAddress?.is_serviceable === false && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                  <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                  <span>Outside Direct Delivery Area</span>
+                </div>
+                <p className="text-[11px] text-rose-700 leading-relaxed">
+                  {selectedDeliveryAddress.message || 'We deliver up to 60 km from our Kothagudem Mill. Please select or add an address within our delivery zones.'}
+                </p>
+              </div>
+            )}
+
             {/* Place Order CTA */}
-            <button
-              onClick={handlePlaceOrder}
-              disabled={isPlacingOrder || !selectedAddressId}
-              className="w-full py-4 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-            >
-              {isPlacingOrder ? (
-                <span>Verifying & Placing Order...</span>
-              ) : (
-                <>
-                  <span>Place Order • ₹{cart.total_amount}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
+            {selectedDeliveryAddress?.is_serviceable === false ? (
+              <button
+                type="button"
+                disabled
+                className="w-full py-4 px-4 rounded-2xl bg-stone-300 text-stone-500 font-bold text-sm flex items-center justify-center gap-2 cursor-not-allowed"
+              >
+                <span>Delivery Unavailable for Selected Address</span>
+              </button>
+            ) : (
+              <button
+                onClick={handlePlaceOrder}
+                disabled={isPlacingOrder || !selectedAddressId}
+                className="w-full py-4 px-4 rounded-2xl bg-rootly-forest hover:bg-rootly-dark text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+              >
+                {isPlacingOrder ? (
+                  <span>Verifying & Placing Order...</span>
+                ) : (
+                  <>
+                    <span>Place Order • ₹{totalPayable}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            )}
 
             {/* WhatsApp Alternative CTA */}
             <div className="relative flex py-1 items-center">

@@ -37,6 +37,7 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   const {
     selectedDeliveryAddress,
     locationLabel,
+    isLocationConfirmed,
     openLocationModal,
     deliveryMinutes,
     serviceHub,
@@ -133,8 +134,15 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
       return;
     }
 
-    if (!selectedDeliveryAddress || !selectedDeliveryAddress.postal_code) {
+    if (!isLocationConfirmed || !selectedDeliveryAddress || !selectedDeliveryAddress.postal_code) {
       setErrorMessage('Please confirm your delivery address before proceeding.');
+      onClose();
+      openLocationModal();
+      return;
+    }
+
+    if (selectedDeliveryAddress.is_serviceable === false) {
+      setErrorMessage(selectedDeliveryAddress.message || 'Delivery is currently not available to this location. Please choose another delivery address.');
       return;
     }
 
@@ -167,12 +175,15 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
           locality: selectedDeliveryAddress.locality,
           landmark: selectedDeliveryAddress.landmark,
           city: selectedDeliveryAddress.city,
+          district: selectedDeliveryAddress.district,
           state: selectedDeliveryAddress.state,
+          country: selectedDeliveryAddress.country || 'India',
           postal_code: selectedDeliveryAddress.postal_code,
           latitude: selectedDeliveryAddress.latitude,
           longitude: selectedDeliveryAddress.longitude,
           accuracy_meters: selectedDeliveryAddress.accuracy_meters,
           formatted_address: selectedDeliveryAddress.formatted_address,
+          is_confirmed: true,
         },
         idempotency_key: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
       };
@@ -479,12 +490,69 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                     }}
                     className="text-xs font-bold text-rootly-forest hover:underline"
                   >
-                    Change Address
+                    {isLocationConfirmed ? 'Change Address' : 'Set Location'}
                   </button>
                 </div>
 
+                {!isLocationConfirmed && (
+                  <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-900 flex items-start justify-between gap-3">
+                    <div className="space-y-0.5">
+                      <p className="font-bold flex items-center gap-1">
+                        <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                        <span>Delivery Location Not Confirmed</span>
+                      </p>
+                      <p className="text-[11px] text-amber-800">
+                        Please confirm your doorstep address or pin on map to verify delivery availability and accurate road distance.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        openLocationModal();
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-amber-600 text-white text-[11px] font-bold shrink-0 hover:bg-amber-700 transition-colors shadow-xs"
+                    >
+                      Set Location
+                    </button>
+                  </div>
+                )}
+
+                {isLocationConfirmed && selectedDeliveryAddress.is_serviceable === false && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                    <div className="flex items-center gap-1.5 font-bold text-rose-800">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>Address Outside Direct Delivery Zone</span>
+                    </div>
+                    <p className="text-[11px] text-rose-700 leading-relaxed">
+                      {selectedDeliveryAddress.message || 'We currently deliver up to 60 km from our Kothagudem Mill. Please choose a nearby address or contact us for courier assistance.'}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        openLocationModal();
+                      }}
+                      className="text-[11px] font-bold text-rose-800 underline hover:text-rose-950 inline-block pt-0.5"
+                    >
+                      Select Different Address →
+                    </button>
+                  </div>
+                )}
+
                 <div className="p-3 rounded-2xl bg-stone-50 border border-stone-200 text-xs space-y-1.5">
-                  <p className="font-bold text-stone-900 leading-snug">{locationLabel}</p>
+                  <div className="flex items-center justify-between">
+                    <p className="font-bold text-stone-900 leading-snug">{locationLabel}</p>
+                    {isLocationConfirmed ? (
+                      <span className="text-[10px] font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
+                        Confirmed
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full shrink-0">
+                        Unconfirmed
+                      </span>
+                    )}
+                  </div>
 
                   {/* Distance & Delivery Fee Slab Info */}
                   {distanceKm !== null && distanceKm !== undefined && (
@@ -661,24 +729,50 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
 
               {/* Submit CTA */}
               <div className="pt-2">
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full py-4 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      <span>Creating Order Reference...</span>
-                    </>
-                  ) : (
-                    <>
-                      <WhatsAppIcon className="w-5 h-5 text-white" />
-                      <span>Continue to WhatsApp</span>
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
+                {!isLocationConfirmed ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openLocationModal();
+                    }}
+                    className="w-full py-4 px-4 rounded-2xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    <MapPin className="w-5 h-5 text-white" />
+                    <span>Confirm Delivery Location to Continue</span>
+                  </button>
+                ) : selectedDeliveryAddress.is_serviceable === false ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      openLocationModal();
+                    }}
+                    className="w-full py-4 px-4 rounded-2xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                  >
+                    <AlertCircle className="w-5 h-5 text-white" />
+                    <span>Location Outside Delivery Zone • Change</span>
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-4 px-4 rounded-2xl bg-[#25D366] hover:bg-[#20ba5a] text-white font-bold text-sm shadow-lift flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-60"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <span>Creating Order Reference...</span>
+                      </>
+                    ) : (
+                      <>
+                        <WhatsAppIcon className="w-5 h-5 text-white" />
+                        <span>Continue to WhatsApp</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
 
             </form>

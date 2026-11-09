@@ -21,7 +21,9 @@ export interface Address {
   locality?: string | null;
   landmark?: string | null;
   city: string;
+  district?: string | null;
   state: string;
+  country?: string | null;
   postal_code: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -213,12 +215,15 @@ export interface WhatsAppOrderPayload {
     locality?: string;
     landmark?: string;
     city: string;
+    district?: string;
     state: string;
+    country?: string;
     postal_code: string;
     latitude?: number;
     longitude?: number;
     accuracy_meters?: number | null;
     formatted_address?: string;
+    is_confirmed?: boolean;
   };
   delivery_slot?: string;
   payment_method?: string;

@@ -27,7 +27,7 @@ try:
         calculate_distance_based_delivery_fee,
         DEFAULT_DISTANCE_SLABS
     )
-    from backend.app.routers.addresses import calculate_distance
+    from backend.app.routers.addresses import calculate_distance, PIN_REGION_MAP
 except ImportError:
     from app.delivery import (
         calculate_haversine_distance,
@@ -36,7 +36,7 @@ except ImportError:
         calculate_distance_based_delivery_fee,
         DEFAULT_DISTANCE_SLABS
     )
-    from app.routers.addresses import calculate_distance
+    from app.routers.addresses import calculate_distance, PIN_REGION_MAP
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
@@ -119,7 +119,8 @@ def format_whatsapp_order_message(
         except Exception:
             pass
     elif addr_line and addr_line != "Delivery address provided":
-        encoded_addr = urllib.parse.quote(f"{addr_line}, Telangana, India")
+        clean_addr = addr_line if "India" in addr_line else f"{addr_line}, India"
+        encoded_addr = urllib.parse.quote(clean_addr)
         search_link = f"https://www.google.com/maps/search/?api=1&query={encoded_addr}"
         location_block = f"\n📍 Customer Location (Google Maps):\n{search_link}"
         if dist_km is not None:
@@ -296,7 +297,9 @@ async def checkout(
         "locality": address.get("locality"),
         "landmark": address.get("landmark"),
         "city": address.get("city"),
+        "district": address.get("district"),
         "state": address.get("state"),
+        "country": address.get("country") or "India",
         "postal_code": address.get("postal_code"),
         "latitude": address.get("latitude"),
         "longitude": address.get("longitude"),
@@ -539,7 +542,9 @@ async def create_whatsapp_order(
             "locality": addr.get("locality"),
             "landmark": addr.get("landmark"),
             "city": addr.get("city"),
+            "district": addr.get("district"),
             "state": addr.get("state"),
+            "country": addr.get("country") or "India",
             "postal_code": addr.get("postal_code"),
             "latitude": addr.get("latitude"),
             "longitude": addr.get("longitude"),
@@ -551,8 +556,13 @@ async def create_whatsapp_order(
         da = order_in.delivery_address
         pin = str(da.get("postal_code", "")).strip()
         street = str(da.get("street", "")).strip()
-        city = str(da.get("city", "Hyderabad")).strip()
-        state = str(da.get("state", "Telangana")).strip()
+
+        fallback_c, fallback_s = ("Kothagudem", "Telangana")
+        if len(pin) >= 2 and pin[:2] in PIN_REGION_MAP:
+            fallback_c, fallback_s = PIN_REGION_MAP[pin[:2]]
+
+        city = str(da.get("city") or fallback_c).strip()
+        state = str(da.get("state") or fallback_s).strip()
 
         if not street:
             raise HTTPException(status_code=400, detail="Delivery street or locality is required.")
@@ -569,7 +579,9 @@ async def create_whatsapp_order(
             "locality": da.get("locality"),
             "landmark": da.get("landmark"),
             "city": city,
+            "district": da.get("district"),
             "state": state,
+            "country": da.get("country") or "India",
             "postal_code": pin,
             "latitude": da.get("latitude"),
             "longitude": da.get("longitude"),
