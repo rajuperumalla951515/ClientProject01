@@ -3,9 +3,10 @@ import datetime
 from fastapi import APIRouter, Depends, HTTPException
 from backend.app.config import settings as app_settings
 from backend.app.d1 import D1Database, get_d1
-from backend.app.schemas import DeliverySettingOut, DeliverySettingUpdate
+from backend.app.schemas import DeliverySettingOut, DeliverySettingUpdate, CourierRateTestRequest, CourierRateTestOut
 from backend.app.deps import get_current_admin
 from backend.app.events import broadcaster
+from backend.app.courier import calculate_courier_shipping, DEFAULT_COURIER_ZONES
 
 router = APIRouter(prefix="/settings", tags=["Store Settings"])
 
@@ -22,6 +23,16 @@ STORE_LOCATION_COLUMNS = {
     "delivery_radius_km": "REAL DEFAULT 35.0",
     "max_express_radius_km": "REAL DEFAULT 15.0",
     "distance_slabs_json": "TEXT DEFAULT '[{\"min_km\":0,\"max_km\":2,\"fee\":20},{\"min_km\":2,\"max_km\":4,\"fee\":30},{\"min_km\":4,\"max_km\":6,\"fee\":40},{\"min_km\":6,\"max_km\":8,\"fee\":50},{\"min_km\":8,\"max_km\":10,\"fee\":60},{\"min_km\":10,\"max_km\":15,\"fee\":75},{\"min_km\":15,\"max_km\":35,\"fee\":99},{\"min_km\":35,\"max_km\":60,\"fee\":149}]'",
+    "courier_enabled": "INTEGER DEFAULT 1",
+    "courier_free_threshold": "REAL DEFAULT 999.0",
+    "courier_partners_json": "TEXT DEFAULT '[\"Delhivery\", \"BlueDart\", \"India Post Speed Post\"]'",
+    "courier_default_partner": "TEXT DEFAULT 'Delhivery'",
+    "courier_delhivery_api_key": "TEXT DEFAULT ''",
+    "courier_delhivery_client_id": "TEXT DEFAULT ''",
+    "courier_shiprocket_email": "TEXT DEFAULT ''",
+    "courier_shiprocket_token": "TEXT DEFAULT ''",
+    "courier_rates_json": "TEXT DEFAULT ''",
+    "courier_blacklisted_pins": "TEXT DEFAULT ''",
 }
 
 async def ensure_store_settings_schema(d1: D1Database):
@@ -95,7 +106,17 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
         "store_maps_url": "https://share.google/e1aO3V8FJQ7USIKzU",
         "delivery_radius_km": 35.0,
         "max_express_radius_km": 15.0,
-        "distance_slabs_json": '[{"min_km":0,"max_km":2,"fee":20},{"min_km":2,"max_km":4,"fee":30},{"min_km":4,"max_km":6,"fee":40},{"min_km":6,"max_km":8,"fee":50},{"min_km":8,"max_km":10,"fee":60},{"min_km":10,"max_km":15,"fee":75},{"min_km":15,"max_km":35,"fee":99},{"min_km":35,"max_km":60,"fee":149}]'
+        "distance_slabs_json": '[{"min_km":0,"max_km":2,"fee":20},{"min_km":2,"max_km":4,"fee":30},{"min_km":4,"max_km":6,"fee":40},{"min_km":6,"max_km":8,"fee":50},{"min_km":8,"max_km":10,"fee":60},{"min_km":10,"max_km":15,"fee":75},{"min_km":15,"max_km":35,"fee":99},{"min_km":35,"max_km":60,"fee":149}]',
+        "courier_enabled": 1,
+        "courier_free_threshold": 999.0,
+        "courier_partners_json": '["Delhivery", "BlueDart", "India Post Speed Post"]',
+        "courier_default_partner": "Delhivery",
+        "courier_delhivery_api_key": "",
+        "courier_delhivery_client_id": "",
+        "courier_shiprocket_email": "",
+        "courier_shiprocket_token": "",
+        "courier_rates_json": json.dumps(DEFAULT_COURIER_ZONES),
+        "courier_blacklisted_pins": "",
     }
     for k, v in defaults.items():
         if setting.get(k) is None:
@@ -138,6 +159,16 @@ async def update_store_settings(
         "delivery_radius_km",
         "max_express_radius_km",
         "distance_slabs_json",
+        "courier_enabled",
+        "courier_free_threshold",
+        "courier_partners_json",
+        "courier_default_partner",
+        "courier_delhivery_api_key",
+        "courier_delhivery_client_id",
+        "courier_shiprocket_email",
+        "courier_shiprocket_token",
+        "courier_rates_json",
+        "courier_blacklisted_pins",
     }
     valid_data = {k: v for k, v in update_data.items() if k in ALLOWED_SETTINGS_COLS}
 
@@ -180,3 +211,55 @@ async def update_store_settings(
         "distance_slabs_json": setting.get("distance_slabs_json")
     })
     return DeliverySettingOut(**setting)
+
+
+@router.post("/test-courier-rate", response_model=CourierRateTestOut)
+async def test_courier_rate(
+    req: CourierRateTestRequest,
+    d1: D1Database = Depends(get_d1),
+    admin=Depends(get_current_admin)
+):
+    """Admin tool to test nationwide courier rates for any destination PIN and parcel weight."""
+    await ensure_store_settings_schema(d1)
+    setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1") or {}
+
+    pickup_pin = setting.get("store_pincode") or "507101"
+    partner = setting.get("courier_default_partner") or "Delhivery"
+    free_thresh = float(setting.get("courier_free_threshold") if setting.get("courier_free_threshold") is not None else 999.0)
+    blist = setting.get("courier_blacklisted_pins") or ""
+
+    rates_json = setting.get("courier_rates_json")
+    rates_dict = None
+    if rates_json:
+        try:
+            rates_dict = json.loads(rates_json)
+        except Exception:
+            pass
+
+    quote = calculate_courier_shipping(
+        dest_pincode=req.destination_pincode,
+        weight_kg=req.weight_kg,
+        subtotal=req.cart_subtotal,
+        pickup_pincode=pickup_pin,
+        courier_rates=rates_dict,
+        free_threshold=free_thresh,
+        partner_name=partner,
+        blacklisted_pins=blist
+    )
+
+    return CourierRateTestOut(
+        is_serviceable=quote.get("is_serviceable", False),
+        delivery_mode=quote.get("delivery_mode", "unserviceable"),
+        zone=quote.get("zone", "Zone D"),
+        zone_name=quote.get("zone_name", "Courier Zone"),
+        courier_partner=quote.get("courier_partner", partner),
+        pickup_pincode=quote.get("pickup_pincode", pickup_pin),
+        destination_pincode=quote.get("destination_pincode", req.destination_pincode),
+        actual_weight_kg=quote.get("actual_weight_kg", req.weight_kg),
+        billable_weight_kg=quote.get("billable_weight_kg", req.weight_kg),
+        shipping_fee=quote.get("shipping_fee", 0.0),
+        is_free_shipping=quote.get("is_free_shipping", False),
+        estimated_days=quote.get("estimated_days"),
+        estimated_delivery_dates=quote.get("estimated_delivery_dates"),
+        message=quote.get("message", "Calculated")
+    )

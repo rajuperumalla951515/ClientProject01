@@ -389,6 +389,16 @@ class DeliverySettingOut(BaseModel):
     delivery_radius_km: Optional[float] = 35.0
     max_express_radius_km: Optional[float] = 15.0
     distance_slabs_json: Optional[str] = None
+    courier_enabled: Optional[bool] = True
+    courier_free_threshold: Optional[float] = 999.0
+    courier_partners_json: Optional[str] = None
+    courier_default_partner: Optional[str] = "Delhivery"
+    courier_delhivery_api_key: Optional[str] = None
+    courier_delhivery_client_id: Optional[str] = None
+    courier_shiprocket_email: Optional[str] = None
+    courier_shiprocket_token: Optional[str] = None
+    courier_rates_json: Optional[str] = None
+    courier_blacklisted_pins: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -413,6 +423,16 @@ class DeliverySettingUpdate(BaseModel):
     delivery_radius_km: Optional[float] = None
     max_express_radius_km: Optional[float] = None
     distance_slabs_json: Optional[str] = None
+    courier_enabled: Optional[bool] = None
+    courier_free_threshold: Optional[float] = None
+    courier_partners_json: Optional[str] = None
+    courier_default_partner: Optional[str] = None
+    courier_delhivery_api_key: Optional[str] = None
+    courier_delhivery_client_id: Optional[str] = None
+    courier_shiprocket_email: Optional[str] = None
+    courier_shiprocket_token: Optional[str] = None
+    courier_rates_json: Optional[str] = None
+    courier_blacklisted_pins: Optional[str] = None
 
 
 # --- Admin Dashboard Stats & Operations ---
@@ -623,6 +643,11 @@ class ReverseGeocodeOut(BaseModel):
     longitude: float
     accuracy_meters: Optional[float] = None
     is_serviceable: bool = True
+    delivery_mode: str = "local_express"  # "local_express" | "nationwide_courier" | "unserviceable"
+    delivery_type: str = "Local Express Delivery"
+    courier_partner: Optional[str] = None
+    estimated_delivery_days: Optional[str] = None
+    parcel_weight_kg: Optional[float] = None
     estimated_delivery_minutes: int = 30
     service_hub: str = "Sri Aditya Organics & Oil Mill (Kothagudem)"
     message: str = "Delivery location resolved"
@@ -648,10 +673,17 @@ class ServiceabilityCheckRequest(BaseModel):
     latitude: Optional[float] = None
     longitude: Optional[float] = None
     cart_subtotal: Optional[float] = None
+    cart_weight_kg: Optional[float] = None
 
 class ServiceabilityCheckOut(BaseModel):
     is_serviceable: bool
     status: str = "Delivery Available"  # "Delivery Available", "Delivery Available with Additional Charges", "Delivery Not Available", "Address Verification Required"
+    delivery_mode: str = "local_express"  # "local_express" | "nationwide_courier" | "unserviceable"
+    delivery_type: str = "Local Express Delivery"
+    courier_partner: Optional[str] = None
+    courier_zone: Optional[str] = None
+    estimated_delivery_days: Optional[str] = None
+    parcel_weight_kg: Optional[float] = None
     postal_code: Optional[str] = None
     city: str
     locality: str
@@ -666,5 +698,27 @@ class ServiceabilityCheckOut(BaseModel):
     message: str
     store_address: Optional[str] = None
     store_maps_url: Optional[str] = "https://share.google/e1aO3V8FJQ7USIKzU"
+
+class CourierRateTestRequest(BaseModel):
+    destination_pincode: str
+    weight_kg: float = 1.0
+    cart_subtotal: float = 0.0
+
+class CourierRateTestOut(BaseModel):
+    is_serviceable: bool
+    delivery_mode: str
+    zone: str
+    zone_name: str
+    courier_partner: str
+    pickup_pincode: str
+    destination_pincode: str
+    actual_weight_kg: float
+    billable_weight_kg: float
+    shipping_fee: float
+    is_free_shipping: bool
+    estimated_days: Optional[str] = None
+    estimated_delivery_dates: Optional[str] = None
+    message: str
+
 
 

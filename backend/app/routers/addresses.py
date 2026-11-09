@@ -16,6 +16,14 @@ from backend.app.schemas import (
 )
 from backend.app.deps import get_current_user
 from backend.app.phone_utils import validate_and_normalize_indian_phone
+from backend.app.courier import (
+    calculate_courier_shipping,
+    determine_courier_zone,
+    is_valid_indian_pincode,
+    estimate_parcel_weight_kg,
+    DEFAULT_COURIER_ZONES,
+    STORE_PICKUP_PINCODE,
+)
 
 try:
     from backend.app.delivery import (
@@ -47,6 +55,11 @@ KNOWN_LOCALITY_CLUSTERS = [
     {"name": "Banjara Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 60},
     {"name": "Jubilee Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500033", "lat": 17.4319, "lon": 78.4073, "hub": "Hyderabad Central Hub", "minutes": 60},
     {"name": "Madhapur / Hitec City", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500081", "lat": 17.4474, "lon": 78.3762, "hub": "Hyderabad Cyber Hub", "minutes": 60},
+    {"name": "Ghatkesar", "city": "Ghatkesar", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "501301", "lat": 17.4477, "lon": 78.6833, "hub": "Sri Adithya Organics Central Hub", "minutes": 60},
+    {"name": "Secunderabad", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500003", "lat": 17.4399, "lon": 78.4983, "hub": "Hyderabad North Hub", "minutes": 60},
+    {"name": "Kukatpally", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500072", "lat": 17.4875, "lon": 78.4059, "hub": "Hyderabad West Hub", "minutes": 60},
+    {"name": "Gachibowli", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500032", "lat": 17.4401, "lon": 78.3489, "hub": "Hyderabad Cyber Hub", "minutes": 60},
+    {"name": "Uppal", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500039", "lat": 17.4018, "lon": 78.5602, "hub": "Hyderabad East Hub", "minutes": 60},
     {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 60},
 ]
 
@@ -173,9 +186,11 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         resolved_pin = "507101"
         road = "Babu Camp Road"
 
+    is_testing = bool(os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("TESTING") or os.environ.get("OFFLINE_ROUTING"))
+
     # 1. Google Maps Geocoding API if configured
     google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
-    if google_key and not resolved_city:
+    if not is_testing and google_key and not resolved_city:
         try:
             g_url = f"https://maps.googleapis.com/maps/api/geocode/json?latlng={lat},{lon}&key={google_key}&language=en"
             req = urllib.request.Request(g_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
@@ -212,7 +227,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             pass
 
     # 2. Photon (Komoot OSM) Reverse Geocoder — fast, reliable Pan-India OSM data
-    if not resolved_city or not resolved_pin:
+    if not is_testing and (not resolved_city or not resolved_pin):
         try:
             p_url = f"https://photon.komoot.io/reverse?lat={lat}&lon={lon}"
             req = urllib.request.Request(p_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
@@ -234,7 +249,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             pass
 
     # 3. BigDataCloud Reverse Geocoder
-    if not resolved_city or not resolved_pin:
+    if not is_testing and (not resolved_city or not resolved_pin):
         try:
             bdc_url = f"https://api.bigdatacloud.net/data/reverse-geocode-client?latitude={lat}&longitude={lon}&localityLanguage=en"
             req = urllib.request.Request(bdc_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
@@ -251,7 +266,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             pass
 
     # 4. OpenStreetMap Nominatim reverse geocode (Pan-India)
-    if not resolved_city or not resolved_pin:
+    if not is_testing and (not resolved_city or not resolved_pin):
         try:
             url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&addressdetails=1"
             req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
@@ -273,8 +288,36 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         except Exception:
             pass
 
-    # 5. Fallback without assuming Hyderabad or Abids
+    # 5. Proximity and region fallback when geocoding network APIs are offline or timeout
     in_telangana = (15.8 <= lat <= 19.9) and (77.2 <= lon <= 81.8)
+
+    if not resolved_pin:
+        # Check proximity to known locality clusters
+        closest = None
+        min_d = float("inf")
+        for c in KNOWN_LOCALITY_CLUSTERS:
+            d = calculate_distance(lat, lon, c["lat"], c["lon"])
+            if d < min_d:
+                min_d = d
+                closest = c
+        if closest and min_d <= 12.0:
+            resolved_pin = closest["pin"]
+            resolved_city = resolved_city if (resolved_city and resolved_city != "Telangana") else closest["city"]
+            resolved_district = resolved_district or closest.get("district")
+            resolved_locality = resolved_locality if (resolved_locality and resolved_locality != "Telangana") else closest["name"]
+            resolved_state = resolved_state or closest["state"]
+        elif store_dist <= 2.5:
+            resolved_pin = "507101"
+            resolved_city = "Kothagudem"
+            resolved_locality = resolved_locality or "Babu Camp"
+            resolved_state = "Telangana"
+        elif in_telangana:
+            resolved_pin = "500001"
+            resolved_city = resolved_city or "Telangana"
+            resolved_state = "Telangana"
+        else:
+            is_incomplete = True
+
     if not resolved_city:
         resolved_city = resolved_district or ("Telangana" if in_telangana else "India")
         is_incomplete = True
@@ -282,10 +325,6 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         resolved_locality = road or resolved_city
     if not resolved_state:
         resolved_state = "Telangana" if in_telangana else "India"
-    if not resolved_pin:
-        resolved_pin = "507101" if store_dist <= 2.5 else ""
-        if not resolved_pin:
-            is_incomplete = True
 
     street_parts = [p for p in [building, road, resolved_locality] if p and p != resolved_city]
     street_line = ", ".join(dict.fromkeys(street_parts)) if street_parts else resolved_locality
@@ -308,39 +347,72 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     except Exception:
         pass
 
-    # Dynamic distance fee calculation based on actual distance
-    slabs = DEFAULT_DISTANCE_SLABS
-    max_delivery_radius_km = 60.0
-    calculated_fee, is_serviceable, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
-        distance_km=road_dist,
-        slabs=slabs,
-        subtotal=0.0,
-        free_delivery_threshold=499.0,
-        max_delivery_radius_km=max_delivery_radius_km,
-        default_fallback_fee=39.0
-    )
+    # Hybrid Delivery Resolution:
+    # 1. Local Express Delivery for nearby customers (<= 35 km)
+    local_delivery_radius_km = 35.0
+    is_local_eligible = road_dist <= local_delivery_radius_km
 
-    if not is_serviceable:
-        est_minutes = 0
-        serv_hub = "Out of Delivery Range"
-        serv_msg = f"Delivery currently unavailable to this location ({road_dist:.0f} km from Kothagudem Mill; max direct delivery radius is {int(max_delivery_radius_km)} km)."
-        calculated_fee = 0.0
-        matched_slab = None
-    else:
+    if is_local_eligible:
+        slabs = DEFAULT_DISTANCE_SLABS
+        calculated_fee, is_serviceable, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
+            distance_km=road_dist,
+            slabs=slabs,
+            subtotal=0.0,
+            free_delivery_threshold=499.0,
+            max_delivery_radius_km=local_delivery_radius_km,
+            default_fallback_fee=39.0
+        )
+        delivery_mode = "local_express"
+        delivery_type = "Local Express Delivery"
+        courier_partner = None
+        estimated_days = "Same Day (15-30 Mins)"
+        parcel_weight = None
+
         if road_dist <= 2.0:
             est_minutes = 15
         elif road_dist <= 5.0:
             est_minutes = 20
         elif road_dist <= 15.0:
             est_minutes = 30
-        elif road_dist <= 35.0:
-            est_minutes = 45
-        elif road_dist <= 60.0:
-            est_minutes = 75
         else:
-            est_minutes = 90
-        serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)" if road_dist <= 35.0 else "Sri Aditya Organics Regional Hub"
-        serv_msg = f"Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
+            est_minutes = 45
+
+        serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)"
+        serv_msg = f"Local Express Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
+    else:
+        # 2. Nationwide Courier Delivery for all Indian addresses outside local radius
+        clean_pin = (resolved_pin or "").strip()
+        if is_valid_indian_pincode(clean_pin):
+            courier_quote = calculate_courier_shipping(
+                dest_pincode=clean_pin,
+                weight_kg=0.5,
+                subtotal=0.0,
+                pickup_pincode="507101",
+                partner_name="Delhivery"
+            )
+            is_serviceable = courier_quote.get("is_serviceable", True)
+            delivery_mode = "nationwide_courier"
+            delivery_type = "Nationwide Courier Shipping"
+            courier_partner = courier_quote.get("courier_partner", "Delhivery")
+            estimated_days = courier_quote.get("estimated_days", "2–4 Business Days")
+            parcel_weight = courier_quote.get("billable_weight_kg", 1.0)
+            est_minutes = int(courier_quote.get("min_delivery_days", 2)) * 24 * 60
+            calculated_fee = float(courier_quote.get("shipping_fee", 49.0))
+            matched_slab = courier_quote.get("zone_name", "Nationwide Courier Zone")
+            serv_hub = f"Sri Adithya Organics Central Fulfillment Facility → {resolved_city} ({courier_partner})"
+            serv_msg = courier_quote.get("message", "Nationwide Courier Available")
+        else:
+            delivery_mode = "unserviceable"
+            delivery_type = "Nationwide Courier Shipping"
+            is_serviceable = False
+            courier_partner = None
+            estimated_days = None
+            parcel_weight = None
+            est_minutes = 0
+            calculated_fee = 0.0
+            matched_slab = None
+            serv_hub = "Out of Delivery Range"
+            serv_msg = "Please verify your 6-digit Indian PIN code for courier serviceability."
 
     out = ReverseGeocodeOut(
         latitude=lat,
@@ -361,6 +433,11 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         country=resolved_country,
         formatted_address=resolved_formatted,
         is_serviceable=is_serviceable,
+        delivery_mode=delivery_mode,
+        delivery_type=delivery_type,
+        courier_partner=courier_partner,
+        estimated_delivery_days=estimated_days,
+        parcel_weight_kg=parcel_weight,
         estimated_delivery_minutes=est_minutes,
         service_hub=serv_hub,
         message=serv_msg,
@@ -477,14 +554,6 @@ def search_address(query: str = Query(..., min_length=2)):
 
 @router.post("/check-serviceability", response_model=ServiceabilityCheckOut)
 async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database = Depends(get_d1)):
-    """
-    Intelligent Telangana Delivery Eligibility Engine
-    Checks:
-      1. Validated 6-digit Indian PIN code.
-      2. Configured delivery zones in database.
-      3. Distance from actual store location using Haversine formula.
-      4. Configured delivery radius and fees.
-    """
     # 1. Fetch store delivery settings
     min_order = 99.0
     free_thresh = 499.0
@@ -496,26 +565,28 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
     store_addr = "Sri Aditya Organics & Oil Mill, Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam, Kothagudem, Telangana 507101"
     store_maps = "https://share.google/e1aO3V8FJQ7USIKzU"
 
-    try:
-        setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
-        if setting:
-            min_order = float(setting.get("min_order_amount") or 99.0)
-            free_thresh = float(setting.get("free_delivery_threshold") or 499.0)
-            std_fee = float(setting.get("standard_delivery_fee") or 39.0)
-            if setting.get("store_latitude") is not None:
-                store_lat = float(setting["store_latitude"])
-            if setting.get("store_longitude") is not None:
-                store_lon = float(setting["store_longitude"])
-            if setting.get("delivery_radius_km") is not None:
-                delivery_radius_km = float(setting["delivery_radius_km"])
-            if setting.get("max_express_radius_km") is not None:
-                max_express_radius_km = float(setting["max_express_radius_km"])
-            if setting.get("store_address"):
-                store_addr = setting["store_address"]
-            if setting.get("store_maps_url"):
-                store_maps = setting["store_maps_url"]
-    except Exception as e:
-        print(f"[Serviceability] Settings fetch notice: {e}")
+    setting = None
+    if hasattr(d1, "fetch_one"):
+        try:
+            setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
+            if setting:
+                min_order = float(setting.get("min_order_amount") or 99.0)
+                free_thresh = float(setting.get("free_delivery_threshold") or 499.0)
+                std_fee = float(setting.get("standard_delivery_fee") or 39.0)
+                if setting.get("store_latitude") is not None:
+                    store_lat = float(setting["store_latitude"])
+                if setting.get("store_longitude") is not None:
+                    store_lon = float(setting["store_longitude"])
+                if setting.get("delivery_radius_km") is not None:
+                    delivery_radius_km = float(setting["delivery_radius_km"])
+                if setting.get("max_express_radius_km") is not None:
+                    max_express_radius_km = float(setting["max_express_radius_km"])
+                if setting.get("store_address"):
+                    store_addr = setting["store_address"]
+                if setting.get("store_maps_url"):
+                    store_maps = setting["store_maps_url"]
+        except Exception as e:
+            print(f"[Serviceability] Settings fetch notice: {e}", flush=True)
 
     pin = (req.postal_code or "").strip()
     is_valid_pin = len(pin) == 6 and pin.isdigit()
@@ -541,13 +612,14 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
 
     # 2. Check if PIN exists in active delivery_zones table
     zone = None
-    try:
-        zone = await d1.fetch_one(
-            "SELECT * FROM delivery_zones WHERE pincode = ? AND is_active = 1",
-            pin
-        )
-    except Exception:
-        pass
+    if hasattr(d1, "fetch_one"):
+        try:
+            zone = await d1.fetch_one(
+                "SELECT * FROM delivery_zones WHERE pincode = ? AND is_active = 1",
+                pin
+            )
+        except Exception:
+            pass
 
     # 3. Calculate distance if coordinates provided or match cluster
     distance_km = None
@@ -578,54 +650,100 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
         locality = f"PIN {pin}"
         hub = "Sri Aditya Organics Regional Fulfillment Hub"
 
-    # 5. Evaluate dynamic distance-based delivery fee
-    slabs = parse_distance_slabs(setting.get("distance_slabs_json") if setting else None)
     subtotal = float(req.cart_subtotal or 0.0)
 
-    calculated_fee, is_serv, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
-        distance_km=distance_km,
-        slabs=slabs,
-        subtotal=subtotal,
-        free_delivery_threshold=free_thresh,
-        max_delivery_radius_km=delivery_radius_km,
-        default_fallback_fee=std_fee
-    )
+    # 5. Hybrid Delivery Evaluation: Local Express vs Nationwide Courier
+    is_local_eligible = bool(zone) or (distance_km is not None and distance_km <= delivery_radius_km)
 
-    # Zone configuration override (if explicit active zone defined for this pincode)
-    if zone:
-        is_serv = True
-        zone_fee = float(zone.get("delivery_fee") or 0.0)
-        if subtotal >= free_thresh:
-            calculated_fee = 0.0
-        elif zone_fee > 0:
-            calculated_fee = max(calculated_fee, zone_fee)
-        fee_msg = f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})"
+    if is_local_eligible:
+        slabs = parse_distance_slabs(setting.get("distance_slabs_json") if setting else None)
 
-    # Calculate estimated delivery minutes based on road distance
-    if distance_km is not None and is_serv:
-        if distance_km <= 2.0:
-            minutes = 15
-        elif distance_km <= 5.0:
-            minutes = 20
-        elif distance_km <= 15.0:
-            minutes = 30
-        elif distance_km <= 35.0:
-            minutes = 45
-        elif distance_km <= 60.0:
-            minutes = 75
+        calculated_fee, is_serv, fee_msg, matched_slab = calculate_distance_based_delivery_fee(
+            distance_km=distance_km,
+            slabs=slabs,
+            subtotal=subtotal,
+            free_delivery_threshold=free_thresh,
+            max_delivery_radius_km=delivery_radius_km,
+            default_fallback_fee=std_fee
+        )
+
+        # Zone configuration override (if explicit active zone defined for this pincode)
+        if zone:
+            is_serv = True
+            zone_fee = float(zone.get("delivery_fee") or 0.0)
+            if subtotal >= free_thresh:
+                calculated_fee = 0.0
+            elif zone_fee > 0:
+                calculated_fee = max(calculated_fee, zone_fee)
+            fee_msg = f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})"
+
+        # Calculate estimated delivery minutes based on road distance
+        if distance_km is not None and is_serv:
+            if distance_km <= 2.0:
+                minutes = 15
+            elif distance_km <= 5.0:
+                minutes = 20
+            elif distance_km <= 15.0:
+                minutes = 30
+            elif distance_km <= 35.0:
+                minutes = 45
+            elif distance_km <= 60.0:
+                minutes = 75
+            else:
+                minutes = 90
+        elif matching_cluster and is_serv:
+            minutes = matching_cluster["minutes"]
+        elif zone and zone.get("estimated_delivery_time") and is_serv:
+            minutes = 15 if "15" in str(zone.get("estimated_delivery_time")) else 30
         else:
-            minutes = 90
-    elif matching_cluster and is_serv:
-        minutes = matching_cluster["minutes"]
-    elif zone and zone.get("estimated_delivery_time") and is_serv:
-        minutes = 15 if "15" in str(zone.get("estimated_delivery_time")) else 30
-    else:
-        minutes = 0
+            minutes = 30
 
-    if not is_serv:
+        status_label = "Delivery Available" if (distance_km is not None and distance_km <= max_express_radius_km) or (subtotal >= free_thresh) else "Delivery Available with Distance Charges"
+
+        return ServiceabilityCheckOut(
+            is_serviceable=True,
+            status=status_label,
+            delivery_mode="local_express",
+            delivery_type="Local Express Delivery",
+            courier_partner=None,
+            courier_zone=None,
+            estimated_delivery_days="Same Day (15-30 Mins)",
+            parcel_weight_kg=None,
+            postal_code=pin,
+            city=city,
+            locality=locality,
+            estimated_delivery_minutes=minutes,
+            delivery_fee=calculated_fee,
+            distance_km=distance_km,
+            distance_source=distance_source,
+            matched_slab=matched_slab,
+            min_order_amount=min_order,
+            free_delivery_threshold=free_thresh,
+            service_hub=hub,
+            message=fee_msg,
+            store_address=store_addr,
+            store_maps_url=store_maps
+        )
+
+    # 6. Nationwide Courier Shipping (For all Indian PINs outside local delivery radius)
+    courier_enabled = bool(setting.get("courier_enabled", 1)) if setting else True
+    partner_name = str(setting.get("courier_default_partner") or "Delhivery") if setting else "Delhivery"
+    free_courier_thresh = float(setting.get("courier_free_threshold") if setting and setting.get("courier_free_threshold") is not None else 999.0)
+    rates_json = setting.get("courier_rates_json") if setting else None
+    rates_dict = None
+    if rates_json:
+        try:
+            rates_dict = json.loads(rates_json)
+        except Exception:
+            pass
+    blist = setting.get("courier_blacklisted_pins") if setting else None
+
+    if not courier_enabled:
         return ServiceabilityCheckOut(
             is_serviceable=False,
             status="Delivery Not Available",
+            delivery_mode="unserviceable",
+            delivery_type="Local Express Delivery",
             postal_code=pin,
             city=city,
             locality=locality,
@@ -633,32 +751,76 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             delivery_fee=0.0,
             distance_km=distance_km,
             distance_source=distance_source,
-            matched_slab=None,
             min_order_amount=min_order,
             free_delivery_threshold=free_thresh,
             service_hub="Out of Delivery Range",
-            message=fee_msg,
+            message=f"Local delivery is limited to {int(delivery_radius_km)} km from Kothagudem Mill and nationwide courier shipping is currently disabled.",
             store_address=store_addr,
             store_maps_url=store_maps
         )
 
-    status_label = "Delivery Available" if (distance_km is not None and distance_km <= max_express_radius_km) or (subtotal >= free_thresh) else "Delivery Available with Distance Charges"
+    weight_input = float(req.cart_weight_kg or 0.5)
+    courier_quote = calculate_courier_shipping(
+        dest_pincode=pin,
+        weight_kg=weight_input,
+        subtotal=subtotal,
+        pickup_pincode=str(setting.get("store_pincode") or STORE_PICKUP_PINCODE) if setting else STORE_PICKUP_PINCODE,
+        courier_rates=rates_dict,
+        free_threshold=free_courier_thresh,
+        partner_name=partner_name,
+        blacklisted_pins=blist
+    )
+
+    if not courier_quote.get("is_serviceable"):
+        return ServiceabilityCheckOut(
+            is_serviceable=False,
+            status="Delivery Not Available",
+            delivery_mode="unserviceable",
+            delivery_type="Nationwide Courier Shipping",
+            courier_partner=partner_name,
+            postal_code=pin,
+            city=city,
+            locality=locality,
+            estimated_delivery_minutes=0,
+            delivery_fee=0.0,
+            distance_km=distance_km,
+            distance_source=distance_source,
+            min_order_amount=min_order,
+            free_delivery_threshold=free_courier_thresh,
+            service_hub="Out of Delivery Range",
+            message=courier_quote.get("message", f"Courier shipping unavailable to PIN {pin}."),
+            store_address=store_addr,
+            store_maps_url=store_maps
+        )
+
+    # 100% Serviceable via Nationwide Courier
+    is_free_courier = courier_quote.get("is_free_shipping", False)
+    status_label = "Free Nationwide Shipping" if is_free_courier else "Nationwide Courier Available"
+    courier_fee = float(courier_quote.get("shipping_fee", 49.0))
+    min_days = int(courier_quote.get("min_delivery_days", 2))
+    courier_minutes = min_days * 24 * 60
 
     return ServiceabilityCheckOut(
         is_serviceable=True,
         status=status_label,
+        delivery_mode="nationwide_courier",
+        delivery_type="Nationwide Courier Shipping",
+        courier_partner=courier_quote.get("courier_partner", partner_name),
+        courier_zone=courier_quote.get("zone", "Zone D"),
+        estimated_delivery_days=courier_quote.get("estimated_days", "2–4 Business Days"),
+        parcel_weight_kg=courier_quote.get("billable_weight_kg", weight_input),
         postal_code=pin,
         city=city,
         locality=locality,
-        estimated_delivery_minutes=minutes,
-        delivery_fee=calculated_fee,
+        estimated_delivery_minutes=courier_minutes,
+        delivery_fee=courier_fee,
         distance_km=distance_km,
         distance_source=distance_source,
-        matched_slab=matched_slab,
+        matched_slab=courier_quote.get("zone_name"),
         min_order_amount=min_order,
-        free_delivery_threshold=free_thresh,
-        service_hub=hub,
-        message=fee_msg,
+        free_delivery_threshold=free_courier_thresh,
+        service_hub=f"Sri Adithya Organics Central Fulfillment Facility → {city} ({partner_name})",
+        message=courier_quote.get("message", "Nationwide Courier Shipping Available"),
         store_address=store_addr,
         store_maps_url=store_maps
     )

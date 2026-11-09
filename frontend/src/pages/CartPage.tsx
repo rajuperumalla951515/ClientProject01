@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin, Zap } from 'lucide-react';
+import { ShoppingBag, Plus, Minus, Trash2, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin, Zap, AlertCircle, Truck } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
 import { useCart } from '../context/CartContext';
@@ -11,7 +11,7 @@ export const CartPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, incrementItem, decrementItem, setItemQuantity, clearCart } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes, isServiceable } = useLocation();
+  const { locationLabel, openLocationModal, serviceHub, deliveryMinutes, isServiceable, deliveryMode, estimatedDeliveryDays } = useLocation();
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
   const handleCheckout = () => {
@@ -186,7 +186,13 @@ export const CartPage: React.FC = () => {
               <span>•</span>
               {!isServiceable ? (
                 <span className="text-rose-700 font-bold flex items-center gap-0.5">
-                  Out of Delivery Range
+                  <AlertCircle className="w-3 h-3 text-rose-500" />
+                  Unserviceable PIN
+                </span>
+              ) : deliveryMode === 'nationwide_courier' ? (
+                <span className="text-indigo-800 font-bold flex items-center gap-0.5">
+                  <Truck className="w-3 h-3 text-indigo-600" />
+                  Courier Delivery ({estimatedDeliveryDays || '2–4 Business Days'})
                 </span>
               ) : deliveryMinutes > 0 && deliveryMinutes <= 30 ? (
                 <span className="text-emerald-700 font-bold flex items-center gap-0.5">

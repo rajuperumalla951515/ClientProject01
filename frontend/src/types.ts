@@ -224,6 +224,11 @@ export interface WhatsAppOrderPayload {
     accuracy_meters?: number | null;
     formatted_address?: string;
     is_confirmed?: boolean;
+    delivery_mode?: 'local_express' | 'nationwide_courier' | 'unserviceable' | string;
+    courier_partner?: string | null;
+    courier_zone?: string | null;
+    estimated_delivery_days?: string | null;
+    parcel_weight_kg?: number | null;
   };
   delivery_slot?: string;
   payment_method?: string;
@@ -256,6 +261,12 @@ export interface DashboardStats {
 export interface ServiceabilityResult {
   is_serviceable: boolean;
   status: string;
+  delivery_mode?: 'local_express' | 'nationwide_courier' | 'unserviceable';
+  delivery_type?: string;
+  courier_partner?: string | null;
+  courier_zone?: string | null;
+  estimated_delivery_days?: string | null;
+  parcel_weight_kg?: number | null;
   postal_code?: string;
   city: string;
   locality: string;
@@ -289,6 +300,12 @@ export interface ReverseGeocodeResult {
   longitude: number;
   accuracy_meters?: number | null;
   is_serviceable: boolean;
+  delivery_mode?: 'local_express' | 'nationwide_courier' | 'unserviceable';
+  delivery_type?: string;
+  courier_partner?: string | null;
+  courier_zone?: string | null;
+  estimated_delivery_days?: string | null;
+  parcel_weight_kg?: number | null;
   estimated_delivery_minutes: number;
   service_hub: string;
   message: string;

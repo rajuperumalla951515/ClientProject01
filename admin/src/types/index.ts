@@ -323,6 +323,27 @@ export interface StoreSettings {
   delivery_radius_km?: number;
   max_express_radius_km?: number;
   distance_slabs_json?: string;
+  courier_enabled?: boolean;
+  courier_free_threshold?: number;
+  courier_partners_json?: string;
+  courier_default_partner?: string;
+  courier_delhivery_api_key?: string;
+  courier_shiprocket_email?: string;
+  courier_shiprocket_password?: string;
+  courier_rates_json?: string;
+}
+
+export interface CourierRateTestResult {
+  pickup_pincode: string;
+  destination_pincode: string;
+  courier_zone: string;
+  is_serviceable: boolean;
+  courier_partner: string;
+  actual_weight_kg: number;
+  billable_weight_kg: number;
+  shipping_fee: number;
+  estimated_delivery_days: string;
+  message?: string;
 }
 
 export interface ToastMessage {

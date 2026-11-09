@@ -28,6 +28,12 @@ try:
         DEFAULT_DISTANCE_SLABS
     )
     from backend.app.routers.addresses import calculate_distance, PIN_REGION_MAP
+    from backend.app.courier import (
+        calculate_courier_shipping,
+        estimate_parcel_weight_kg,
+        is_valid_indian_pincode,
+        STORE_PICKUP_PINCODE,
+    )
 except ImportError:
     from app.delivery import (
         calculate_haversine_distance,
@@ -37,6 +43,12 @@ except ImportError:
         DEFAULT_DISTANCE_SLABS
     )
     from app.routers.addresses import calculate_distance, PIN_REGION_MAP
+    from app.courier import (
+        calculate_courier_shipping,
+        estimate_parcel_weight_kg,
+        is_valid_indian_pincode,
+        STORE_PICKUP_PINCODE,
+    )
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
@@ -145,8 +157,27 @@ def format_whatsapp_order_message(
     order_ref = f" (Order #{order_num})" if order_num else ""
     formatted_phone = format_display_indian_phone(customer_phone)
 
+    d_mode = order_dict.get("delivery_mode") or (address_dict.get("delivery_mode") if address_dict else None)
+    c_partner = order_dict.get("courier_partner") or (address_dict.get("courier_partner") if address_dict else None)
+    c_days = order_dict.get("estimated_delivery_days") or (address_dict.get("estimated_delivery_days") if address_dict else None)
+    c_weight = order_dict.get("parcel_weight_kg") or (address_dict.get("parcel_weight_kg") if address_dict else None)
+
+    if d_mode == "nationwide_courier" or c_partner or (dist_km is not None and dist_km > 35.0):
+        partner_label = c_partner or "Delhivery Express Cargo"
+        days_label = c_days or "2–4 Business Days"
+        wt_str = f" | Parcel Weight: ~{c_weight:.1f} kg" if c_weight else ""
+        delivery_section = (
+            f"📦 Delivery Method: Nationwide Courier ({partner_label})\n"
+            f"⏱️ Estimated Delivery: {days_label}{wt_str}\n"
+        )
+    else:
+        delivery_section = (
+            f"⚡ Delivery Method: Local Express Delivery ({slot})\n"
+            + (f"{dist_line}" if dist_line else "")
+        )
+
     if del_fee == 0.0 and subtotal >= 499.0:
-        delivery_charges_display = "FREE (Orders over ₹499)"
+        delivery_charges_display = "FREE (Orders over threshold)"
     elif del_fee == 0.0:
         delivery_charges_display = "FREE"
     else:
@@ -159,8 +190,8 @@ def format_whatsapp_order_message(
         f"Delivery Address:\n{addr_line}{location_block}\n\n"
         f"Customer Name: {customer_name}\n"
         f"Phone Number: {formatted_phone}\n\n"
-        f"Delivery Slot: {slot}\n"
-        f"{dist_line}Delivery Charges: {delivery_charges_display}\n"
+        f"{delivery_section}"
+        f"Delivery Charges: {delivery_charges_display}\n"
         f"Payment Preference: {payment_pref}\n"
         f"Total Amount: ₹{tot_amt:.2f}\n\n"
         f"Please confirm my order and delivery availability.\n\n"
@@ -398,17 +429,66 @@ async def checkout(
         except Exception:
             pass
 
-    applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
-        distance_km=distance_km,
-        slabs=slabs,
-        subtotal=items_subtotal,
-        free_delivery_threshold=free_threshold,
-        max_delivery_radius_km=delivery_radius_km,
-        default_fallback_fee=standard_delivery
-    )
+    # Hybrid Delivery: Local Express (<= delivery_radius_km) vs Nationwide Courier
+    is_local_eligible = distance_km is not None and distance_km <= delivery_radius_km
 
-    if not is_serv:
-        raise HTTPException(status_code=400, detail=serv_msg)
+    if is_local_eligible:
+        applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
+            distance_km=distance_km,
+            slabs=slabs,
+            subtotal=items_subtotal,
+            free_delivery_threshold=free_threshold,
+            max_delivery_radius_km=delivery_radius_km,
+            default_fallback_fee=standard_delivery
+        )
+        if not is_serv:
+            raise HTTPException(status_code=400, detail=serv_msg)
+        delivery_mode = "local_express"
+        courier_partner = None
+        estimated_delivery_days = "Same Day (15-30 Mins)"
+        parcel_weight_kg = None
+    else:
+        # Nationwide Courier Shipping
+        clean_pin = str(address_snapshot.get("postal_code") or "").strip()
+        weight_kg = estimate_parcel_weight_kg(raw_fin_items)
+        free_courier_thresh = float(s_row.get("courier_free_threshold") if s_row and s_row.get("courier_free_threshold") is not None else 999.0)
+        partner_name = str(s_row.get("courier_default_partner") or "Delhivery") if s_row else "Delhivery"
+        rates_json = s_row.get("courier_rates_json") if s_row else None
+        rates_dict = None
+        if rates_json:
+            try:
+                rates_dict = json.loads(rates_json)
+            except Exception:
+                pass
+        blist = s_row.get("courier_blacklisted_pins") if s_row else None
+
+        courier_quote = calculate_courier_shipping(
+            dest_pincode=clean_pin,
+            weight_kg=weight_kg,
+            subtotal=items_subtotal,
+            pickup_pincode=str(s_row.get("store_pincode") or STORE_PICKUP_PINCODE) if s_row else STORE_PICKUP_PINCODE,
+            courier_rates=rates_dict,
+            free_threshold=free_courier_thresh,
+            partner_name=partner_name,
+            blacklisted_pins=blist
+        )
+
+        if not courier_quote.get("is_serviceable"):
+            raise HTTPException(status_code=400, detail=courier_quote.get("message", f"Delivery is currently unavailable to PIN {clean_pin}."))
+
+        delivery_mode = "nationwide_courier"
+        courier_partner = courier_quote.get("courier_partner", partner_name)
+        estimated_delivery_days = courier_quote.get("estimated_days", "2–4 Business Days")
+        parcel_weight_kg = courier_quote.get("billable_weight_kg", weight_kg)
+        applicable_delivery_fee = float(courier_quote.get("shipping_fee", 49.0))
+        matched_slab = courier_quote.get("zone_name")
+        free_threshold = free_courier_thresh
+
+    address_snapshot["delivery_mode"] = delivery_mode
+    if courier_partner:
+        address_snapshot["courier_partner"] = courier_partner
+        address_snapshot["estimated_delivery_days"] = estimated_delivery_days
+        address_snapshot["parcel_weight_kg"] = parcel_weight_kg
 
     fin = compute_financials(
         raw_fin_items,
@@ -709,17 +789,66 @@ async def create_whatsapp_order(
         except Exception:
             pass
 
-    applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
-        distance_km=distance_km,
-        slabs=slabs,
-        subtotal=items_subtotal,
-        free_delivery_threshold=free_threshold,
-        max_delivery_radius_km=delivery_radius_km,
-        default_fallback_fee=standard_delivery
-    )
+    # Hybrid Delivery: Local Express (<= delivery_radius_km) vs Nationwide Courier
+    is_local_eligible = distance_km is not None and distance_km <= delivery_radius_km
 
-    if not is_serv:
-        raise HTTPException(status_code=400, detail=serv_msg)
+    if is_local_eligible:
+        applicable_delivery_fee, is_serv, serv_msg, matched_slab = calculate_distance_based_delivery_fee(
+            distance_km=distance_km,
+            slabs=slabs,
+            subtotal=items_subtotal,
+            free_delivery_threshold=free_threshold,
+            max_delivery_radius_km=delivery_radius_km,
+            default_fallback_fee=standard_delivery
+        )
+        if not is_serv:
+            raise HTTPException(status_code=400, detail=serv_msg)
+        delivery_mode = "local_express"
+        courier_partner = None
+        estimated_delivery_days = "Same Day (15-30 Mins)"
+        parcel_weight_kg = None
+    else:
+        # Nationwide Courier Shipping
+        clean_pin = str(address_snapshot.get("postal_code") or "").strip()
+        weight_kg = estimate_parcel_weight_kg(raw_fin_items)
+        free_courier_thresh = float(s_row.get("courier_free_threshold") if s_row and s_row.get("courier_free_threshold") is not None else 999.0)
+        partner_name = str(s_row.get("courier_default_partner") or "Delhivery") if s_row else "Delhivery"
+        rates_json = s_row.get("courier_rates_json") if s_row else None
+        rates_dict = None
+        if rates_json:
+            try:
+                rates_dict = json.loads(rates_json)
+            except Exception:
+                pass
+        blist = s_row.get("courier_blacklisted_pins") if s_row else None
+
+        courier_quote = calculate_courier_shipping(
+            dest_pincode=clean_pin,
+            weight_kg=weight_kg,
+            subtotal=items_subtotal,
+            pickup_pincode=str(s_row.get("store_pincode") or STORE_PICKUP_PINCODE) if s_row else STORE_PICKUP_PINCODE,
+            courier_rates=rates_dict,
+            free_threshold=free_courier_thresh,
+            partner_name=partner_name,
+            blacklisted_pins=blist
+        )
+
+        if not courier_quote.get("is_serviceable"):
+            raise HTTPException(status_code=400, detail=courier_quote.get("message", f"Delivery is currently unavailable to PIN {clean_pin}."))
+
+        delivery_mode = "nationwide_courier"
+        courier_partner = courier_quote.get("courier_partner", partner_name)
+        estimated_delivery_days = courier_quote.get("estimated_days", "2–4 Business Days")
+        parcel_weight_kg = courier_quote.get("billable_weight_kg", weight_kg)
+        applicable_delivery_fee = float(courier_quote.get("shipping_fee", 49.0))
+        matched_slab = courier_quote.get("zone_name")
+        free_threshold = free_courier_thresh
+
+    address_snapshot["delivery_mode"] = delivery_mode
+    if courier_partner:
+        address_snapshot["courier_partner"] = courier_partner
+        address_snapshot["estimated_delivery_days"] = estimated_delivery_days
+        address_snapshot["parcel_weight_kg"] = parcel_weight_kg
 
     fin = compute_financials(
         raw_fin_items,

@@ -39,11 +39,20 @@ export const CheckoutPage: React.FC = () => {
   // Dynamic Distance & Delivery Fee Calculation
   const distanceKm = selectedDeliveryAddress?.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress?.matched_slab || locationMatchedSlab;
+  const isCourier = selectedDeliveryAddress?.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
   const isServiceable = selectedDeliveryAddress?.is_serviceable !== false;
   const isFreeDelivery = cart.subtotal >= cart.free_delivery_threshold;
   const rawFee = isServiceable ? (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
   const deliveryFee = isFreeDelivery ? 0 : rawFee;
   const totalPayable = Math.round((cart.subtotal - cart.discount + deliveryFee) * 100) / 100;
+
+  useEffect(() => {
+    if (isCourier) {
+      setSelectedSlot('Standard Courier Dispatch (Within 24 Hours)');
+    } else {
+      setSelectedSlot('Express Delivery (15-30 Mins)');
+    }
+  }, [isCourier]);
 
   // Recalculate fee dynamically when address or cart subtotal changes
   useEffect(() => {
@@ -434,21 +443,29 @@ export const CheckoutPage: React.FC = () => {
             )}
           </section>
 
-          {/* STEP 2: DELIVERY SLOT */}
+          {/* STEP 2: DELIVERY SLOT / COURIER DISPATCH */}
           <section className="p-6 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-4">
             <div className="flex items-center gap-2 pb-3 border-b border-stone-100">
               <span className="w-6 h-6 rounded-full bg-rootly-forest text-white text-xs font-bold flex items-center justify-center">
                 2
               </span>
-              <h3 className="font-display font-bold text-base text-stone-900">Choose Delivery Slot</h3>
+              <h3 className="font-display font-bold text-base text-stone-900">
+                {isCourier ? 'Courier Dispatch Schedule' : 'Choose Delivery Slot'}
+              </h3>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {[
-                { slot: 'Express Delivery (15-30 Mins)', tag: 'Fastest', sub: 'Packed from nearest hub', icon: Zap, iconColor: 'text-amber-500' },
-                { slot: 'Morning Harvest (7:00 AM - 9:30 AM)', tag: 'Fresh Picks', sub: 'Tomorrow morning', icon: Sun, iconColor: 'text-amber-500' },
-                { slot: 'Evening Slot (5:30 PM - 8:00 PM)', tag: 'Convenient', sub: 'Today evening', icon: Moon, iconColor: 'text-indigo-500' }
-              ].map((s) => {
+              {(isCourier
+                ? [
+                    { slot: 'Standard Courier Dispatch (Within 24 Hours)', tag: selectedDeliveryAddress?.courier_partner || 'Delhivery', sub: selectedDeliveryAddress?.estimated_delivery_days || '2–4 Business Days', icon: Zap, iconColor: 'text-indigo-600' },
+                    { slot: 'Priority Dispatch (Before 2:00 PM)', tag: 'Fast Courier', sub: 'Dispatched same day with tracking', icon: Sun, iconColor: 'text-amber-500' },
+                  ]
+                : [
+                    { slot: 'Express Delivery (15-30 Mins)', tag: 'Fastest', sub: 'Packed from nearest hub', icon: Zap, iconColor: 'text-amber-500' },
+                    { slot: 'Morning Harvest (7:00 AM - 9:30 AM)', tag: 'Fresh Picks', sub: 'Tomorrow morning', icon: Sun, iconColor: 'text-amber-500' },
+                    { slot: 'Evening Slot (5:30 PM - 8:00 PM)', tag: 'Convenient', sub: 'Today evening', icon: Moon, iconColor: 'text-indigo-500' }
+                  ]
+              ).map((s) => {
                 const IconComponent = s.icon;
                 return (
                   <div
@@ -566,12 +583,16 @@ export const CheckoutPage: React.FC = () => {
               )}
               <div className="flex justify-between items-center">
                 <div>
-                  <span>Delivery Partner Fee</span>
-                  {distanceKm !== null && distanceKm !== undefined && (
+                  <span>{isCourier ? 'Nationwide Courier Shipping' : 'Delivery Partner Fee'}</span>
+                  {isCourier ? (
+                    <span className="text-[10px] text-indigo-700 block font-normal">
+                      Partner: {selectedDeliveryAddress?.courier_partner || 'Delhivery'} • {selectedDeliveryAddress?.estimated_delivery_days || '2–4 Business Days'}
+                    </span>
+                  ) : distanceKm !== null && distanceKm !== undefined ? (
                     <span className="text-[10px] text-stone-400 block font-normal">
                       Road Distance: ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
                     </span>
-                  )}
+                  ) : null}
                 </div>
                 {!isServiceable ? (
                   <span className="font-bold text-rose-600">Unavailable</span>
@@ -594,10 +615,10 @@ export const CheckoutPage: React.FC = () => {
               <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
                 <div className="flex items-center gap-1.5 font-bold text-rose-800">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                  <span>Outside Direct Delivery Area</span>
+                  <span>Delivery Unavailable for this PIN code</span>
                 </div>
                 <p className="text-[11px] text-rose-700 leading-relaxed">
-                  {selectedDeliveryAddress.message || 'We deliver up to 60 km from our Kothagudem Mill. Please select or add an address within our delivery zones.'}
+                  {selectedDeliveryAddress.message || 'Please check your PIN code or choose a valid address within India.'}
                 </p>
               </div>
             )}

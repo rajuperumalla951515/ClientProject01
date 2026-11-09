@@ -13,9 +13,14 @@ import {
   AlertCircle,
   Sliders,
   ShieldCheck,
+  Package,
+  Send,
+  Globe,
+  Zap,
+  Compass,
 } from 'lucide-react';
 import { api } from '../services/api';
-import { StoreSettings, DeliveryZone, DistanceSlab } from '../types';
+import { StoreSettings, DeliveryZone, DistanceSlab, CourierRateTestResult } from '../types';
 import { Modal } from '../components/ui/Modal';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
@@ -80,6 +85,25 @@ export const DeliveryPage: React.FC = () => {
   const [zoneToDelete, setZoneToDelete] = useState<DeliveryZone | null>(null);
   const [isDeletingZone, setIsDeletingZone] = useState(false);
 
+  // Nationwide Courier Shipping State
+  const [courierEnabled, setCourierEnabled] = useState<boolean>(true);
+  const [courierFreeThreshold, setCourierFreeThreshold] = useState<number>(999);
+  const [courierDefaultPartner, setCourierDefaultPartner] = useState<string>('Delhivery');
+  const [courierRates, setCourierRates] = useState<Record<string, { base_500g: number; addl_500g: number; min_days: number; max_days: number; name: string }>>({
+    'Zone A': { base_500g: 39, addl_500g: 25, min_days: 1, max_days: 2, name: 'Intra-District (Kothagudem/Khammam)' },
+    'Zone B': { base_500g: 49, addl_500g: 30, min_days: 2, max_days: 3, name: 'Intra-State Telangana (Hyderabad/Warangal)' },
+    'Zone C': { base_500g: 65, addl_500g: 40, min_days: 3, max_days: 4, name: 'Regional South India (AP, KA, TN, KL)' },
+    'Zone D': { base_500g: 85, addl_500g: 50, min_days: 4, max_days: 6, name: 'Rest of India (MH, DL, GJ, WB, UP...)' },
+    'Zone E': { base_500g: 120, addl_500g: 80, min_days: 5, max_days: 8, name: 'Special / North East / J&K / Islands' },
+  });
+
+  // Courier Rate Simulator State
+  const [simPincode, setSimPincode] = useState('501301');
+  const [simWeightKg, setSimWeightKg] = useState<number>(1.0);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [simResult, setSimResult] = useState<CourierRateTestResult | null>(null);
+  const [simError, setSimError] = useState<string | null>(null);
+
   const { showSuccess, showError } = useToast();
 
   const loadData = async (isManual = false) => {
@@ -137,6 +161,18 @@ export const DeliveryPage: React.FC = () => {
         } catch {}
       }
 
+      setCourierEnabled(settingsData.courier_enabled !== false);
+      setCourierFreeThreshold(settingsData.courier_free_threshold ?? 999);
+      setCourierDefaultPartner(settingsData.courier_default_partner || 'Delhivery');
+      if (settingsData.courier_rates_json) {
+        try {
+          const parsedRates = JSON.parse(settingsData.courier_rates_json);
+          if (parsedRates && typeof parsedRates === 'object') {
+            setCourierRates((prev) => ({ ...prev, ...parsedRates }));
+          }
+        } catch {}
+      }
+
       setZones(zonesData);
       if (isManual) {
         showSuccess('Delivery configurations synced from Cloudflare D1.', 'Synchronized');
@@ -176,14 +212,64 @@ export const DeliveryPage: React.FC = () => {
         delivery_radius_km: Number(deliveryRadiusKm),
         max_express_radius_km: Number(maxExpressRadiusKm),
         whatsapp_number: whatsappNumber.trim(),
+        courier_enabled: courierEnabled,
+        courier_free_threshold: Number(courierFreeThreshold),
+        courier_default_partner: courierDefaultPartner,
+        courier_rates_json: JSON.stringify(courierRates),
       });
-      showSuccess('Delivery distance slabs, fees, and store location saved to D1.', 'Settings Saved');
+      showSuccess('Delivery distance slabs, nationwide courier settings, and store location saved to D1.', 'Settings Saved');
       loadData();
     } catch (err: any) {
       showError(err.message || 'Failed to update delivery settings.');
     } finally {
       setIsSavingSettings(false);
     }
+  };
+
+  const handleRunSimulator = async () => {
+    const cleanPin = simPincode.trim();
+    if (!cleanPin || cleanPin.length !== 6 || !/^\d{6}$/.test(cleanPin)) {
+      setSimError('Please enter a valid 6-digit destination Indian PIN code.');
+      return;
+    }
+    setIsSimulating(true);
+    setSimError(null);
+    setSimResult(null);
+    try {
+      const res = await api.testCourierRate({
+        destination_pincode: cleanPin,
+        weight_kg: Number(simWeightKg) || 1.0,
+      });
+      setSimResult(res);
+      showSuccess(`Simulated rate: ₹${res.shipping_fee} via ${res.courier_partner} (${res.courier_zone})`);
+    } catch (err: any) {
+      const msg = err.message || 'Simulation failed.';
+      setSimError(msg);
+      showError(msg);
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleUpdateCourierRate = (zoneKey: string, field: 'base_500g' | 'addl_500g', value: number) => {
+    setCourierRates((prev) => ({
+      ...prev,
+      [zoneKey]: {
+        ...prev[zoneKey],
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleResetDefaultCourierRates = () => {
+    setCourierRates({
+      'Zone A': { base_500g: 39, addl_500g: 25, min_days: 1, max_days: 2, name: 'Intra-District (Kothagudem/Khammam)' },
+      'Zone B': { base_500g: 49, addl_500g: 30, min_days: 2, max_days: 3, name: 'Intra-State Telangana (Hyderabad/Warangal)' },
+      'Zone C': { base_500g: 65, addl_500g: 40, min_days: 3, max_days: 4, name: 'Regional South India (AP, KA, TN, KL)' },
+      'Zone D': { base_500g: 85, addl_500g: 50, min_days: 4, max_days: 6, name: 'Rest of India (MH, DL, GJ, WB, UP...)' },
+      'Zone E': { base_500g: 120, addl_500g: 80, min_days: 5, max_days: 8, name: 'Special / North East / J&K / Islands' },
+    });
+    showSuccess('Reset to standard nationwide courier zonal rate cards.');
   };
 
   const handleAddSlab = () => {
@@ -848,7 +934,260 @@ export const DeliveryPage: React.FC = () => {
         </div>
       </form>
 
-      {/* Section 2: Telangana Serviceable Zones Table */}
+      {/* Section 2: Nationwide Courier Shipping (Pan-India Logistics) */}
+      <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-[#E6E7DD] gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-50 text-indigo-700 flex items-center justify-center">
+              <Globe className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-bold text-[#26352B]">Nationwide Courier Shipping (Pan-India Logistics)</h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                  All 28 States & UTs
+                </span>
+              </div>
+              <p className="text-xs text-[#778176]">
+                Automated nationwide courier dispatch via Delhivery, Shiprocket, or BlueDart for all customers outside the 35 km local radius.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 shrink-0">
+            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-stone-700 bg-stone-50 px-3 py-1.5 rounded-xl border border-stone-200">
+              <input
+                type="checkbox"
+                checked={courierEnabled}
+                onChange={(e) => setCourierEnabled(e.target.checked)}
+                className="rounded text-[#244B37] focus:ring-[#244B37]"
+              />
+              <span>Courier Delivery Enabled</span>
+            </label>
+          </div>
+        </div>
+
+        {/* Courier Threshold & Partner Selection */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 bg-[#FAF9F5] p-4 rounded-xl border border-[#E6E7DD]">
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1">
+              Courier Free Shipping Threshold (₹)
+            </label>
+            <div className="relative">
+              <span className="absolute left-3 top-2 text-xs font-bold text-[#778176]">₹</span>
+              <input
+                type="number"
+                min="0"
+                value={courierFreeThreshold}
+                onChange={(e) => setCourierFreeThreshold(Number(e.target.value))}
+                className="w-full pl-7 pr-3 py-1.5 rounded-xl border border-[#E6E7DD] text-xs font-bold text-[#26352B] bg-white focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+            <p className="text-[10px] text-[#778176] mt-0.5">Orders above this qualify for free courier shipping</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1">
+              Default Courier Logistics Partner
+            </label>
+            <select
+              value={courierDefaultPartner}
+              onChange={(e) => setCourierDefaultPartner(e.target.value)}
+              className="w-full px-3 py-1.5 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] bg-white focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+            >
+              <option value="Delhivery">Delhivery Express</option>
+              <option value="Shiprocket">Shiprocket Multi-Courier</option>
+              <option value="BlueDart">BlueDart Aviation</option>
+              <option value="India Post">India Post Speed Post</option>
+            </select>
+            <p className="text-[10px] text-[#778176] mt-0.5">Used for tracking updates and customer WhatsApp notices</p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-[#26352B] mb-1">
+              Pickup Mill PIN Code
+            </label>
+            <input
+              type="text"
+              readOnly
+              value={`${storePincode} (${storeCity}, ${storeState})`}
+              className="w-full px-3 py-1.5 rounded-xl border border-[#E6E7DD] text-xs font-mono font-bold text-stone-600 bg-stone-100 cursor-not-allowed"
+            />
+            <p className="text-[10px] text-[#778176] mt-0.5">Origin center for all nationwide courier shipments</p>
+          </div>
+        </div>
+
+        {/* Pan-India Zonal Rate Cards Table */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="text-xs font-bold text-[#26352B] uppercase tracking-wider">
+                Pan-India Zonal Rate Cards & Volumetric Divisor (5000)
+              </h4>
+              <p className="text-[11px] text-[#778176]">
+                Standard 500g slab pricing automatically adjusted by actual or volumetric weight (L×W×H / 5000).
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetDefaultCourierRates}
+              className="text-[11px] font-bold text-emerald-800 hover:underline"
+            >
+              Reset Recommended Rates
+            </button>
+          </div>
+
+          <div className="overflow-x-auto rounded-xl border border-[#E6E7DD]">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead className="bg-[#FAF9F5] border-b border-[#E6E7DD] text-[#778176]">
+                <tr>
+                  <th className="py-2.5 px-3 font-semibold">Courier Zone</th>
+                  <th className="py-2.5 px-3 font-semibold">Coverage Area</th>
+                  <th className="py-2.5 px-3 font-semibold">Base 500g Rate (₹)</th>
+                  <th className="py-2.5 px-3 font-semibold">Addl 500g Rate (₹)</th>
+                  <th className="py-2.5 px-3 font-semibold">Estimated Transit</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#E6E7DD] text-stone-800">
+                {Object.entries(courierRates).map(([zoneKey, zData]) => (
+                  <tr key={zoneKey} className="hover:bg-stone-50/60">
+                    <td className="py-2.5 px-3 font-bold font-mono text-indigo-900">
+                      {zoneKey}
+                    </td>
+                    <td className="py-2.5 px-3 text-xs font-medium text-stone-700">
+                      {zData.name}
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[#778176] font-bold">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={zData.base_500g}
+                          onChange={(e) => handleUpdateCourierRate(zoneKey, 'base_500g', Number(e.target.value))}
+                          className="w-16 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-bold text-emerald-800 font-mono bg-white"
+                        />
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <div className="flex items-center gap-1">
+                        <span className="text-[#778176] font-bold">₹</span>
+                        <input
+                          type="number"
+                          min="0"
+                          value={zData.addl_500g}
+                          onChange={(e) => handleUpdateCourierRate(zoneKey, 'addl_500g', Number(e.target.value))}
+                          className="w-16 px-2 py-1 rounded-lg border border-[#E6E7DD] text-xs font-bold text-stone-800 font-mono bg-white"
+                        />
+                      </div>
+                    </td>
+                    <td className="py-2.5 px-3 text-xs text-stone-600 font-medium">
+                      {zData.min_days}–{zData.max_days} Business Days
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Live Pan-India PIN Code Rate & Serviceability Simulator */}
+        <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-50/70 to-blue-50/60 border border-indigo-200/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Compass className="w-4 h-4 text-indigo-700" />
+              <h4 className="text-xs font-bold text-indigo-950 uppercase tracking-wider">
+                Live Pan-India Courier Rate & Serviceability Simulator
+              </h4>
+            </div>
+            <span className="text-[10px] font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+              Interactive Test Tool
+            </span>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-3 text-xs">
+            <div>
+              <label className="block text-[11px] font-semibold text-indigo-900 mb-1">
+                Destination PIN Code (India)
+              </label>
+              <input
+                type="text"
+                maxLength={6}
+                placeholder="e.g. 501301 or 560001"
+                value={simPincode}
+                onChange={(e) => setSimPincode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                className="w-36 px-3 py-1.5 rounded-xl border border-indigo-300 font-mono font-bold text-indigo-950 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-indigo-900 mb-1">
+                Parcel Weight (kg)
+              </label>
+              <input
+                type="number"
+                min="0.1"
+                step="0.5"
+                value={simWeightKg}
+                onChange={(e) => setSimWeightKg(Number(e.target.value))}
+                className="w-24 px-3 py-1.5 rounded-xl border border-indigo-300 font-mono font-bold text-indigo-950 bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRunSimulator}
+              disabled={isSimulating}
+              className="px-4 py-1.5 rounded-xl bg-indigo-700 hover:bg-indigo-800 text-white font-bold text-xs shadow-xs transition-colors flex items-center gap-1.5 disabled:opacity-50"
+            >
+              {isSimulating ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+              <span>Simulate Live Rate</span>
+            </button>
+          </div>
+
+          {/* Simulation Output Card */}
+          {simResult && (
+            <div className="mt-2 p-3 bg-white rounded-xl border border-indigo-200 shadow-xs space-y-1.5 animate-fadeIn">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-indigo-950 flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 text-emerald-600" />
+                  <span>PIN {simResult.destination_pincode} Serviceable via {simResult.courier_partner}</span>
+                </span>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800">
+                  {simResult.courier_zone}
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-stone-600 pt-1 border-t border-stone-100">
+                <div>
+                  <span className="text-stone-400 block">Actual Weight:</span>
+                  <span className="font-bold text-stone-900">{simResult.actual_weight_kg} kg</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block">Billable Slabs:</span>
+                  <span className="font-bold text-stone-900">{simResult.billable_weight_kg} kg</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block">Calculated Fee:</span>
+                  <span className="font-bold text-emerald-700 text-xs">₹{simResult.shipping_fee}</span>
+                </div>
+                <div>
+                  <span className="text-stone-400 block">Estimated Transit:</span>
+                  <span className="font-bold text-indigo-900">{simResult.estimated_delivery_days}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {simError && (
+            <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+              <span>{simError}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Section 3: Telangana Serviceable Zones Table */}
       <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-[#E6E7DD]">
           <div className="flex items-center gap-2.5">

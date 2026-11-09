@@ -166,7 +166,8 @@ export const LocationModal: React.FC = () => {
   };
 
   const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
-  const isExpress = isServiceable && deliveryMinutes > 0 && deliveryMinutes <= 30;
+  const isCourier = selectedDeliveryAddress.delivery_mode === 'nationwide_courier';
+  const isExpress = !isCourier && isServiceable && deliveryMinutes > 0 && deliveryMinutes <= 30;
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -241,7 +242,12 @@ export const LocationModal: React.FC = () => {
                     {!isServiceable ? (
                       <span className="inline-flex items-center gap-1 text-rose-700 font-bold">
                         <AlertCircle className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Out of Delivery Range</span>
+                        <span>Unserviceable PIN</span>
+                      </span>
+                    ) : isCourier ? (
+                      <span className="inline-flex items-center gap-1 text-indigo-800 font-bold">
+                        <Truck className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Nationwide Courier ({selectedDeliveryAddress.estimated_delivery_days || '2–4 Business Days'})</span>
                       </span>
                     ) : isExpress ? (
                       <span className="inline-flex items-center gap-1 text-emerald-700 font-bold">

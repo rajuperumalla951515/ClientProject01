@@ -10,6 +10,7 @@ import {
   CustomerMetric,
   CustomerDetail,
   StoreSettings,
+  CourierRateTestResult,
   Coupon,
   Review,
   DeliveryZone,
@@ -345,6 +346,20 @@ class ApiClient {
   async updateSettings(payload: Partial<StoreSettings>): Promise<StoreSettings> {
     return this.request<StoreSettings>('/settings', {
       method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async testCourierRate(payload: {
+    destination_pincode: string;
+    weight_kg?: number;
+    length_cm?: number;
+    width_cm?: number;
+    height_cm?: number;
+    cart_subtotal?: number;
+  }): Promise<CourierRateTestResult> {
+    return this.request<CourierRateTestResult>('/settings/test-courier-rate', {
+      method: 'POST',
       body: JSON.stringify(payload),
     });
   }

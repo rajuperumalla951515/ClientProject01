@@ -151,8 +151,8 @@ def test_whatsapp_message_pan_india_address():
     # Must NOT force Telangana onto an Andhra Pradesh address
     assert "Vijayawada, Telangana" not in msg
 
-def test_ghatkesar_no_abids_snap():
-    """Verify Ghatkesar coordinates do NOT snap to Abids or 500001, and are marked Out of Delivery Range."""
+def test_ghatkesar_hybrid_courier():
+    """Verify Ghatkesar coordinates do NOT snap to Abids/500001, and are served via Nationwide Courier Delivery."""
     req = ReverseGeocodeRequest(latitude=17.4477, longitude=78.6833)
     res = reverse_geocode(req)
     
@@ -160,24 +160,30 @@ def test_ghatkesar_no_abids_snap():
     assert "Abids" not in res.locality
     assert "Koti" not in res.locality
     assert res.postal_code != "500001"
+    assert res.postal_code == "501301"
     
     # Must reflect true distance from Kothagudem Mill (~240-270 km)
     assert res.distance_km is not None
     assert res.distance_km > 200.0
     
-    # Must NOT contradict with Express 0 Mins
-    assert res.is_serviceable is False
-    assert res.estimated_delivery_minutes == 0
-    assert res.delivery_fee == 0.0
-    assert res.service_hub == "Out of Delivery Range"
-    assert res.matched_slab is None
+    # Must be serviceable via Nationwide Courier Delivery
+    assert res.is_serviceable is True
+    assert res.delivery_mode == "nationwide_courier"
+    assert res.delivery_type == "Nationwide Courier Shipping"
+    assert res.courier_partner == "Delhivery"
+    assert "2" in res.estimated_delivery_days and "3" in res.estimated_delivery_days
+    assert res.delivery_fee > 0.0
+    assert "Delhivery" in res.service_hub
+    assert res.matched_slab == "Intra-State (Telangana)"
 
 def test_babu_camp_mill_serviceable():
-    """Verify Babu Camp coordinates near Kothagudem Mill are serviceable with express ETA and 0-2 km slab."""
+    """Verify Babu Camp coordinates near Kothagudem Mill are serviceable with Local Express 15-min delivery and 0-2 km slab."""
     req = ReverseGeocodeRequest(latitude=17.5376, longitude=80.6210)
     res = reverse_geocode(req)
     
     assert res.is_serviceable is True
+    assert res.delivery_mode == "local_express"
+    assert res.delivery_type == "Local Express Delivery"
     assert res.distance_km is not None
     assert res.distance_km < 3.0
     assert res.estimated_delivery_minutes == 15
@@ -186,18 +192,60 @@ def test_babu_camp_mill_serviceable():
     assert res.postal_code == "507101"
     assert "Kothagudem" in res.city
 
-@pytest.mark.anyio
-async def test_serviceability_check_unserviceable_distance():
-    """Verify serviceability check marks out-of-range coordinates unserviceable with 0 ETA and 0 fee."""
-    req = ServiceabilityCheckRequest(
+def test_serviceability_check_nationwide_courier():
+    """Verify serviceability check routes Pan-India addresses to Nationwide Courier with accurate zone rates."""
+    def drive_coro(coro):
+        try:
+            coro.send(None)
+        except StopIteration as e:
+            return e.value
+        raise RuntimeError("Coroutine did not complete synchronously")
+
+    # 1. Telangana Courier (Zone B)
+    req_hyd = ServiceabilityCheckRequest(
         postal_code="501301",
         latitude=17.4477,
-        longitude=78.6833
+        longitude=78.6833,
+        cart_subtotal=400.0
     )
-    res = await check_serviceability(req)
-    assert res.is_serviceable is False
-    assert res.estimated_delivery_minutes == 0
-    assert res.delivery_fee == 0.0
-    assert res.matched_slab is None
-    assert res.service_hub == "Out of Delivery Range"
+    res_hyd = drive_coro(check_serviceability(req_hyd, d1=None))
+    assert res_hyd.is_serviceable is True
+    assert res_hyd.delivery_mode == "nationwide_courier"
+    assert res_hyd.courier_partner == "Delhivery"
+    assert res_hyd.courier_zone == "Zone B"
+    assert res_hyd.delivery_fee == 49.0
+    assert "2–3 Business Days" in res_hyd.estimated_delivery_days
+
+    # 2. Bengaluru Regional South Courier (Zone C)
+    req_blr = ServiceabilityCheckRequest(
+        postal_code="560001",
+        cart_subtotal=350.0
+    )
+    res_blr = drive_coro(check_serviceability(req_blr, d1=None))
+    assert res_blr.is_serviceable is True
+    assert res_blr.delivery_mode == "nationwide_courier"
+    assert res_blr.courier_zone == "Zone C"
+    assert res_blr.delivery_fee == 65.0
+    assert "3–4 Business Days" in res_blr.estimated_delivery_days
+
+    # 3. New Delhi Rest of India Courier (Zone D)
+    req_del = ServiceabilityCheckRequest(
+        postal_code="110001",
+        cart_subtotal=500.0
+    )
+    res_del = drive_coro(check_serviceability(req_del, d1=None))
+    assert res_del.is_serviceable is True
+    assert res_del.delivery_mode == "nationwide_courier"
+    assert res_del.courier_zone == "Zone D"
+    assert res_del.delivery_fee == 85.0
+    assert "4–6 Business Days" in res_del.estimated_delivery_days
+
+    # 4. Invalid PIN
+    req_inv = ServiceabilityCheckRequest(
+        postal_code="000111"
+    )
+    res_inv = drive_coro(check_serviceability(req_inv, d1=None))
+    assert res_inv.is_serviceable is False
+    assert "valid" in res_inv.message.lower()
+
 

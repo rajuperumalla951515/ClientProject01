@@ -100,10 +100,20 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   // Real-time distance and delivery fee
   const distanceKm = selectedDeliveryAddress.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress.matched_slab || locationMatchedSlab;
+  const isCourier = selectedDeliveryAddress.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
   const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
   const rawDeliveryFee = isServiceable ? (selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? 20.0) : 0.0;
   const deliveryFee = subtotal >= freeThreshold ? 0.0 : rawDeliveryFee;
   const totalAmount = round2(subtotal + deliveryFee);
+
+  // Sync delivery slot based on delivery mode
+  useEffect(() => {
+    if (isCourier) {
+      setDeliverySlot('Standard Courier Dispatch (Within 24 Hours)');
+    } else {
+      setDeliverySlot('Express Delivery (15-30 Mins)');
+    }
+  }, [isCourier]);
 
   // Recalculate distance and fee when address or subtotal changes
   useEffect(() => {
@@ -184,6 +194,11 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
           longitude: selectedDeliveryAddress.longitude,
           accuracy_meters: selectedDeliveryAddress.accuracy_meters,
           formatted_address: selectedDeliveryAddress.formatted_address,
+          delivery_mode: selectedDeliveryAddress.delivery_mode,
+          courier_partner: selectedDeliveryAddress.courier_partner,
+          courier_zone: selectedDeliveryAddress.courier_zone,
+          estimated_delivery_days: selectedDeliveryAddress.estimated_delivery_days,
+          parcel_weight_kg: selectedDeliveryAddress.parcel_weight_kg,
           is_confirmed: true,
         },
         idempotency_key: `${Date.now()}_${Math.floor(Math.random() * 10000)}`,
@@ -523,10 +538,10 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
                     <div className="flex items-center gap-1.5 font-bold text-rose-800">
                       <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                      <span>Address Outside Direct Delivery Zone</span>
+                      <span>Delivery Unavailable for this PIN code</span>
                     </div>
                     <p className="text-[11px] text-rose-700 leading-relaxed">
-                      {selectedDeliveryAddress.message || 'We currently deliver up to 60 km from our Kothagudem Mill. Please choose a nearby address or contact us for courier assistance.'}
+                      {selectedDeliveryAddress.message || 'Please check your PIN code or choose a valid delivery address within India.'}
                     </p>
                     <button
                       type="button"
@@ -555,8 +570,23 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                     )}
                   </div>
 
-                  {/* Distance & Delivery Fee Slab Info */}
-                  {distanceKm !== null && distanceKm !== undefined && (
+                  {/* Distance / Courier Info */}
+                  {isCourier ? (
+                    <div className="flex items-center justify-between text-[11px] text-indigo-900 bg-indigo-50 border border-indigo-200/70 px-2.5 py-1.5 rounded-lg">
+                      <div className="flex items-center gap-1.5 font-semibold">
+                        <Truck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                        <span>Nationwide Courier: {selectedDeliveryAddress.courier_partner || 'Delhivery'}</span>
+                        {selectedDeliveryAddress.courier_zone && (
+                          <span className="font-mono text-[10px] text-indigo-800 bg-indigo-100 px-1.5 py-0.5 rounded font-bold">
+                            {selectedDeliveryAddress.courier_zone}
+                          </span>
+                        )}
+                      </div>
+                      <span className="font-bold text-indigo-950">
+                        {selectedDeliveryAddress.estimated_delivery_days || '2–4 Business Days'}
+                      </span>
+                    </div>
+                  ) : distanceKm !== null && distanceKm !== undefined ? (
                     <div className="flex items-center justify-between text-[11px] text-stone-700 bg-amber-50/80 border border-amber-200/70 px-2.5 py-1.5 rounded-lg">
                       <div className="flex items-center gap-1.5 font-semibold text-amber-900">
                         <Truck className="w-3.5 h-3.5 text-amber-700 shrink-0" />
@@ -568,7 +598,7 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                         </span>
                       )}
                     </div>
-                  )}
+                  ) : null}
                   
                   {selectedDeliveryAddress.latitude && selectedDeliveryAddress.longitude ? (
                     <div className="flex items-center justify-between text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-1.5 rounded-lg border border-emerald-200/70">
@@ -600,7 +630,12 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                     {!selectedDeliveryAddress.is_serviceable ? (
                       <span className="text-rose-700 font-bold flex items-center gap-0.5">
                         <AlertCircle className="w-3 h-3 text-rose-500" />
-                        Out of Delivery Range
+                        Unserviceable PIN
+                      </span>
+                    ) : isCourier ? (
+                      <span className="text-indigo-800 font-bold flex items-center gap-0.5">
+                        <Truck className="w-3 h-3 text-indigo-600" />
+                        Courier Delivery ({selectedDeliveryAddress.estimated_delivery_days || '2–4 Business Days'})
                       </span>
                     ) : deliveryMinutes > 0 && deliveryMinutes <= 30 ? (
                       <span className="text-emerald-700 font-bold flex items-center gap-0.5">
@@ -616,17 +651,26 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                   <div>
                     <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      Delivery Slot
+                      {isCourier ? 'Shipping / Dispatch Option' : 'Delivery Slot'}
                     </label>
                     <select
                       value={deliverySlot}
                       onChange={(e) => setDeliverySlot(e.target.value)}
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold bg-white"
                     >
-                      <option value="Express Delivery (15-30 Mins)">Express Delivery (15-30 Mins)</option>
-                      <option value="Morning Harvest Slot (7:00 AM - 9:30 AM)">Morning Harvest Slot (7:00 AM - 9:30 AM)</option>
-                      <option value="Evening Slot (5:30 PM - 8:00 PM)">Evening Slot (5:30 PM - 8:00 PM)</option>
-                      <option value="Tomorrow Morning (7:00 AM - 9:30 AM)">Tomorrow Morning (7:00 AM - 9:30 AM)</option>
+                      {isCourier ? (
+                        <>
+                          <option value="Standard Courier Dispatch (Within 24 Hours)">Standard Courier Dispatch (Within 24 Hours)</option>
+                          <option value="Same-Day Priority Dispatch">Same-Day Priority Dispatch (Before 2:00 PM)</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="Express Delivery (15-30 Mins)">Express Delivery (15-30 Mins)</option>
+                          <option value="Morning Harvest Slot (7:00 AM - 9:30 AM)">Morning Harvest Slot (7:00 AM - 9:30 AM)</option>
+                          <option value="Evening Slot (5:30 PM - 8:00 PM)">Evening Slot (5:30 PM - 8:00 PM)</option>
+                          <option value="Tomorrow Morning (7:00 AM - 9:30 AM)">Tomorrow Morning (7:00 AM - 9:30 AM)</option>
+                        </>
+                      )}
                     </select>
                   </div>
 
@@ -704,12 +748,16 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                 </div>
                 <div className="flex justify-between text-stone-600 items-center">
                   <div>
-                    <span>Delivery Partner Fee</span>
-                    {distanceKm !== null && distanceKm !== undefined && (
+                    <span>{isCourier ? 'Nationwide Courier Shipping' : 'Delivery Partner Fee'}</span>
+                    {isCourier ? (
+                      <span className="text-[10px] text-indigo-700 block font-normal">
+                        Partner: {selectedDeliveryAddress.courier_partner || 'Delhivery'} • {selectedDeliveryAddress.courier_zone || 'Zonal Rate'}
+                      </span>
+                    ) : distanceKm !== null && distanceKm !== undefined ? (
                       <span className="text-[10px] text-stone-400 block font-normal">
                         Road Distance: ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
                       </span>
-                    )}
+                    ) : null}
                   </div>
                   {!isServiceable ? (
                     <span className="font-bold text-rose-600">Unavailable</span>
