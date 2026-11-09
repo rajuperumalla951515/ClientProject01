@@ -302,6 +302,16 @@ export interface StoreSettings {
   active_slots_json?: string;
   announcement_text?: string;
   whatsapp_number?: string;
+  store_name?: string;
+  store_address?: string;
+  store_city?: string;
+  store_district?: string;
+  store_state?: string;
+  store_pincode?: string;
+  store_latitude?: number;
+  store_longitude?: number;
+  delivery_radius_km?: number;
+  max_express_radius_km?: number;
 }
 
 export interface ToastMessage {

@@ -38,9 +38,9 @@ export const CheckoutPage: React.FC = () => {
   const [newStreet, setNewStreet] = useState(selectedDeliveryAddress?.street || '');
   const [newApartment, setNewApartment] = useState(selectedDeliveryAddress?.apartment || '');
   const [newLandmark, setNewLandmark] = useState(selectedDeliveryAddress?.landmark || '');
-  const [newCity, setNewCity] = useState(selectedDeliveryAddress?.city || 'Bengaluru');
-  const [newState, setNewState] = useState(selectedDeliveryAddress?.state || 'Karnataka');
-  const [newPostalCode, setNewPostalCode] = useState(selectedDeliveryAddress?.postal_code || currentPincode || '560038');
+  const [newCity, setNewCity] = useState(selectedDeliveryAddress?.city || 'Hyderabad');
+  const [newState, setNewState] = useState(selectedDeliveryAddress?.state || 'Telangana');
+  const [newPostalCode, setNewPostalCode] = useState(selectedDeliveryAddress?.postal_code || currentPincode || '500033');
 
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
@@ -82,8 +82,8 @@ export const CheckoutPage: React.FC = () => {
         street: newStreet,
         apartment: newApartment,
         landmark: newLandmark,
-        city: newCity || 'Bengaluru',
-        state: newState || 'Karnataka',
+        city: newCity || 'Hyderabad',
+        state: newState || 'Telangana',
         postal_code: newPostalCode,
         is_default: addresses.length === 0,
       });
@@ -270,7 +270,7 @@ export const CheckoutPage: React.FC = () => {
                       required
                       value={newPostalCode}
                       onChange={(e) => setNewPostalCode(e.target.value.replace(/\D/g, ''))}
-                      placeholder="e.g. 560038 / 500001"
+                      placeholder="e.g. 500033 / 500001"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
                     />
                   </div>
@@ -284,7 +284,7 @@ export const CheckoutPage: React.FC = () => {
                       required
                       value={newCity}
                       onChange={(e) => setNewCity(e.target.value)}
-                      placeholder="e.g. Bengaluru / Hyderabad"
+                      placeholder="e.g. Hyderabad / Kothagudem"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>
@@ -295,7 +295,7 @@ export const CheckoutPage: React.FC = () => {
                       required
                       value={newState}
                       onChange={(e) => setNewState(e.target.value)}
-                      placeholder="e.g. Karnataka / Telangana"
+                      placeholder="Telangana"
                       className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                     />
                   </div>

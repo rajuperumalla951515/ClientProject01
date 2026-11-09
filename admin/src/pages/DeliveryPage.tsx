@@ -37,6 +37,19 @@ export const DeliveryPage: React.FC = () => {
   const [deliverySlots, setDeliverySlots] = useState<string[]>([]);
   const [newSlotInput, setNewSlotInput] = useState('');
 
+  // Store Fulfillment Hub & Delivery Distance State
+  const [storeName, setStoreName] = useState('Sri Adithya Organics Mill & Fulfilment Hub');
+  const [storeAddress, setStoreAddress] = useState('Road No. 36, Jubilee Hills');
+  const [storeCity, setStoreCity] = useState('Hyderabad');
+  const [storeDistrict, setStoreDistrict] = useState('Hyderabad');
+  const [storeState, setStoreState] = useState('Telangana');
+  const [storePincode, setStorePincode] = useState('500033');
+  const [storeLat, setStoreLat] = useState<number>(17.4319);
+  const [storeLon, setStoreLon] = useState<number>(78.4073);
+  const [deliveryRadiusKm, setDeliveryRadiusKm] = useState<number>(35);
+  const [maxExpressRadiusKm, setMaxExpressRadiusKm] = useState<number>(15);
+  const [whatsappNumber, setWhatsappNumber] = useState('919515159006');
+
   // Zone Modal State
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
   const [editingZone, setEditingZone] = useState<DeliveryZone | null>(null);
@@ -66,6 +79,18 @@ export const DeliveryPage: React.FC = () => {
       setFreeThreshold(settingsData.free_delivery_threshold ?? 499);
       setStandardFee(settingsData.standard_delivery_fee ?? 39);
       setExpressFee(settingsData.express_delivery_fee ?? 59);
+
+      setStoreName(settingsData.store_name || 'Sri Adithya Organics Mill & Fulfilment Hub');
+      setStoreAddress(settingsData.store_address || 'Road No. 36, Jubilee Hills');
+      setStoreCity(settingsData.store_city || 'Hyderabad');
+      setStoreDistrict(settingsData.store_district || 'Hyderabad');
+      setStoreState(settingsData.store_state || 'Telangana');
+      setStorePincode(settingsData.store_pincode || '500033');
+      setStoreLat(settingsData.store_latitude ?? 17.4319);
+      setStoreLon(settingsData.store_longitude ?? 78.4073);
+      setDeliveryRadiusKm(settingsData.delivery_radius_km ?? 35);
+      setMaxExpressRadiusKm(settingsData.max_express_radius_km ?? 15);
+      setWhatsappNumber(settingsData.whatsapp_number || '919515159006');
 
       try {
         const parsed = JSON.parse(settingsData.active_slots_json || '[]');
@@ -112,8 +137,19 @@ export const DeliveryPage: React.FC = () => {
         standard_delivery_fee: Number(standardFee),
         express_delivery_fee: Number(expressFee),
         active_slots_json: JSON.stringify(deliverySlots),
+        store_name: storeName.trim(),
+        store_address: storeAddress.trim(),
+        store_city: storeCity.trim(),
+        store_district: storeDistrict.trim(),
+        store_state: storeState.trim(),
+        store_pincode: storePincode.trim(),
+        store_latitude: Number(storeLat),
+        store_longitude: Number(storeLon),
+        delivery_radius_km: Number(deliveryRadiusKm),
+        max_express_radius_km: Number(maxExpressRadiusKm),
+        whatsapp_number: whatsappNumber.trim(),
       });
-      showSuccess('Delivery fees and delivery time slots saved to D1 database.', 'Settings Saved');
+      showSuccess('Delivery fees, store hub location, and operational boundaries saved to D1.', 'Settings Saved');
       loadData();
     } catch (err: any) {
       showError(err.message || 'Failed to update delivery settings.');
@@ -226,7 +262,7 @@ export const DeliveryPage: React.FC = () => {
         <div>
           <h2 className="text-base font-bold text-[#26352B] font-serif">Delivery & Fulfillment Operations</h2>
           <p className="text-xs text-[#778176]">
-            Manage shipping fees, express slots, and Bangalore serviceable zone pincodes
+            Manage shipping fees, express slots, store fulfillment coordinates, and Telangana serviceable zone pincodes
           </p>
         </div>
 
@@ -240,8 +276,185 @@ export const DeliveryPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Section 1: Delivery Rules & Slots Form */}
+      {/* Section 1: Delivery Rules & Store Hub Form */}
       <form onSubmit={handleSaveFeeSettings} className="space-y-6">
+        {/* Store Hub & Fulfillment Location Card */}
+        <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-5">
+          <div className="flex items-center gap-2.5 pb-3 border-b border-[#E6E7DD]">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-800 flex items-center justify-center">
+              <MapPin className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-[#26352B]">Telangana Fulfillment Hub & Delivery Radii</h3>
+              <p className="text-xs text-[#778176]">
+                Actual registered business location and Haversine distance boundaries (No Bangalore defaults)
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Hub / Business Name *
+              </label>
+              <input
+                type="text"
+                required
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                placeholder="e.g. Sri Adithya Organics Mill & Fulfilment Hub"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Official Store WhatsApp Number *
+              </label>
+              <input
+                type="text"
+                required
+                value={whatsappNumber}
+                onChange={(e) => setWhatsappNumber(e.target.value)}
+                placeholder="e.g. 919515159006"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+              <p className="text-[10px] text-[#778176] mt-1">Orders sent to this WhatsApp account</p>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Registered Street Address *
+              </label>
+              <input
+                type="text"
+                required
+                value={storeAddress}
+                onChange={(e) => setStoreAddress(e.target.value)}
+                placeholder="e.g. Road No. 36, Jubilee Hills"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Hub PIN Code *
+              </label>
+              <input
+                type="text"
+                required
+                maxLength={6}
+                value={storePincode}
+                onChange={(e) => setStorePincode(e.target.value)}
+                placeholder="e.g. 500033"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                City *
+              </label>
+              <input
+                type="text"
+                required
+                value={storeCity}
+                onChange={(e) => setStoreCity(e.target.value)}
+                placeholder="e.g. Hyderabad"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                District / Region
+              </label>
+              <input
+                type="text"
+                value={storeDistrict}
+                onChange={(e) => setStoreDistrict(e.target.value)}
+                placeholder="e.g. Hyderabad or Bhadradri Kothagudem"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                State *
+              </label>
+              <input
+                type="text"
+                required
+                value={storeState}
+                onChange={(e) => setStoreState(e.target.value)}
+                placeholder="Telangana"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Hub GPS Latitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={storeLat}
+                onChange={(e) => setStoreLat(Number(e.target.value))}
+                placeholder="17.4319"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Hub GPS Longitude
+              </label>
+              <input
+                type="number"
+                step="any"
+                value={storeLon}
+                onChange={(e) => setStoreLon(Number(e.target.value))}
+                placeholder="78.4073"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Max Express Radius (km) *
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={maxExpressRadiusKm}
+                onChange={(e) => setMaxExpressRadiusKm(Number(e.target.value))}
+                placeholder="15"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-bold text-emerald-800 focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+              <p className="text-[10px] text-[#778176] mt-1">Within this distance: 15-30 min delivery</p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-[#26352B] mb-1.5">
+                Standard Delivery Radius (km) *
+              </label>
+              <input
+                type="number"
+                min="1"
+                required
+                value={deliveryRadiusKm}
+                onChange={(e) => setDeliveryRadiusKm(Number(e.target.value))}
+                placeholder="35"
+                className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-bold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
+              />
+              <p className="text-[10px] text-[#778176] mt-1">Beyond this: requires out-of-zone verification</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Fees & Thresholds Card */}
         <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-5">
           <div className="flex items-center gap-2.5 pb-3 border-b border-[#E6E7DD]">
             <div className="w-8 h-8 rounded-lg bg-[#F6F5EF] text-[#244B37] flex items-center justify-center">
@@ -387,7 +600,7 @@ export const DeliveryPage: React.FC = () => {
         </div>
       </form>
 
-      {/* Section 2: Bangalore Serviceable Zones Table */}
+      {/* Section 2: Telangana Serviceable Zones Table */}
       <div className="bg-white rounded-2xl p-6 border border-[#E6E7DD] shadow-sm space-y-4">
         <div className="flex items-center justify-between pb-3 border-b border-[#E6E7DD]">
           <div className="flex items-center gap-2.5">
@@ -395,7 +608,7 @@ export const DeliveryPage: React.FC = () => {
               <MapPin className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-[#26352B]">Serviceable Bangalore Delivery Hubs & Pincodes</h3>
+              <h3 className="text-sm font-bold text-[#26352B]">Serviceable Telangana Delivery Hubs & Pincodes</h3>
               <p className="text-xs text-[#778176]">
                 Active regions with customized transit windows and zone surcharges
               </p>
@@ -415,7 +628,7 @@ export const DeliveryPage: React.FC = () => {
           <EmptyState
             icon={MapPin}
             title="No Delivery Zones Configured"
-            description="Add Bangalore regions and postal codes to configure hyperlocal delivery boundaries."
+            description="Add Telangana regions and postal codes to configure hyperlocal delivery boundaries."
             action={{ label: 'Add First Zone', onClick: openAddZoneModal }}
           />
         ) : (
@@ -511,7 +724,7 @@ export const DeliveryPage: React.FC = () => {
             <input
               type="text"
               required
-              placeholder="e.g. South Bangalore (Jayanagar, BTM, JP Nagar)"
+              placeholder="e.g. Hyderabad Central (Jubilee Hills, Banjara Hills, Madhapur)"
               value={zoneName}
               onChange={(e) => setZoneName(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-semibold text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
@@ -525,7 +738,7 @@ export const DeliveryPage: React.FC = () => {
             <textarea
               rows={3}
               required
-              placeholder="e.g. 560011, 560041, 560069, 560076, 560078"
+              placeholder="e.g. 500033, 500034, 500081, 500032, 500084"
               value={zonePincodes}
               onChange={(e) => setZonePincodes(e.target.value)}
               className="w-full px-3 py-2 rounded-xl border border-[#E6E7DD] text-xs font-mono text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"

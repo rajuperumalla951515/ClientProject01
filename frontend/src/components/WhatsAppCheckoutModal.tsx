@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   X, MapPin, Truck, Zap, AlertCircle, Loader2, CheckCircle2,
-  Clock, ShieldCheck, ArrowRight, User as UserIcon, Phone, FileText, Navigation
+  Clock, ShieldCheck, ArrowRight, User as UserIcon, Phone, FileText, Navigation,
+  Copy, Check
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
+import { PhoneVerificationInput } from './PhoneVerificationInput';
+import { validateAndNormalizeIndianPhone } from '../utils/phoneUtils';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
@@ -42,6 +45,7 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   // Form states
   const [customerName, setCustomerName] = useState(user?.name || '');
   const [customerPhone, setCustomerPhone] = useState(user?.phone || '');
+  const [isPhoneVerified, setIsPhoneVerified] = useState(user?.is_phone_verified || false);
   const [deliverySlot, setDeliverySlot] = useState('Express Delivery (15-30 Mins)');
   const [paymentPreference, setPaymentPreference] = useState<'cod' | 'online'>('cod');
   const [specialInstructions, setSpecialInstructions] = useState('');
@@ -50,12 +54,14 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [orderResult, setOrderResult] = useState<WhatsAppOrderResponse | null>(null);
+  const [copiedMessage, setCopiedMessage] = useState(false);
 
   // Sync user profile when available
   useEffect(() => {
     if (user) {
       if (!customerName) setCustomerName(user.name);
       if (!customerPhone && user.phone) setCustomerPhone(user.phone);
+      if (user.is_phone_verified) setIsPhoneVerified(true);
     }
   }, [user]);
 
@@ -65,8 +71,17 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
       setErrorMessage(null);
       setOrderResult(null);
       setIsSubmitting(false);
+      setCopiedMessage(false);
     }
   }, [isOpen]);
+
+  const handleCopyMessage = () => {
+    if (orderResult?.whatsapp_message) {
+      navigator.clipboard.writeText(orderResult.whatsapp_message);
+      setCopiedMessage(true);
+      setTimeout(() => setCopiedMessage(false), 2500);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -91,16 +106,15 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
     setErrorMessage(null);
 
     const name = customerName.trim();
-    const phone = customerPhone.trim();
-    const cleanDigits = phone.replace(/\D/g, '');
+    const phoneVal = validateAndNormalizeIndianPhone(customerPhone);
 
     if (!name) {
       setErrorMessage('Please enter your full name.');
       return;
     }
 
-    if (cleanDigits.length < 10) {
-      setErrorMessage('Please enter a valid 10-digit mobile phone number.');
+    if (!phoneVal.isValid || !phoneVal.normalizedE164) {
+      setErrorMessage(phoneVal.errorMessage || 'Please enter a valid 10-digit Indian mobile number.');
       return;
     }
 
@@ -124,14 +138,14 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
     try {
       const payload: any = {
         customer_name: name,
-        customer_phone: phone,
+        customer_phone: phoneVal.normalizedE164,
         delivery_slot: deliverySlot,
         payment_method: paymentPreference,
         notes: specialInstructions.trim() || undefined,
         delivery_address: {
           label: selectedDeliveryAddress.label || 'Home',
           recipient_name: name,
-          phone: phone,
+          phone: phoneVal.normalizedE164,
           house_number: selectedDeliveryAddress.house_number,
           street: selectedDeliveryAddress.street,
           apartment: selectedDeliveryAddress.apartment,
@@ -259,6 +273,35 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                 </p>
               </div>
 
+              {/* Pre-filled Message Preview with Copy Action */}
+              <div className="p-3.5 rounded-2xl bg-stone-50 border border-stone-200 text-left space-y-2 max-w-md mx-auto">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-stone-600">
+                    Pre-filled Message (Customer Voice)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleCopyMessage}
+                    className="flex items-center gap-1 text-[11px] font-bold text-rootly-forest hover:text-emerald-800 transition-colors"
+                  >
+                    {copiedMessage ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Copied!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Message</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+                <div className="p-3 rounded-xl bg-white border border-stone-200/80 font-mono text-[11px] text-stone-800 max-h-36 overflow-y-auto whitespace-pre-wrap leading-relaxed select-all">
+                  {orderResult.whatsapp_message}
+                </div>
+              </div>
+
               {/* Order Reference Box */}
               <div className="p-4 rounded-2xl bg-stone-50 border border-stone-200 text-left text-xs space-y-2 max-w-md mx-auto">
                 <div className="flex justify-between font-semibold">
@@ -353,7 +396,7 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                   <span>Customer Contact Details</span>
                 </h4>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-bold text-stone-600 mb-1">
                       Your Name *
@@ -368,19 +411,16 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-stone-600 mb-1">
-                      WhatsApp Phone Number *
-                    </label>
-                    <input
-                      type="tel"
-                      required
-                      value={customerPhone}
-                      onChange={(e) => setCustomerPhone(e.target.value)}
-                      placeholder="10-digit mobile (e.g. 9876543210)"
-                      className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-semibold focus:outline-none focus:border-rootly-forest"
-                    />
-                  </div>
+                  <PhoneVerificationInput
+                    value={customerPhone}
+                    onChange={(val, isValid, verified) => {
+                      setCustomerPhone(val);
+                      setIsPhoneVerified(verified);
+                    }}
+                    isVerified={isPhoneVerified}
+                    label="Customer WhatsApp Mobile Number"
+                    required
+                  />
                 </div>
               </div>
 

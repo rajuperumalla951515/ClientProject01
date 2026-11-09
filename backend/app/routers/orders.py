@@ -13,6 +13,11 @@ from backend.app.schemas import (
 from backend.app.deps import get_current_user, get_optional_user, get_current_admin
 from backend.app.pricing import compute_financials
 from backend.app.events import broadcaster
+from backend.app.phone_utils import (
+    validate_and_normalize_indian_phone,
+    format_display_indian_phone,
+    get_whatsapp_number_digits
+)
 
 router = APIRouter(prefix="/orders", tags=["Orders & Checkout"])
 
@@ -30,8 +35,11 @@ def format_whatsapp_order_message(
     customer_phone: str,
     address_dict: Optional[dict] = None
 ) -> str:
-    """Format rich, professional WhatsApp checkout confirmation message."""
-    addr_line = "Delivery Address Provided"
+    """
+    Format WhatsApp checkout confirmation message strictly in the customer's own voice.
+    This message is sent by the customer from their personal WhatsApp to Sri Adithya Organics.
+    """
+    addr_line = "Delivery address provided"
     if address_dict:
         parts = [
             address_dict.get("house_number"),
@@ -67,29 +75,31 @@ def format_whatsapp_order_message(
         v_name = it.get("variant_name") or "Standard Pack"
         qty = it.get("quantity") or 1
         tot = float(it.get("total_price") or 0.0)
-        item_lines.append(f"• {p_name} ({v_name}) x {qty} = ₹{tot:.2f}")
+        item_lines.append(f"- Product: {p_name} ({v_name})\n  Quantity: {qty}\n  Price: ₹{tot:.2f}")
 
-    items_block = "\n".join(item_lines) if item_lines else "• Fresh Wood-Pressed Produce / Certified Organics"
+    items_block = "\n".join(item_lines) if item_lines else "- Sri Adithya Organic Products"
 
     subtotal = float(order_dict.get("subtotal") or 0.0)
     del_fee = float(order_dict.get("delivery_fee") or 0.0)
     tot_amt = float(order_dict.get("total_amount") or 0.0)
     slot = order_dict.get("delivery_slot") or "Standard Express Delivery"
+    payment_pref = "Cash on Delivery / UPI upon arrival"
+    order_num = order_dict.get("order_number")
+    order_ref = f" (Order #{order_num})" if order_num else ""
+    formatted_phone = format_display_indian_phone(customer_phone)
 
     msg = (
-        f"🌿 *SRI ADITHYA ORGANICS — ORDER CONFIRMATION* 🌿\n\n"
-        f"Namaste! Thank you for choosing pure, chemical-free cold-pressed produce.\n\n"
-        f"*Order Number:* #{order_dict.get('order_number')}\n"
-        f"*Customer Name:* {customer_name}\n"
-        f"*Phone:* {customer_phone}\n\n"
-        f"*Items Ordered:*\n{items_block}\n\n"
-        f"*Subtotal:* ₹{subtotal:.2f}\n"
-        f"*Delivery Fee:* ₹{del_fee:.2f}\n"
-        f"*Total Payable:* ₹{tot_amt:.2f}\n"
-        f"*Delivery Slot:* {slot}\n"
-        f"*Payment Method:* Cash on Delivery / UPI upon arrival\n\n"
-        f"*Delivery Destination:*\n{addr_line}\n\n"
-        f"Please reply to this message to confirm dispatch. Our fulfillment team is preparing your fresh order!"
+        f"Hello Sri Adithya Organics,\n\n"
+        f"I would like to place an order{order_ref}.\n\n"
+        f"Order Details:\n{items_block}\n\n"
+        f"Delivery Address:\n{addr_line}\n\n"
+        f"Customer Name: {customer_name}\n"
+        f"Phone Number: {formatted_phone}\n\n"
+        f"Delivery Slot: {slot}\n"
+        f"Payment Preference: {payment_pref}\n"
+        f"Total Amount: ₹{tot_amt:.2f}\n\n"
+        f"Please confirm my order and delivery availability.\n\n"
+        f"Thank you!"
     )
     return msg
 
@@ -358,13 +368,15 @@ async def create_whatsapp_order(
     optional_user: Optional[Dict[str, Any]] = Depends(get_optional_user)
 ):
     customer_name = order_in.customer_name.strip()
-    customer_phone = order_in.customer_phone.strip()
+    customer_phone_raw = order_in.customer_phone.strip()
     if not customer_name:
         raise HTTPException(status_code=400, detail="Customer name is required.")
 
-    clean_digits = re.sub(r"\D", "", customer_phone)
-    if len(clean_digits) < 10:
-        raise HTTPException(status_code=400, detail="Please enter a valid 10-digit mobile number.")
+    is_phone_valid, normalized_phone, phone_err = validate_and_normalize_indian_phone(customer_phone_raw)
+    if not is_phone_valid or not normalized_phone:
+        raise HTTPException(status_code=400, detail=phone_err or "Please enter a valid 10-digit Indian mobile number.")
+
+    customer_phone = normalized_phone
 
     # Idempotency Token
     if order_in.idempotency_key:
@@ -373,18 +385,16 @@ async def create_whatsapp_order(
         if recent:
             items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ?", recent["id"])
             settings_db = await d1.fetch_one("SELECT whatsapp_number FROM delivery_settings LIMIT 1")
-            raw_whatsapp_num = (settings_db.get("whatsapp_number") if settings_db and settings_db.get("whatsapp_number") else settings.WHATSAPP_NUMBER).strip()
-            whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
-            if len(whatsapp_num) == 10:
-                whatsapp_num = f"91{whatsapp_num}"
+            raw_whatsapp_num = (settings_db.get("whatsapp_number") if settings_db and settings_db.get("whatsapp_number") else settings.WHATSAPP_NUMBER)
+            store_wa = get_whatsapp_number_digits(raw_whatsapp_num) or "919515159006"
             msg = format_whatsapp_order_message(recent, items, customer_name, customer_phone)
             encoded_msg = urllib.parse.quote(msg)
             order_out = await load_order_with_items(d1, recent["id"])
             return WhatsAppOrderResponse(
                 order=order_out,
-                whatsapp_url=f"https://wa.me/{whatsapp_num}?text={encoded_msg}",
+                whatsapp_url=f"https://wa.me/{store_wa}?text={encoded_msg}",
                 whatsapp_message=msg,
-                whatsapp_number=whatsapp_num
+                whatsapp_number=store_wa
             )
 
     # Address snapshot
@@ -420,8 +430,8 @@ async def create_whatsapp_order(
         da = order_in.delivery_address
         pin = str(da.get("postal_code", "")).strip()
         street = str(da.get("street", "")).strip()
-        city = str(da.get("city", "Bengaluru")).strip()
-        state = str(da.get("state", "Karnataka")).strip()
+        city = str(da.get("city", "Hyderabad")).strip()
+        state = str(da.get("state", "Telangana")).strip()
 
         if not street:
             raise HTTPException(status_code=400, detail="Delivery street or locality is required.")
@@ -588,10 +598,8 @@ async def create_whatsapp_order(
     broadcaster.publish("INVENTORY_UPDATED")
 
     settings_rec = await d1.fetch_one("SELECT whatsapp_number FROM delivery_settings LIMIT 1")
-    raw_whatsapp_num = (settings_rec.get("whatsapp_number") if settings_rec and settings_rec.get("whatsapp_number") else settings.WHATSAPP_NUMBER).strip()
-    whatsapp_num = re.sub(r"\D", "", raw_whatsapp_num) or "919515159006"
-    if len(whatsapp_num) == 10:
-        whatsapp_num = f"91{whatsapp_num}"
+    raw_whatsapp_num = (settings_rec.get("whatsapp_number") if settings_rec and settings_rec.get("whatsapp_number") else settings.WHATSAPP_NUMBER)
+    whatsapp_num = get_whatsapp_number_digits(raw_whatsapp_num) or "919515159006"
 
     created_order = await d1.fetch_one("SELECT * FROM orders WHERE id = ?", new_order_id)
     created_items = await d1.fetch_all("SELECT * FROM order_items WHERE order_id = ?", new_order_id)

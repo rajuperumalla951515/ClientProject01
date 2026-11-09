@@ -9,8 +9,35 @@ from backend.app.events import broadcaster
 
 router = APIRouter(prefix="/settings", tags=["Store Settings"])
 
+STORE_LOCATION_COLUMNS = {
+    "store_name": "TEXT DEFAULT 'Sri Adithya Organics'",
+    "store_address": "TEXT DEFAULT 'Sri Adithya Organics, Hyderabad, Telangana, India'",
+    "store_city": "TEXT DEFAULT 'Hyderabad'",
+    "store_district": "TEXT DEFAULT 'Hyderabad'",
+    "store_state": "TEXT DEFAULT 'Telangana'",
+    "store_pincode": "TEXT DEFAULT '500001'",
+    "store_latitude": "REAL DEFAULT 17.3850",
+    "store_longitude": "REAL DEFAULT 78.4867",
+    "delivery_radius_km": "REAL DEFAULT 35.0",
+    "max_express_radius_km": "REAL DEFAULT 15.0",
+}
+
+async def ensure_store_settings_schema(d1: D1Database):
+    try:
+        cols = await d1.fetch_all("PRAGMA table_info(delivery_settings)")
+        existing_names = {c["name"] for c in cols} if cols else set()
+        for col_name, col_def in STORE_LOCATION_COLUMNS.items():
+            if col_name not in existing_names:
+                try:
+                    await d1.execute(f"ALTER TABLE delivery_settings ADD COLUMN {col_name} {col_def}")
+                except Exception:
+                    pass
+    except Exception as e:
+        print(f"[Settings] Migration notice: {e}")
+
 @router.get("", response_model=DeliverySettingOut)
 async def get_store_settings(d1: D1Database = Depends(get_d1)):
+    await ensure_store_settings_schema(d1)
     setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
 
     if not setting:
@@ -18,18 +45,47 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
             """
             INSERT INTO delivery_settings (
                 min_order_amount, free_delivery_threshold, standard_delivery_fee, express_delivery_fee,
-                active_slots_json, announcement_text, whatsapp_number
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                active_slots_json, announcement_text, whatsapp_number,
+                store_name, store_address, store_city, store_district, store_state, store_pincode,
+                store_latitude, store_longitude, delivery_radius_km, max_express_radius_km
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             99.0, 499.0, 39.0, 59.0,
             '["Express Delivery (15-30 Mins)", "Morning Slot (7:00 AM - 9:30 AM)", "Evening Slot (5:30 PM - 8:00 PM)"]',
             "Sri Adithya Organics • 100% Certified Organic • Free Delivery on orders over ₹499 • Harvested Fresh Today",
-            "919515159006"
+            "919515159006",
+            "Sri Adithya Organics",
+            "Sri Adithya Organics, Hyderabad, Telangana, India",
+            "Hyderabad",
+            "Hyderabad",
+            "Telangana",
+            "500001",
+            17.3850,
+            78.4867,
+            35.0,
+            15.0
         )
         setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
     elif not setting.get("whatsapp_number") or setting.get("whatsapp_number") in ["919876543210", "9876543210"]:
         await d1.execute("UPDATE delivery_settings SET whatsapp_number = '919515159006' WHERE id = ?", setting["id"])
         setting["whatsapp_number"] = "919515159006"
+
+    # Default fallback values for unpopulated store location fields
+    defaults = {
+        "store_name": "Sri Adithya Organics",
+        "store_address": "Sri Adithya Organics, Hyderabad, Telangana, India",
+        "store_city": "Hyderabad",
+        "store_district": "Hyderabad",
+        "store_state": "Telangana",
+        "store_pincode": "500001",
+        "store_latitude": 17.3850,
+        "store_longitude": 78.4867,
+        "delivery_radius_km": 35.0,
+        "max_express_radius_km": 15.0
+    }
+    for k, v in defaults.items():
+        if setting.get(k) is None:
+            setting[k] = v
 
     return DeliverySettingOut(**setting)
 
@@ -40,6 +96,7 @@ async def update_store_settings(
     d1: D1Database = Depends(get_d1),
     admin=Depends(get_current_admin)
 ):
+    await ensure_store_settings_schema(d1)
     update_data = setting_in.model_dump(exclude_unset=True)
     if "whatsapp_number" in update_data and update_data["whatsapp_number"]:
         cleaned = re.sub(r"\D", "", str(update_data["whatsapp_number"]))
@@ -54,7 +111,17 @@ async def update_store_settings(
         "express_delivery_fee",
         "active_slots_json",
         "announcement_text",
-        "whatsapp_number"
+        "whatsapp_number",
+        "store_name",
+        "store_address",
+        "store_city",
+        "store_district",
+        "store_state",
+        "store_pincode",
+        "store_latitude",
+        "store_longitude",
+        "delivery_radius_km",
+        "max_express_radius_km",
     }
     valid_data = {k: v for k, v in update_data.items() if k in ALLOWED_SETTINGS_COLS}
 

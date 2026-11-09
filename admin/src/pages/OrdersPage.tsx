@@ -612,7 +612,7 @@ export const OrdersPage: React.FC = () => {
                         addr.landmark ? `Near ${addr.landmark}` : null,
                         addr.city,
                         addr.postal_code,
-                      ].filter(Boolean).join(', ') || 'Standard Bengaluru Delivery Address'}
+                      ].filter(Boolean).join(', ') || 'Standard Telangana Delivery Address'}
                     </p>
                     {addr.postal_code && (
                       <span className="inline-block px-2 py-0.5 rounded-md bg-[#FAF9F5] border border-[#E6E7DD] text-[10px] font-bold text-[#26352B]">

@@ -102,14 +102,14 @@ export const Footer: React.FC = () => {
               <li><Link to="/terms" className="hover:text-white transition-colors">Terms of Service</Link></li>
               <li className="pt-2 text-stone-300 font-semibold flex items-center gap-1.5">
                 <Phone className="w-3.5 h-3.5 text-rootly-sagePale" />
-                <span>+91 80 4912 3400</span>
+                <span>+91 95151 59006</span>
               </li>
               <li className="text-stone-300 flex items-center gap-1.5">
                 <Mail className="w-3.5 h-3.5 text-rootly-sagePale" />
                 <span>care@sriadithyaorganics.com</span>
               </li>
               <li className="text-stone-400 text-[11px] leading-tight pt-1">
-                Sri Adithya Organics Mill & Fulfilment Hub, Bengaluru & Tamil Nadu
+                Sri Adithya Organics Mill & Fulfilment Hub, Hyderabad, Telangana
               </li>
             </ul>
           </div>

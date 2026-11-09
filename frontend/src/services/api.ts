@@ -475,5 +475,25 @@ export const api = {
       body: JSON.stringify({ postal_code: postalCode, latitude, longitude }),
     });
   },
+
+  // Phone Verification & OTP
+  async sendPhoneOtp(phone: string): Promise<import('../types').PhoneOtpResponse> {
+    return request('/auth/phone/send-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone }),
+    });
+  },
+
+  async verifyPhoneOtp(phone: string, otp: string): Promise<import('../types').PhoneVerifyResponse> {
+    return request('/auth/phone/verify-otp', {
+      method: 'POST',
+      body: JSON.stringify({ phone, otp }),
+    });
+  },
+
+  async getPhoneStatus(phone: string): Promise<{ phone: string; is_verified: boolean; provider_configured: boolean }> {
+    const encoded = encodeURIComponent(phone.trim());
+    return request(`/auth/phone/status?phone=${encoded}`);
+  },
 };
 

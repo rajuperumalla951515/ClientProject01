@@ -3,8 +3,8 @@ import { ChevronDown, ChevronUp, HelpCircle } from 'lucide-react';
 
 const FAQS = [
   {
-    q: 'How fast is the delivery in Bengaluru?',
-    a: 'Orders placed with Express Delivery are dispatched from our Indiranagar and Koramangala micro-fulfillment hubs and delivered within 15 to 30 minutes. You can also schedule morning (7:00 AM - 9:30 AM) or evening slots for freshly harvested vegetable baskets.'
+    q: 'How fast is the delivery in Hyderabad & Telangana?',
+    a: 'Orders placed with Express Delivery are dispatched from our Telangana micro-fulfillment hubs and delivered within 15 to 30 minutes in serviceable zones. You can also schedule morning (7:00 AM - 9:30 AM) or evening slots for freshly harvested organic produce.'
   },
   {
     q: 'How do you verify that products are genuinely 100% organic?',

@@ -41,7 +41,7 @@ export const ContactPage: React.FC = () => {
               </div>
               <div>
                 <p className="font-bold text-stone-900">Phone Support</p>
-                <p>+91 80 4912 3400 (Toll Free)</p>
+                <p>+91 95151 59006 (Customer Care)</p>
                 <p className="text-[10px] text-stone-400 mt-0.5">Mon - Sun, 6:00 AM - 11:00 PM</p>
               </div>
             </div>
@@ -63,7 +63,7 @@ export const ContactPage: React.FC = () => {
               </div>
               <div>
                 <p className="font-bold text-stone-900">Fulfillment Hubs</p>
-                <p>Sri Adithya Organics, Bengaluru Hub & Coimbatore Farm Mill, Tamil Nadu</p>
+                <p>Sri Adithya Organics, Hyderabad Central Hub, Telangana</p>
               </div>
             </div>
           </div>

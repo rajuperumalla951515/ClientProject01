@@ -318,7 +318,7 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="p-4 sm:p-5 rounded-3xl bg-white border border-stone-200 shadow-soft space-y-2">
               <span className="text-[11px] font-bold uppercase tracking-wider text-stone-400">Registered Customers</span>
               <p className="font-display font-black text-2xl text-stone-900">{stats.total_customers}</p>
-              <p className="text-[10px] text-stone-500">Bengaluru households</p>
+              <p className="text-[10px] text-stone-500">Telangana households</p>
             </div>
           </div>
 

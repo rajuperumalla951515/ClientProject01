@@ -15,89 +15,53 @@ from backend.app.schemas import (
     AddressSearchResultItem
 )
 from backend.app.deps import get_current_user
+from backend.app.phone_utils import validate_and_normalize_indian_phone
 
 router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
 
-# Known Indian Metropolitan Fulfillment Clusters for Logistics Routing & Delivery ETA
+# Telangana Regional Fulfillment Hubs for Hyperlocal Quick-Commerce & Scheduled Delivery
 KNOWN_LOCALITY_CLUSTERS = [
-    # Bengaluru Hubs
-    {"name": "Indiranagar", "city": "Bengaluru", "state": "Karnataka", "pin": "560038", "lat": 12.9784, "lon": 77.6408, "hub": "Indiranagar Hub", "minutes": 15},
-    {"name": "Koramangala", "city": "Bengaluru", "state": "Karnataka", "pin": "560034", "lat": 12.9352, "lon": 77.6245, "hub": "South Bengaluru Hub", "minutes": 20},
-    {"name": "HSR Layout", "city": "Bengaluru", "state": "Karnataka", "pin": "560102", "lat": 12.9121, "lon": 77.6446, "hub": "South Bengaluru Hub", "minutes": 20},
-    {"name": "Whitefield", "city": "Bengaluru", "state": "Karnataka", "pin": "560066", "lat": 12.9698, "lon": 77.7500, "hub": "East Bengaluru Hub", "minutes": 25},
-    {"name": "Jayanagar", "city": "Bengaluru", "state": "Karnataka", "pin": "560011", "lat": 12.9308, "lon": 77.5838, "hub": "Central Bengaluru Hub", "minutes": 20},
-    {"name": "Malleshwaram", "city": "Bengaluru", "state": "Karnataka", "pin": "560003", "lat": 13.0031, "lon": 77.5643, "hub": "North Bengaluru Hub", "minutes": 25},
-    {"name": "Bellandur", "city": "Bengaluru", "state": "Karnataka", "pin": "560103", "lat": 12.9260, "lon": 77.6762, "hub": "ORR Tech Corridor Hub", "minutes": 20},
-    {"name": "MG Road / CBD", "city": "Bengaluru", "state": "Karnataka", "pin": "560001", "lat": 12.9756, "lon": 77.6066, "hub": "Central Bengaluru Hub", "minutes": 15},
-    {"name": "Hebbal", "city": "Bengaluru", "state": "Karnataka", "pin": "560024", "lat": 13.0358, "lon": 77.5970, "hub": "North Bengaluru Hub", "minutes": 25},
-    {"name": "Electronic City", "city": "Bengaluru", "state": "Karnataka", "pin": "560100", "lat": 12.8452, "lon": 77.6602, "hub": "South Bengaluru Tech Hub", "minutes": 25},
-    
-    # Telangana Hubs
-    {"name": "Banjara Hills", "city": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 25},
-    {"name": "Hitec City / Madhapur", "city": "Hyderabad", "state": "Telangana", "pin": "500081", "lat": 17.4474, "lon": 78.3762, "hub": "Hyderabad Cyber Hub", "minutes": 20},
-    {"name": "Secunderabad", "city": "Hyderabad", "state": "Telangana", "pin": "500003", "lat": 17.4399, "lon": 78.4983, "hub": "North Hyderabad Hub", "minutes": 25},
-    
-    # Andhra Pradesh Hubs
-    {"name": "Benz Circle", "city": "Vijayawada", "state": "Andhra Pradesh", "pin": "520010", "lat": 16.5062, "lon": 80.6480, "hub": "Vijayawada Hub", "minutes": 25},
-    {"name": "Dwaraka Nagar", "city": "Visakhapatnam", "state": "Andhra Pradesh", "pin": "530016", "lat": 17.7289, "lon": 83.3089, "hub": "Vizag Coastal Hub", "minutes": 30},
-    {"name": "KT Road", "city": "Tirupati", "state": "Andhra Pradesh", "pin": "517501", "lat": 13.6288, "lon": 79.4192, "hub": "Tirupati Hub", "minutes": 25},
-    {"name": "Brodipet", "city": "Guntur", "state": "Andhra Pradesh", "pin": "522002", "lat": 16.3067, "lon": 80.4365, "hub": "Guntur Hub", "minutes": 25},
-    
-    # Tamil Nadu / Coimbatore Hubs (Sri Adithya Farm Cluster)
-    {"name": "RS Puram", "city": "Coimbatore", "state": "Tamil Nadu", "pin": "641002", "lat": 11.0069, "lon": 76.9490, "hub": "Coimbatore Extraction Mill Hub", "minutes": 30},
-    {"name": "Peelamedu", "city": "Coimbatore", "state": "Tamil Nadu", "pin": "641004", "lat": 11.0267, "lon": 77.0102, "hub": "Coimbatore Extraction Mill Hub", "minutes": 30},
-    
-    # Chennai Hubs
-    {"name": "Adyar", "city": "Chennai", "state": "Tamil Nadu", "pin": "600020", "lat": 13.0012, "lon": 80.2565, "hub": "Chennai South Hub", "minutes": 35},
-    {"name": "T. Nagar", "city": "Chennai", "state": "Tamil Nadu", "pin": "600017", "lat": 13.0418, "lon": 80.2341, "hub": "Chennai Central Hub", "minutes": 35},
-    
-    # Maharashtra Hubs
-    {"name": "Bandra / BKC", "city": "Mumbai", "state": "Maharashtra", "pin": "400051", "lat": 19.0607, "lon": 72.8687, "hub": "Mumbai Central Hub", "minutes": 30},
-    {"name": "Shivaji Nagar", "city": "Pune", "state": "Maharashtra", "pin": "411005", "lat": 18.5314, "lon": 73.8446, "hub": "Pune City Hub", "minutes": 30},
-    
-    # Delhi NCR
-    {"name": "Connaught Place", "city": "New Delhi", "state": "Delhi", "pin": "110001", "lat": 28.6315, "lon": 77.2167, "hub": "Delhi NCR Hub", "minutes": 35},
+    {"name": "Hyderabad Central (Abids / Koti)", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500001", "lat": 17.3850, "lon": 78.4867, "hub": "Sri Adithya Organics Central Hub", "minutes": 15},
+    {"name": "Banjara Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 20},
+    {"name": "Jubilee Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500033", "lat": 17.4319, "lon": 78.4073, "hub": "Hyderabad Central Hub", "minutes": 20},
+    {"name": "Madhapur / Hitec City", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500081", "lat": 17.4474, "lon": 78.3762, "hub": "Hyderabad Cyber Hub", "minutes": 25},
+    {"name": "Gachibowli", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500032", "lat": 17.4401, "lon": 78.3489, "hub": "Hyderabad Cyber Hub", "minutes": 25},
+    {"name": "Kondapur", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500084", "lat": 17.4699, "lon": 78.3578, "hub": "Hyderabad West Hub", "minutes": 25},
+    {"name": "Secunderabad", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500003", "lat": 17.4399, "lon": 78.4983, "hub": "North Hyderabad Hub", "minutes": 25},
+    {"name": "Kukatpally", "city": "Hyderabad", "district": "Medchal-Malkajgiri", "state": "Telangana", "pin": "500072", "lat": 17.4938, "lon": 78.3999, "hub": "North-West Hyderabad Hub", "minutes": 30},
+    {"name": "Begumpet", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500016", "lat": 17.4447, "lon": 78.4664, "hub": "Central Hyderabad Hub", "minutes": 20},
+    {"name": "Somajiguda", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500082", "lat": 17.4262, "lon": 78.4552, "hub": "Hyderabad Central Hub", "minutes": 20},
+    {"name": "Kothagudem", "city": "Kothagudem", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507101", "lat": 17.5526, "lon": 80.6190, "hub": "Bhadradri Regional Hub", "minutes": 35},
+    {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 40},
+    {"name": "Khammam", "city": "Khammam", "district": "Khammam", "state": "Telangana", "pin": "507001", "lat": 17.2473, "lon": 80.1514, "hub": "Khammam Regional Hub", "minutes": 40},
+    {"name": "Karimnagar", "city": "Karimnagar", "district": "Karimnagar", "state": "Telangana", "pin": "505001", "lat": 18.4386, "lon": 79.1288, "hub": "Karimnagar Regional Hub", "minutes": 45},
+    {"name": "Nizamabad", "city": "Nizamabad", "district": "Nizamabad", "state": "Telangana", "pin": "503001", "lat": 18.6725, "lon": 78.0941, "hub": "Nizamabad Regional Hub", "minutes": 45},
 ]
 
+# Indian Postal Region Mapping
 PIN_REGION_MAP = {
-    "11": ("New Delhi", "Delhi"),
-    "12": ("Gurugram / Faridabad", "Haryana"),
-    "13": ("Ambala / Karnal", "Haryana"),
-    "14": ("Ludhiana / Jalandhar", "Punjab"),
-    "15": ("Bathinda / Patiala", "Punjab"),
-    "16": ("Chandigarh", "Chandigarh"),
-    "20": ("Noida / Ghaziabad", "Uttar Pradesh"),
-    "22": ("Lucknow / Varanasi", "Uttar Pradesh"),
-    "30": ("Jaipur", "Rajasthan"),
-    "38": ("Ahmedabad", "Gujarat"),
-    "39": ("Surat / Vadodara", "Gujarat"),
-    "40": ("Mumbai / Thane", "Maharashtra"),
-    "41": ("Pune", "Maharashtra"),
-    "42": ("Nashik", "Maharashtra"),
-    "44": ("Nagpur", "Maharashtra"),
     "50": ("Hyderabad", "Telangana"),
-    "51": ("Tirupati", "Andhra Pradesh"),
+    "51": ("Tirupati / Rayalaseema", "Andhra Pradesh"),
     "52": ("Vijayawada / Guntur", "Andhra Pradesh"),
     "53": ("Visakhapatnam", "Andhra Pradesh"),
     "56": ("Bengaluru", "Karnataka"),
-    "57": ("Mangaluru / Mysuru", "Karnataka"),
-    "58": ("Hubballi / Belagavi", "Karnataka"),
     "60": ("Chennai", "Tamil Nadu"),
-    "62": ("Madurai", "Tamil Nadu"),
     "64": ("Coimbatore", "Tamil Nadu"),
-    "67": ("Kozhikode", "Kerala"),
-    "68": ("Kochi", "Kerala"),
-    "69": ("Thiruvananthapuram", "Kerala"),
-    "70": ("Kolkata", "West Bengal"),
+    "40": ("Mumbai", "Maharashtra"),
+    "11": ("New Delhi", "Delhi"),
 }
 
 def calculate_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    R = 6371.0 # km
+    """
+    Haversine formula for spherical distance in kilometers.
+    """
+    R = 6371.0 # Earth radius in km
     dlat = math.radians(lat2 - lat1)
     dlon = math.radians(lon2 - lon1)
     a = math.sin(dlat / 2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon / 2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
     return R * c
+
 
 @router.post("/reverse-geocode", response_model=ReverseGeocodeOut)
 def reverse_geocode(geo: ReverseGeocodeRequest):
@@ -116,7 +80,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     resolved_formatted = None
     landmark = None
 
-    # Google Maps Geocoding API if key is present
+    # 1. Google Maps Geocoding API if key configured
     google_key = os.getenv("GOOGLE_MAPS_API_KEY", "").strip()
     if google_key:
         try:
@@ -152,11 +116,11 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         except Exception:
             pass
 
-    # OpenStreetMap Nominatim
+    # 2. OpenStreetMap Nominatim reverse geocode
     if not resolved_city or not resolved_pin:
         try:
             url = f"https://nominatim.openstreetmap.org/reverse?lat={lat}&lon={lon}&format=json&addressdetails=1"
-            req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (contact@sriadithyaorganics.com)"})
+            req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
             with urllib.request.urlopen(req, timeout=3.0) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
@@ -174,7 +138,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         except Exception:
             pass
 
-    # Cluster fallback
+    # 3. Nearest Telangana Cluster fallback
     closest_cluster = None
     min_dist = float("inf")
     for cluster in KNOWN_LOCALITY_CLUSTERS:
@@ -183,21 +147,24 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             min_dist = dist
             closest_cluster = cluster
 
-    if closest_cluster and (not resolved_city or min_dist < 25.0):
+    if closest_cluster and (not resolved_city or min_dist < 30.0):
         if not resolved_locality:
             resolved_locality = closest_cluster["name"]
         if not resolved_city:
             resolved_city = closest_cluster["city"]
+        if not resolved_district:
+            resolved_district = closest_cluster.get("district")
         if not resolved_state:
             resolved_state = closest_cluster["state"]
         if not resolved_pin:
             resolved_pin = closest_cluster["pin"]
 
-    # Final safe fallbacks
-    resolved_locality = resolved_locality or "Indiranagar"
-    resolved_city = resolved_city or "Bengaluru"
-    resolved_state = resolved_state or "Karnataka"
-    resolved_pin = (resolved_pin or "560038").strip()
+    # 4. Final Safe Fallbacks: Strictly Telangana-based
+    resolved_locality = resolved_locality or "Hyderabad Central"
+    resolved_city = resolved_city or "Hyderabad"
+    resolved_district = resolved_district or "Hyderabad"
+    resolved_state = resolved_state or "Telangana"
+    resolved_pin = (resolved_pin or "500001").strip()
 
     street_parts = [p for p in [building, road, neighbourhood] if p]
     street_line = ", ".join(street_parts) if street_parts else resolved_locality
@@ -215,19 +182,21 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         locality=resolved_locality,
         landmark=landmark,
         city=resolved_city,
+        district=resolved_district,
         state=resolved_state,
         postal_code=resolved_pin,
         formatted_address=resolved_formatted,
-        delivery_cluster=closest_cluster["name"] if closest_cluster else "Indiranagar",
+        delivery_cluster=closest_cluster["name"] if closest_cluster else "Hyderabad Central",
         estimated_delivery_minutes=closest_cluster["minutes"] if closest_cluster else 25,
-        service_hub=closest_cluster["hub"] if closest_cluster else "Sri Adithya Hub"
+        service_hub=closest_cluster["hub"] if closest_cluster else "Sri Adithya Organics Central Fulfillment Hub"
     )
+
 
 @router.get("/search", response_model=List[AddressSearchResultItem])
 def search_address(query: str = Query(..., min_length=2)):
     results = []
     try:
-        encoded = urllib.parse.quote(f"{query}, India")
+        encoded = urllib.parse.quote(f"{query}, Telangana, India")
         url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=6"
         req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
         with urllib.request.urlopen(req, timeout=3.0) as resp:
@@ -236,8 +205,8 @@ def search_address(query: str = Query(..., min_length=2)):
                 for it in data:
                     addr = it.get("address", {})
                     pin = addr.get("postcode", "")
-                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county", "Bengaluru")
-                    st = addr.get("state", "Karnataka")
+                    city = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("county", "Hyderabad")
+                    st = addr.get("state", "Telangana")
                     loc = addr.get("suburb") or addr.get("neighbourhood") or addr.get("residential") or it.get("name")
                     results.append(AddressSearchResultItem(
                         place_id=str(it.get("place_id")),
@@ -268,57 +237,212 @@ def search_address(query: str = Query(..., min_length=2)):
                 ))
     return results
 
+
 @router.post("/check-serviceability", response_model=ServiceabilityCheckOut)
 async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database = Depends(get_d1)):
+    """
+    Intelligent Telangana Delivery Eligibility Engine
+    Checks:
+      1. Validated 6-digit Indian PIN code.
+      2. Configured delivery zones in database.
+      3. Distance from actual store location using Haversine formula.
+      4. Configured delivery radius and fees.
+    """
+    # 1. Fetch store delivery settings
     min_order = 99.0
     free_thresh = 499.0
+    std_fee = 39.0
+    store_lat = 17.3850
+    store_lon = 78.4867
+    delivery_radius_km = 35.0
+    max_express_radius_km = 15.0
+    store_addr = "Sri Adithya Organics, Hyderabad, Telangana, India"
+
     try:
-        setting = await d1.fetch_one("SELECT min_order_amount, free_delivery_threshold FROM delivery_settings LIMIT 1")
+        setting = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
         if setting:
             min_order = float(setting.get("min_order_amount") or 99.0)
             free_thresh = float(setting.get("free_delivery_threshold") or 499.0)
+            std_fee = float(setting.get("standard_delivery_fee") or 39.0)
+            if setting.get("store_latitude") is not None:
+                store_lat = float(setting["store_latitude"])
+            if setting.get("store_longitude") is not None:
+                store_lon = float(setting["store_longitude"])
+            if setting.get("delivery_radius_km") is not None:
+                delivery_radius_km = float(setting["delivery_radius_km"])
+            if setting.get("max_express_radius_km") is not None:
+                max_express_radius_km = float(setting["max_express_radius_km"])
+            if setting.get("store_address"):
+                store_addr = setting["store_address"]
+    except Exception as e:
+        print(f"[Serviceability] Settings fetch notice: {e}")
+
+    pin = (req.postal_code or "").strip()
+    is_valid_pin = len(pin) == 6 and pin.isdigit()
+
+    if not is_valid_pin:
+        return ServiceabilityCheckOut(
+            is_serviceable=False,
+            status="Address Verification Required",
+            postal_code=pin,
+            city="Telangana",
+            locality="Delivery Area",
+            estimated_delivery_minutes=0,
+            delivery_fee=std_fee,
+            distance_km=None,
+            min_order_amount=min_order,
+            free_delivery_threshold=free_thresh,
+            service_hub="Sri Adithya Organics Central Fulfillment Hub",
+            message="Please provide a valid 6-digit postal code to check delivery availability.",
+            store_address=store_addr
+        )
+
+    # 2. Check if PIN exists in active delivery_zones table
+    zone = None
+    try:
+        zone = await d1.fetch_one(
+            "SELECT * FROM delivery_zones WHERE pincode = ? AND is_active = 1",
+            pin
+        )
     except Exception:
         pass
 
-    pin = (req.postal_code or "560038").strip()
-    is_express = pin.startswith(("560", "641", "600"))
-    is_serviceable = len(pin) == 6 and pin.isdigit()
+    # 3. Calculate distance if coordinates provided
+    distance_km = None
+    if req.latitude is not None and req.longitude is not None:
+        try:
+            distance_km = round(calculate_distance(store_lat, store_lon, req.latitude, req.longitude), 1)
+        except Exception:
+            pass
 
-    matching = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
-    if matching:
-        locality = matching["name"]
-        city = matching["city"]
-        minutes = matching["minutes"]
-        hub = matching["hub"]
+    # 4. Resolve City, Locality & Hub
+    matching_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"] == pin), None)
+    if zone:
+        city = "Hyderabad" if pin.startswith("500") else "Telangana"
+        locality = zone["area_name"]
+        minutes = 20 if "15" in str(zone.get("estimated_delivery_time", "")) else 35
+        hub = "Sri Adithya Organics Direct Fulfillment Hub"
+    elif matching_cluster:
+        city = matching_cluster["city"]
+        locality = matching_cluster["name"]
+        minutes = matching_cluster["minutes"]
+        hub = matching_cluster["hub"]
     else:
-        region_info = PIN_REGION_MAP.get(pin[:2])
-        if region_info:
-            city, state = region_info
-            locality = f"Sector {pin}"
+        reg = PIN_REGION_MAP.get(pin[:2])
+        city = reg[0] if reg else "Telangana"
+        locality = f"PIN {pin}"
+        minutes = 45
+        hub = "Sri Adithya Organics Regional Delivery Hub"
+
+    # 5. Evaluate Eligibility & Applicable Fee
+    is_free = (req.cart_subtotal or 0.0) >= free_thresh
+    calc_fee = 0.0 if is_free else std_fee
+
+    # SCENARIO A: PIN is an explicitly configured active delivery zone
+    if zone:
+        zone_fee = float(zone.get("delivery_fee") or 0.0)
+        final_fee = 0.0 if is_free else max(std_fee, zone_fee)
+        return ServiceabilityCheckOut(
+            is_serviceable=True,
+            status="Delivery Available",
+            postal_code=pin,
+            city=city,
+            locality=locality,
+            estimated_delivery_minutes=minutes,
+            delivery_fee=final_fee,
+            distance_km=distance_km,
+            min_order_amount=min_order,
+            free_delivery_threshold=free_thresh,
+            service_hub=hub,
+            message=f"Delivery Available in {locality} ({zone.get('estimated_delivery_time', '15-30 Mins')})",
+            store_address=store_addr
+        )
+
+    # SCENARIO B: Coordinates available — check against store radius
+    if distance_km is not None:
+        if distance_km <= max_express_radius_km:
+            return ServiceabilityCheckOut(
+                is_serviceable=True,
+                status="Delivery Available",
+                postal_code=pin,
+                city=city,
+                locality=locality,
+                estimated_delivery_minutes=15,
+                delivery_fee=calc_fee,
+                distance_km=distance_km,
+                min_order_amount=min_order,
+                free_delivery_threshold=free_thresh,
+                service_hub=hub,
+                message=f"Express Delivery Available: {distance_km} km from Sri Adithya Organics store.",
+                store_address=store_addr
+            )
+        elif distance_km <= delivery_radius_km:
+            return ServiceabilityCheckOut(
+                is_serviceable=True,
+                status="Delivery Available",
+                postal_code=pin,
+                city=city,
+                locality=locality,
+                estimated_delivery_minutes=35,
+                delivery_fee=calc_fee,
+                distance_km=distance_km,
+                min_order_amount=min_order,
+                free_delivery_threshold=free_thresh,
+                service_hub=hub,
+                message=f"Standard Delivery Available: {distance_km} km from Sri Adithya Organics store.",
+                store_address=store_addr
+            )
         else:
-            city = "Bengaluru" if pin.startswith("560") else "India"
-            locality = "Local Area"
-        minutes = 25 if is_express else 48 * 60
-        hub = "Central Bengaluru Hub" if is_express else "Sri Adithya Organics Central Warehouse"
+            return ServiceabilityCheckOut(
+                is_serviceable=False,
+                status="Delivery Not Available",
+                postal_code=pin,
+                city=city,
+                locality=locality,
+                estimated_delivery_minutes=0,
+                delivery_fee=calc_fee,
+                distance_km=distance_km,
+                min_order_amount=min_order,
+                free_delivery_threshold=free_thresh,
+                service_hub=hub,
+                message=f"Delivery Not Available: Location is {distance_km} km away (Service radius: {int(delivery_radius_km)} km).",
+                store_address=store_addr
+            )
 
-    if is_express:
-        msg = f"Express Delivery Available: {minutes} mins from {hub}"
-    else:
-        msg = f"Standard Organic Delivery Active (Dispatched to {city})"
+    # SCENARIO C: PIN belongs to Telangana state (500xxx - 509xxx)
+    if pin.startswith(("500", "501", "502", "503", "504", "505", "506", "507", "508", "509")):
+        extended_fee = 0.0 if is_free else (std_fee + 20.0)
+        return ServiceabilityCheckOut(
+            is_serviceable=True,
+            status="Delivery Available with Additional Charges",
+            postal_code=pin,
+            city=city,
+            locality=locality,
+            estimated_delivery_minutes=45,
+            delivery_fee=extended_fee,
+            distance_km=None,
+            min_order_amount=min_order,
+            free_delivery_threshold=free_thresh,
+            service_hub=hub,
+            message="Standard Telangana Delivery Available. Extended zone charge applies.",
+            store_address=store_addr
+        )
 
-    if not is_serviceable:
-        msg = "Please enter a valid 6-digit Indian PIN code."
-
+    # SCENARIO D: Outside Telangana and not in configured delivery zones
     return ServiceabilityCheckOut(
-        is_serviceable=is_serviceable,
+        is_serviceable=False,
+        status="Delivery Not Available",
         postal_code=pin,
         city=city,
         locality=locality,
-        estimated_delivery_minutes=minutes,
+        estimated_delivery_minutes=0,
+        delivery_fee=std_fee,
+        distance_km=None,
         min_order_amount=min_order,
         free_delivery_threshold=free_thresh,
         service_hub=hub,
-        message=msg
+        message=f"Delivery Not Available: Sri Adithya Organics currently serves Telangana delivery zones.",
+        store_address=store_addr
     )
 
 
@@ -341,6 +465,15 @@ async def create_address(
     current_user: Dict[str, Any] = Depends(get_current_user)
 ):
     user_id = current_user["id"]
+    
+    # Validate and normalize phone
+    is_valid_phone, norm_phone, phone_err = validate_and_normalize_indian_phone(address_in.phone)
+    if not is_valid_phone or not norm_phone:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=phone_err or "Invalid Indian mobile number for address."
+        )
+
     count_row = await d1.fetch_one("SELECT count(*) as c FROM addresses WHERE user_id = ?", user_id)
     count = count_row["c"] if count_row else 0
     is_default = address_in.is_default or (count == 0)
@@ -363,16 +496,16 @@ async def create_address(
         sql,
         user_id,
         address_in.label,
-        address_in.recipient_name,
-        address_in.phone,
-        address_in.street,
+        address_in.recipient_name.strip(),
+        norm_phone,
+        address_in.street.strip(),
         address_in.apartment,
         address_in.house_number,
         address_in.locality,
         address_in.landmark,
-        address_in.city,
-        address_in.state,
-        address_in.postal_code,
+        address_in.city or "Hyderabad",
+        address_in.state or "Telangana",
+        address_in.postal_code.strip(),
         address_in.latitude,
         address_in.longitude,
         address_in.accuracy_meters,
@@ -402,6 +535,12 @@ async def update_address(
         raise HTTPException(status_code=404, detail="Address not found.")
 
     update_dict = address_in.model_dump(exclude_unset=True)
+    if "phone" in update_dict and update_dict["phone"]:
+        is_val, norm, err = validate_and_normalize_indian_phone(update_dict["phone"])
+        if not is_val or not norm:
+            raise HTTPException(status_code=400, detail=err or "Invalid phone format.")
+        update_dict["phone"] = norm
+
     if update_dict.get("is_default"):
         await d1.execute("UPDATE addresses SET is_default = 0 WHERE user_id = ?", user_id)
 
@@ -451,12 +590,5 @@ async def delete_address(
     if not address:
         raise HTTPException(status_code=404, detail="Address not found.")
 
-    was_default = bool(address.get("is_default"))
     await d1.execute("DELETE FROM addresses WHERE id = ? AND user_id = ?", address_id, user_id)
-
-    if was_default:
-        next_addr = await d1.fetch_one("SELECT id FROM addresses WHERE user_id = ? ORDER BY id DESC LIMIT 1", user_id)
-        if next_addr:
-            await d1.execute("UPDATE addresses SET is_default = 1 WHERE id = ?", next_addr["id"])
-
     return None

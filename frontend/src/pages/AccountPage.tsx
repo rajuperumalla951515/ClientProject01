@@ -26,9 +26,9 @@ export const AccountPage: React.FC = () => {
   const [newRecipient, setNewRecipient] = useState('');
   const [newPhone, setNewPhone] = useState('');
   const [newStreet, setNewStreet] = useState('');
-  const [newCity, setNewCity] = useState('Bengaluru');
-  const [newState, setNewState] = useState('Karnataka');
-  const [newPostalCode, setNewPostalCode] = useState('560038');
+  const [newCity, setNewCity] = useState('Hyderabad');
+  const [newState, setNewState] = useState('Telangana');
+  const [newPostalCode, setNewPostalCode] = useState('500033');
 
   // Profile Edit modal
   const [isEditingProfile, setIsEditingProfile] = useState(false);
@@ -93,8 +93,8 @@ export const AccountPage: React.FC = () => {
         recipient_name: newRecipient,
         phone: newPhone,
         street: newStreet,
-        city: newCity || 'Bengaluru',
-        state: newState || 'Karnataka',
+        city: newCity || 'Hyderabad',
+        state: newState || 'Telangana',
         postal_code: newPostalCode,
         is_default: addresses.length === 0,
       });
@@ -382,7 +382,7 @@ export const AccountPage: React.FC = () => {
                         required
                         value={newPostalCode}
                         onChange={(e) => setNewPostalCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="e.g. 560038 / 500001"
+                        placeholder="e.g. 500033 / 500001"
                         className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono"
                       />
                     </div>
@@ -396,7 +396,7 @@ export const AccountPage: React.FC = () => {
                         required
                         value={newCity}
                         onChange={(e) => setNewCity(e.target.value)}
-                        placeholder="e.g. Bengaluru / Hyderabad"
+                        placeholder="e.g. Hyderabad / Kothagudem"
                         className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                       />
                     </div>
@@ -407,7 +407,7 @@ export const AccountPage: React.FC = () => {
                         required
                         value={newState}
                         onChange={(e) => setNewState(e.target.value)}
-                        placeholder="e.g. Karnataka / Telangana"
+                        placeholder="Telangana"
                         className="w-full p-2.5 rounded-xl border border-stone-200 text-xs"
                       />
                     </div>

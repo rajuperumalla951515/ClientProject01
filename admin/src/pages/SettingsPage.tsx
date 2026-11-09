@@ -264,7 +264,7 @@ export const SettingsPage: React.FC = () => {
                 rows={2}
                 value={announcementText}
                 onChange={(e) => setAnnouncementText(e.target.value)}
-                placeholder="e.g. Free delivery on cold-pressed sesame and groundnut oils across Bangalore on orders above ₹499!"
+                placeholder="e.g. Free delivery on cold-pressed sesame and groundnut oils across Hyderabad & Telangana on orders above ₹499!"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E6E7DD] text-xs text-[#26352B] focus:outline-none focus:ring-2 focus:ring-[#244B37]"
               />
               <p className="text-[11px] text-[#778176] mt-1">

@@ -1206,7 +1206,7 @@ export const FALLBACK_PRODUCTS: Product[] = [
     "description": "Made with 18% whole Mamra almonds and alkaline water. No thickeners, carrageenan, or added sugars.",
     "short_description": "Freshly pressed almond mylk with zero preservatives or gums.",
     "brand": "Rootly Organics",
-    "origin_farm": "Sri Adithya Organic Kitchen, Bengaluru",
+    "origin_farm": "Sri Adithya Organic Kitchen, Hyderabad, Telangana",
     "certifications": "100% Plant-Based Certified",
     "storage_instructions": "Keep refrigerated at 2-4\u00b0C. Consume within 5 days of opening.",
     "allergens": null,

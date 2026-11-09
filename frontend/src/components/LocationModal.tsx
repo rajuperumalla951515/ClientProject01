@@ -8,16 +8,19 @@ import { useLocation } from '../context/LocationContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../services/api';
 import { Address, AddressSearchResult } from '../types';
+import { validateAndNormalizeIndianPhone } from '../utils/phoneUtils';
 
 const POPULAR_LOCALITIES = [
-  { name: 'Indiranagar', city: 'Bengaluru', pin: '560038' },
-  { name: 'Koramangala', city: 'Bengaluru', pin: '560034' },
-  { name: 'Whitefield', city: 'Bengaluru', pin: '560066' },
-  { name: 'HSR Layout', city: 'Bengaluru', pin: '560102' },
-  { name: 'RS Puram', city: 'Coimbatore', pin: '641002' },
-  { name: 'Adyar', city: 'Chennai', pin: '600020' },
+  { name: 'Jubilee Hills', city: 'Hyderabad', pin: '500033' },
   { name: 'Banjara Hills', city: 'Hyderabad', pin: '500034' },
-  { name: 'Bandra West', city: 'Mumbai', pin: '400050' },
+  { name: 'Madhapur (HITEC City)', city: 'Hyderabad', pin: '500081' },
+  { name: 'Gachibowli', city: 'Hyderabad', pin: '500032' },
+  { name: 'Kondapur', city: 'Hyderabad', pin: '500084' },
+  { name: 'Secunderabad', city: 'Hyderabad', pin: '500003' },
+  { name: 'Kukatpally', city: 'Hyderabad', pin: '500072' },
+  { name: 'Kothagudem', city: 'Bhadradri Kothagudem', pin: '507101' },
+  { name: 'Hanamkonda', city: 'Warangal', pin: '506001' },
+  { name: 'Khammam Central', city: 'Khammam', pin: '507001' },
 ];
 
 export const LocationModal: React.FC = () => {
@@ -91,8 +94,8 @@ export const LocationModal: React.FC = () => {
   const [apartment, setApartment] = useState('');
   const [street, setStreet] = useState('');
   const [landmark, setLandmark] = useState('');
-  const [city, setCity] = useState('Bengaluru');
-  const [state, setState] = useState('Karnataka');
+  const [city, setCity] = useState('Hyderabad');
+  const [state, setState] = useState('Telangana');
   const [postalCode, setPostalCode] = useState(selectedDeliveryAddress.postal_code || '');
   const [saveToAccount, setSaveToAccount] = useState(Boolean(user));
 
@@ -135,8 +138,9 @@ export const LocationModal: React.FC = () => {
       return;
     }
 
-    if (!phone.trim() || phone.replace(/\D/g, '').length < 10) {
-      setFormError('Please enter a valid 10-digit mobile number.');
+    const phoneVal = validateAndNormalizeIndianPhone(phone);
+    if (!phoneVal.isValid) {
+      setFormError(phoneVal.errorMessage || 'Please enter a valid 10-digit Indian mobile number.');
       return;
     }
 
@@ -144,12 +148,12 @@ export const LocationModal: React.FC = () => {
     const success = await setManualDeliveryAddress({
       label: addressLabel,
       recipient_name: recipientName.trim(),
-      phone: phone.trim(),
+      phone: phoneVal.normalizedE164,
       apartment: apartment.trim() || undefined,
       street: street.trim(),
       landmark: landmark.trim() || undefined,
-      city: city.trim() || 'Bengaluru',
-      state: state.trim() || 'Karnataka',
+      city: city.trim() || 'Hyderabad',
+      state: state.trim() || 'Telangana',
       postal_code: cleanPin,
       country: 'India',
       saveToAccount: user ? saveToAccount : false,
@@ -443,7 +447,7 @@ export const LocationModal: React.FC = () => {
                       maxLength={6}
                       value={quickPin}
                       onChange={(e) => setQuickPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="Enter 6-Digit PIN (e.g. 560038)"
+                      placeholder="Enter 6-Digit PIN (e.g. 500033)"
                       className="flex-1 px-3.5 py-2.5 rounded-xl border border-stone-200 text-xs sm:text-sm font-semibold focus:outline-none focus:border-rootly-forest placeholder-stone-400"
                     />
                     <button
@@ -617,7 +621,7 @@ export const LocationModal: React.FC = () => {
                         required
                         value={postalCode}
                         onChange={(e) => setPostalCode(e.target.value.replace(/\D/g, ''))}
-                        placeholder="560038"
+                        placeholder="500033"
                         className="w-full p-2.5 rounded-xl border border-stone-200 text-xs font-mono font-bold"
                       />
                     </div>

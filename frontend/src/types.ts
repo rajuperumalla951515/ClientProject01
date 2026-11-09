@@ -5,6 +5,7 @@ export interface User {
   phone?: string | null;
   role: 'customer' | 'admin';
   is_active: boolean;
+  is_phone_verified?: boolean;
   created_at: string;
 }
 
@@ -160,6 +161,33 @@ export interface DeliverySetting {
   active_slots_json?: string;
   announcement_text?: string;
   whatsapp_number?: string;
+  store_name?: string;
+  store_address?: string;
+  store_city?: string;
+  store_district?: string;
+  store_state?: string;
+  store_pincode?: string;
+  store_latitude?: number;
+  store_longitude?: number;
+  delivery_radius_km?: number;
+  max_express_radius_km?: number;
+}
+
+export interface PhoneOtpResponse {
+  success: boolean;
+  message: string;
+  phone: string;
+  provider_configured: boolean;
+  expires_in_seconds?: number;
+  cooldown_seconds?: number;
+  dev_otp?: string;
+}
+
+export interface PhoneVerifyResponse {
+  success: boolean;
+  message: string;
+  phone: string;
+  is_verified: boolean;
 }
 
 export interface WhatsAppOrderPayload {

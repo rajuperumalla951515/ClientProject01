@@ -30,6 +30,7 @@ class UserOut(UserBase):
     id: int
     role: str
     is_active: bool
+    is_phone_verified: Optional[bool] = False
     created_at: datetime
 
     class Config:
@@ -54,8 +55,8 @@ class AddressBase(BaseModel):
     house_number: Optional[str] = None
     locality: Optional[str] = None
     landmark: Optional[str] = None
-    city: str = "Bengaluru"
-    state: str = "Karnataka"
+    city: str = "Hyderabad"
+    state: str = "Telangana"
     postal_code: str
     latitude: Optional[float] = None
     longitude: Optional[float] = None
@@ -375,6 +376,16 @@ class DeliverySettingOut(BaseModel):
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
     whatsapp_number: Optional[str] = "919515159006"
+    store_name: Optional[str] = "Sri Adithya Organics"
+    store_address: Optional[str] = "Sri Adithya Organics, Hyderabad, Telangana, India"
+    store_city: Optional[str] = "Hyderabad"
+    store_district: Optional[str] = "Hyderabad"
+    store_state: Optional[str] = "Telangana"
+    store_pincode: Optional[str] = "500001"
+    store_latitude: Optional[float] = 17.3850
+    store_longitude: Optional[float] = 78.4867
+    delivery_radius_km: Optional[float] = 35.0
+    max_express_radius_km: Optional[float] = 15.0
 
     class Config:
         from_attributes = True
@@ -387,6 +398,16 @@ class DeliverySettingUpdate(BaseModel):
     active_slots_json: Optional[str] = None
     announcement_text: Optional[str] = None
     whatsapp_number: Optional[str] = None
+    store_name: Optional[str] = None
+    store_address: Optional[str] = None
+    store_city: Optional[str] = None
+    store_district: Optional[str] = None
+    store_state: Optional[str] = None
+    store_pincode: Optional[str] = None
+    store_latitude: Optional[float] = None
+    store_longitude: Optional[float] = None
+    delivery_radius_km: Optional[float] = None
+    max_express_radius_km: Optional[float] = None
 
 
 # --- Admin Dashboard Stats & Operations ---
@@ -615,16 +636,21 @@ class ServiceabilityCheckRequest(BaseModel):
     postal_code: Optional[str] = None
     latitude: Optional[float] = None
     longitude: Optional[float] = None
+    cart_subtotal: Optional[float] = None
 
 class ServiceabilityCheckOut(BaseModel):
     is_serviceable: bool
+    status: str = "Delivery Available"  # "Delivery Available", "Delivery Available with Additional Charges", "Delivery Not Available", "Address Verification Required"
     postal_code: Optional[str] = None
     city: str
     locality: str
     estimated_delivery_minutes: int
+    delivery_fee: float = 39.0
+    distance_km: Optional[float] = None
     min_order_amount: float
     free_delivery_threshold: float
     service_hub: str
     message: str
+    store_address: Optional[str] = None
 
 
