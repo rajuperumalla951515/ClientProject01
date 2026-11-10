@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin } from 'lucide-react';
+import { X, Plus, Minus, Trash2, ShoppingBag, ArrowRight, Sparkles, ShieldCheck, CheckCircle, MapPin, Loader2, Truck, Zap } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 import { WhatsAppCheckoutModal } from './WhatsAppCheckoutModal';
 import { useCart } from '../context/CartContext';
@@ -12,7 +12,17 @@ export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
   const { cart, isDrawerOpen, closeDrawer, incrementItem, decrementItem, setItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
-  const { locationLabel, openLocationModal, distanceKm, matchedSlab, deliveryFee: locationDeliveryFee, deliveryMode } = useLocation();
+  const {
+    locationLabel,
+    openLocationModal,
+    distanceKm,
+    matchedSlab,
+    deliveryFee: locationDeliveryFee,
+    deliveryMode,
+    courierPartner,
+    isCalculatingQuote,
+    recalculateDeliveryFee,
+  } = useLocation();
   const { settings } = useStoreSettings();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
@@ -23,11 +33,17 @@ export const CartDrawer: React.FC = () => {
   const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;
   const amountNeeded = Math.max(0, Math.round((effectiveFreeThreshold - cart.subtotal) * 100) / 100);
 
-  // Applicable delivery fee: ONLY 0 if genuine free delivery qualification is satisfied!
-  // If not eligible for free delivery, show the actual delivery charge instead of FREE.
-  const baseDeliveryFee = (locationDeliveryFee && locationDeliveryFee > 0)
+  // Recalculate authoritative delivery quote whenever cart items or subtotal changes
+  useEffect(() => {
+    if (isDrawerOpen && cart.items.length > 0) {
+      recalculateDeliveryFee(cart.subtotal);
+    }
+  }, [isDrawerOpen, cart.subtotal, recalculateDeliveryFee]);
+
+  // Authoritative delivery fee from single centralized quote: ONLY 0 if genuine free delivery threshold is reached
+  const baseDeliveryFee = (locationDeliveryFee !== undefined && locationDeliveryFee !== null)
     ? locationDeliveryFee
-    : (cart.delivery_fee > 0 ? cart.delivery_fee : (isCourier ? 49.0 : 20.0));
+    : (isCourier ? 49.0 : 30.0);
 
   const computedDeliveryFee = isFreeDelivery || cart.subtotal === 0 ? 0 : baseDeliveryFee;
 
@@ -213,14 +229,31 @@ export const CartDrawer: React.FC = () => {
                 </div>
                 <div className="flex justify-between items-center">
                   <div>
-                    <span>{isCourier ? 'Nationwide Courier Shipping' : 'Delivery Partner Fee'}</span>
+                    <span className="flex items-center gap-1.5 font-medium text-stone-800">
+                      {isCourier ? (
+                        <>
+                          <Truck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                          <span>Nationwide Courier Shipping {courierPartner ? `(${courierPartner})` : ''}</span>
+                        </>
+                      ) : (
+                        <>
+                          <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                          <span>Local Express Delivery</span>
+                        </>
+                      )}
+                    </span>
                     {distanceKm !== null && distanceKm !== undefined && (
                       <span className="text-[10px] text-stone-400 block font-normal">
                         ~{distanceKm.toFixed(1)} km {matchedSlab ? `(${matchedSlab})` : ''}
                       </span>
                     )}
                   </div>
-                  {computedDeliveryFee === 0 && isFreeDelivery ? (
+                  {isCalculatingQuote ? (
+                    <span className="flex items-center gap-1 text-[11px] text-stone-400">
+                      <Loader2 className="w-3 h-3 animate-spin text-rootly-forest" />
+                      <span>Calculating...</span>
+                    </span>
+                  ) : computedDeliveryFee === 0 && isFreeDelivery ? (
                     <span className="font-bold text-emerald-700 uppercase tracking-tight">FREE</span>
                   ) : (
                     <span className="font-semibold text-stone-900">₹{computedDeliveryFee}</span>

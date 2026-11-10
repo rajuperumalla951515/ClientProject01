@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import {
   MapPin, Clock, CreditCard, ShieldCheck, CheckCircle2, Plus, Home,
-  Briefcase, Building, ArrowRight, AlertCircle, Sparkles, Check, Zap, Sun, Moon
+  Briefcase, Building, ArrowRight, AlertCircle, Sparkles, Check, Zap, Sun, Moon, Loader2
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
 import { WhatsAppCheckoutModal } from '../components/WhatsAppCheckoutModal';
@@ -28,6 +28,7 @@ export const CheckoutPage: React.FC = () => {
     deliveryFee: locationDeliveryFee,
     distanceKm: locationDistanceKm,
     matchedSlab: locationMatchedSlab,
+    isCalculatingQuote,
     recalculateDeliveryFee,
   } = useLocation();
 
@@ -46,7 +47,10 @@ export const CheckoutPage: React.FC = () => {
   const isServiceable = selectedDeliveryAddress?.is_serviceable !== false;
   const effectiveFreeThreshold = isCourier ? 999 : (cart.free_delivery_threshold || 499);
   const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;
-  const rawFee = isServiceable ? (selectedDeliveryAddress?.delivery_fee ?? locationDeliveryFee ?? (isCourier ? 49.0 : 20.0)) : 0.0;
+  const authoritativeFee = (selectedDeliveryAddress?.delivery_fee !== undefined && selectedDeliveryAddress?.delivery_fee !== null)
+    ? selectedDeliveryAddress.delivery_fee
+    : (locationDeliveryFee !== undefined && locationDeliveryFee !== null ? locationDeliveryFee : (isCourier ? 49.0 : 30.0));
+  const rawFee = isServiceable ? authoritativeFee : 0.0;
   const deliveryFee = isFreeDelivery ? 0 : rawFee;
   // FINAL RULE: Customer Amount = Product Selling Price (cart.subtotal) + Delivery Fee.
   // Never subtract MRP savings!
@@ -594,7 +598,12 @@ export const CheckoutPage: React.FC = () => {
                     </span>
                   ) : null}
                 </div>
-                {!isServiceable ? (
+                {isCalculatingQuote ? (
+                  <span className="flex items-center gap-1 text-[11px] text-stone-400">
+                    <Loader2 className="w-3 h-3 animate-spin text-rootly-forest" />
+                    <span>Calculating...</span>
+                  </span>
+                ) : !isServiceable ? (
                   <span className="font-bold text-rose-600">Unavailable</span>
                 ) : deliveryFee === 0 && isFreeDelivery ? (
                   <span className="font-bold text-emerald-700 uppercase">

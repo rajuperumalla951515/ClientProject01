@@ -107,6 +107,7 @@ interface LocationContextType {
   courierZone?: string | null;
   estimatedDeliveryDays?: string | null;
   parcelWeightKg?: number | null;
+  isCalculatingQuote: boolean;
   recalculateDeliveryFee: (subtotal?: number) => Promise<{
     fee: number;
     distance_km: number | null;
@@ -152,9 +153,9 @@ const DEFAULT_DELIVERY_ADDRESS: SelectedDeliveryAddress = {
   is_serviceable: true,
   service_hub: 'Sri Aditya Organics & Oil Mill (Kothagudem)',
   estimated_delivery_minutes: 15,
-  delivery_fee: 20.0,
+  delivery_fee: 30.0,
   distance_km: 0.1,
-  matched_slab: '0–2 km',
+  matched_slab: '0–5 km',
   delivery_mode: 'local_express',
   delivery_type: 'Local Express Delivery',
   courier_partner: null,
@@ -190,11 +191,15 @@ function getStoredDeliveryRadiusKm(): number {
 }
 
 const PAN_INDIA_QUICK_SEARCH = [
+  { name: 'Kothagudem', city: 'Kothagudem', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507101', lat: 17.5376, lon: 80.6210 },
+  { name: 'Palwancha', city: 'Palwancha', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507115', lat: 17.5968, lon: 80.7061 },
+  { name: 'Bhadrachalam', city: 'Bhadrachalam', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507111', lat: 17.6689, lon: 80.8936 },
+  { name: 'Yellandu', city: 'Yellandu', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507123', lat: 17.6015, lon: 80.3340 },
+  { name: 'Sathupally', city: 'Sathupally', district: 'Khammam', state: 'Telangana', pin: '507303', lat: 17.2104, lon: 80.8354 },
   { name: 'Hyderabad', city: 'Hyderabad', district: 'Hyderabad', state: 'Telangana', pin: '500001', lat: 17.3850, lon: 78.4867 },
   { name: 'Ghatkesar', city: 'Ghatkesar', district: 'Medchal–Malkajgiri', state: 'Telangana', pin: '501301', lat: 17.4477, lon: 78.6833 },
   { name: 'Warangal', city: 'Warangal', district: 'Hanamkonda', state: 'Telangana', pin: '506001', lat: 17.9689, lon: 79.5941 },
   { name: 'Karimnagar', city: 'Karimnagar', district: 'Karimnagar', state: 'Telangana', pin: '505001', lat: 18.4386, lon: 79.1288 },
-  { name: 'Kothagudem', city: 'Kothagudem', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507101', lat: 17.5376, lon: 80.6210 },
   { name: 'Khammam', city: 'Khammam', district: 'Khammam', state: 'Telangana', pin: '507001', lat: 17.2473, lon: 80.1514 },
   { name: 'Nizamabad', city: 'Nizamabad', district: 'Nizamabad', state: 'Telangana', pin: '503001', lat: 18.6725, lon: 78.0941 },
   { name: 'Vijayawada', city: 'Vijayawada', district: 'NTR', state: 'Andhra Pradesh', pin: '520001', lat: 16.5062, lon: 80.6480 },
@@ -264,6 +269,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [pinCoordinates, setPinCoordinates] = useState<{ lat: number; lon: number } | null>(null);
   const [isDetectingLocation, setIsDetectingLocation] = useState<boolean>(false);
   const [isReverseGeocoding, setIsReverseGeocoding] = useState<boolean>(false);
+  const [isCalculatingQuote, setIsCalculatingQuote] = useState<boolean>(false);
   const [locationError, setLocationError] = useState<string | null>(null);
   const [accuracyLevel, setAccuracyLevel] = useState<AccuracyLevel>('high');
 
@@ -414,10 +420,10 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       const deliveryMode: 'local_express' | 'nationwide_courier' = isLocal ? 'local_express' : 'nationwide_courier';
       const estMinutes = isLocal ? (clientDist <= 2.0 ? 15 : clientDist <= 15.0 ? 30 : 45) : 48 * 60;
       const fee = isLocal
-        ? (clientDist <= 2.0 ? 20.0 : clientDist <= 4.0 ? 30.0 : clientDist <= 6.0 ? 40.0 : 50.0)
+        ? (clientDist <= 5.0 ? 30.0 : clientDist <= 10.0 ? 40.0 : clientDist <= 15.0 ? 50.0 : clientDist <= 20.0 ? 60.0 : clientDist <= 30.0 ? 80.0 : clientDist <= 40.0 ? 100.0 : clientDist <= 50.0 ? 120.0 : 150.0)
         : (isTelanganaPin(pin) ? 49.0 : 65.0);
       const slab = isLocal
-        ? (clientDist <= 2.0 ? '0–2 km' : clientDist <= 4.0 ? '2–4 km' : clientDist <= 6.0 ? '4–6 km' : clientDist <= 8.0 ? '6–8 km' : '8–10 km')
+        ? (clientDist <= 5.0 ? '0–5 km' : clientDist <= 10.0 ? '5–10 km' : clientDist <= 15.0 ? '10–15 km' : clientDist <= 20.0 ? '15–20 km' : clientDist <= 30.0 ? '20–30 km' : clientDist <= 40.0 ? '30–40 km' : clientDist <= 50.0 ? '40–50 km' : '50–60 km')
         : 'Nationwide Courier Rate';
       const courierPartner = isLocal ? null : 'Delhivery';
       const courierDays = isLocal ? '15-30 Mins' : (isTelanganaPin(pin) ? '2–3 Business Days' : '3–5 Business Days');
@@ -772,6 +778,15 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       message: servMsg,
     };
 
+    if (addr.latitude !== null && addr.latitude !== undefined && addr.longitude !== null && addr.longitude !== undefined) {
+      setPinCoordinates({ lat: addr.latitude, lon: addr.longitude });
+    } else {
+      const qMatch = PAN_INDIA_QUICK_SEARCH.find((q) => q.pin === addr.postal_code);
+      if (qMatch) {
+        setPinCoordinates({ lat: qMatch.lat, lon: qMatch.lon });
+      }
+    }
+
     setSelectedDeliveryAddress(newDeliveryAddress);
     setSelectedAddressState(addr);
     localStorage.setItem('sri_adithya_delivery_address', JSON.stringify(newDeliveryAddress));
@@ -930,14 +945,22 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Quick preset hub selection
   const setPresetHubLocation = useCallback(async (area: string, pin: string) => {
     try {
+      // 1. Resolve authoritative coordinates for preset hub from PAN_INDIA_QUICK_SEARCH or known hubs
+      const quickMatch = PAN_INDIA_QUICK_SEARCH.find(
+        (q) => q.pin === pin || q.name.toLowerCase() === area.toLowerCase() || q.city.toLowerCase() === area.toLowerCase()
+      );
+      const targetLat = quickMatch?.lat ?? (pin === '507101' ? 17.5376 : pin === '507115' ? 17.5968 : 17.5376);
+      const targetLon = quickMatch?.lon ?? (pin === '507101' ? 80.6210 : pin === '507115' ? 80.7061 : 80.6210);
+      const targetState = quickMatch?.state ?? 'Telangana';
+
       let hubName = 'Sri Aditya Organics & Oil Mill (Kothagudem)';
       let minutes = 15;
       let isServ = true;
-      let cityName = 'Kothagudem';
-      let fee = 20.0;
+      let cityName = quickMatch?.city || area || 'Kothagudem';
+      let fee = 30.0;
       let dist: number | null = 0.1;
       let distSource: string | null = null;
-      let slab: string | null = '0–2 km';
+      let slab: string | null = '0–5 km';
       let delMode: 'local_express' | 'nationwide_courier' | 'unserviceable' = 'local_express';
       let courierPartner: string | null = null;
       let courierZone: string | null = 'Zone A';
@@ -945,11 +968,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let parcelWeight: number | null = 1.0;
 
       try {
-        const serv = await api.checkServiceability(pin);
+        const serv = await api.checkServiceability(pin, targetLat, targetLon);
         hubName = serv.service_hub;
         minutes = serv.estimated_delivery_minutes;
         isServ = serv.is_serviceable;
-        cityName = serv.city || 'Kothagudem';
+        cityName = serv.city || cityName;
         fee = serv.delivery_fee;
         dist = serv.distance_km ?? null;
         distSource = serv.distance_source ?? null;
@@ -963,20 +986,25 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         const isExpress = isTelanganaPin(pin);
         hubName = isExpress ? 'Sri Aditya Organics & Oil Mill (Kothagudem)' : 'Sri Adithya Organics Central Fulfillment Facility';
         minutes = isExpress ? 15 : 48 * 60;
-        fee = isExpress ? 20.0 : 49.0;
+        fee = isExpress ? 30.0 : 49.0;
         delMode = isExpress ? 'local_express' : 'nationwide_courier';
         courierPartner = isExpress ? null : 'Delhivery';
         estDays = isExpress ? '15 Mins' : '2–4 Business Days';
       }
+
+      const formattedAddress = `${area}, ${cityName}, ${targetState} - ${pin}`;
 
       const newDeliveryAddress: SelectedDeliveryAddress = {
         label: area,
         street: area,
         locality: area,
         city: cityName,
-        state: 'Telangana',
+        state: targetState,
         postal_code: pin,
         country: 'India',
+        latitude: targetLat,
+        longitude: targetLon,
+        accuracy_meters: 10,
         is_serviceable: isServ,
         service_hub: hubName,
         estimated_delivery_minutes: minutes,
@@ -990,11 +1018,42 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         courier_zone: courierZone,
         estimated_delivery_days: estDays,
         parcel_weight_kg: parcelWeight,
-        formatted_address: `${area}, ${cityName}, Telangana - ${pin}`,
+        formatted_address: formattedAddress,
         source: 'preset_hub',
         confirmed_at: new Date().toISOString(),
         is_confirmed: true,
       };
+
+      setPinCoordinates({ lat: targetLat, lon: targetLon });
+      setDetectedLocation({
+        formatted_address: formattedAddress,
+        locality: area,
+        city: cityName,
+        state: targetState,
+        postal_code: pin,
+        country: 'India',
+        latitude: targetLat,
+        longitude: targetLon,
+        accuracy_meters: 10,
+        is_serviceable: isServ,
+        delivery_mode: delMode,
+        delivery_type: delMode === 'nationwide_courier' ? 'Nationwide Courier Shipping' : 'Local Express Delivery',
+        courier_partner: courierPartner,
+        courier_zone: courierZone,
+        estimated_delivery_days: estDays,
+        parcel_weight_kg: parcelWeight,
+        estimated_delivery_minutes: minutes,
+        distance_km: dist,
+        delivery_fee: fee,
+        matched_slab: slab,
+        service_hub: hubName,
+        message: `Delivery Available (${delMode === 'nationwide_courier' ? 'Nationwide Courier' : 'Local Express'})`,
+        is_incomplete: false,
+        source: 'preset_hub',
+        accuracy_level: 'manual',
+        initial_gps_lat: targetLat,
+        initial_gps_lon: targetLon,
+      });
 
       setSelectedDeliveryAddress(newDeliveryAddress);
       setSelectedAddressState(null);
@@ -1008,10 +1067,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Dynamic delivery fee recalculation based on actual distance & subtotal
   const recalculateDeliveryFee = useCallback(
     async (subtotal?: number) => {
+      setIsCalculatingQuote(true);
       try {
         const pin = selectedDeliveryAddress.postal_code;
-        const lat = selectedDeliveryAddress.latitude;
-        const lon = selectedDeliveryAddress.longitude;
+        const lat = selectedDeliveryAddress.latitude ?? pinCoordinates?.lat;
+        const lon = selectedDeliveryAddress.longitude ?? pinCoordinates?.lon;
         const serv = await api.checkServiceability(pin, lat, lon, subtotal);
 
         setSelectedDeliveryAddress((prev) => {
@@ -1047,7 +1107,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (err) {
         console.warn('Recalculate delivery fee notice:', err);
         return {
-          fee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 20.0) : 0,
+          fee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 30.0) : 0,
           distance_km: selectedDeliveryAddress.distance_km ?? null,
           is_serviceable: selectedDeliveryAddress.is_serviceable,
           matched_slab: selectedDeliveryAddress.matched_slab ?? null,
@@ -1055,9 +1115,11 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           courier_partner: selectedDeliveryAddress.courier_partner,
           estimated_delivery_days: selectedDeliveryAddress.estimated_delivery_days,
         };
+      } finally {
+        setIsCalculatingQuote(false);
       }
     },
-    [selectedDeliveryAddress]
+    [selectedDeliveryAddress, pinCoordinates]
   );
 
   // Address Autocomplete Search (Live Pan-India Geocoding + Offline Directory)
@@ -1157,7 +1219,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         isLocationConfirmed: selectedDeliveryAddress.is_confirmed,
         serviceHub: selectedDeliveryAddress.service_hub,
         deliveryMinutes: selectedDeliveryAddress.estimated_delivery_minutes,
-        deliveryFee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 20.0) : 0,
+        deliveryFee: selectedDeliveryAddress.is_serviceable ? (selectedDeliveryAddress.delivery_fee ?? 30.0) : 0,
         distanceKm: selectedDeliveryAddress.distance_km ?? null,
         matchedSlab: selectedDeliveryAddress.matched_slab || undefined,
         deliveryMode: selectedDeliveryAddress.delivery_mode || 'local_express',
@@ -1165,6 +1227,7 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         courierZone: selectedDeliveryAddress.courier_zone,
         estimatedDeliveryDays: selectedDeliveryAddress.estimated_delivery_days,
         parcelWeightKg: selectedDeliveryAddress.parcel_weight_kg,
+        isCalculatingQuote,
         recalculateDeliveryFee,
 
         selectedAddress,

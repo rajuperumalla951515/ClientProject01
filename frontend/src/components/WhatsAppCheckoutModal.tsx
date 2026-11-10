@@ -104,7 +104,10 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   const effectiveFreeThreshold = isCourier ? 999 : (freeDeliveryThreshold || 499);
   const isFreeDelivery = subtotal > 0 && subtotal >= effectiveFreeThreshold;
   const isServiceable = selectedDeliveryAddress.is_serviceable !== false;
-  const rawDeliveryFee = isServiceable ? (selectedDeliveryAddress.delivery_fee ?? locationDeliveryFee ?? (isCourier ? 49.0 : 20.0)) : 0.0;
+  const authoritativeFee = (selectedDeliveryAddress.delivery_fee !== undefined && selectedDeliveryAddress.delivery_fee !== null)
+    ? selectedDeliveryAddress.delivery_fee
+    : (locationDeliveryFee !== undefined && locationDeliveryFee !== null ? locationDeliveryFee : (isCourier ? 49.0 : 30.0));
+  const rawDeliveryFee = isServiceable ? authoritativeFee : 0.0;
   // Apply free delivery only when genuine conditions are satisfied
   const deliveryFee = isFreeDelivery ? 0.0 : rawDeliveryFee;
   // FINAL RULE: Customer Amount = Product Selling Price (subtotal) + Delivery Fee.

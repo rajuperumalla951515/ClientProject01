@@ -22,7 +22,7 @@ STORE_LOCATION_COLUMNS = {
     "store_maps_url": "TEXT DEFAULT 'https://share.google/e1aO3V8FJQ7USIKzU'",
     "delivery_radius_km": "REAL DEFAULT 60.0",
     "max_express_radius_km": "REAL DEFAULT 15.0",
-    "distance_slabs_json": "TEXT DEFAULT '[{\"min_km\":0,\"max_km\":2,\"fee\":20},{\"min_km\":2,\"max_km\":4,\"fee\":30},{\"min_km\":4,\"max_km\":6,\"fee\":40},{\"min_km\":6,\"max_km\":8,\"fee\":50},{\"min_km\":8,\"max_km\":10,\"fee\":60},{\"min_km\":10,\"max_km\":15,\"fee\":75},{\"min_km\":15,\"max_km\":35,\"fee\":99},{\"min_km\":35,\"max_km\":60,\"fee\":149}]'",
+    "distance_slabs_json": "TEXT DEFAULT '[{\"min_km\":0,\"max_km\":5,\"fee\":30},{\"min_km\":5,\"max_km\":10,\"fee\":40},{\"min_km\":10,\"max_km\":15,\"fee\":50},{\"min_km\":15,\"max_km\":20,\"fee\":60},{\"min_km\":20,\"max_km\":30,\"fee\":80},{\"min_km\":30,\"max_km\":40,\"fee\":100},{\"min_km\":40,\"max_km\":50,\"fee\":120},{\"min_km\":50,\"max_km\":60,\"fee\":150}]'",
     "courier_enabled": "INTEGER DEFAULT 1",
     "courier_free_threshold": "REAL DEFAULT 999.0",
     "courier_partners_json": "TEXT DEFAULT '[\"Delhivery\", \"BlueDart\", \"India Post Speed Post\"]'",
@@ -58,6 +58,19 @@ async def ensure_store_settings_schema(d1: D1Database):
         # Migrate previous default delivery_radius_km 35.0 to 60.0
         try:
             await d1.execute("UPDATE delivery_settings SET delivery_radius_km = 60.0 WHERE delivery_radius_km = 35.0")
+        except Exception:
+            pass
+
+        # Migrate old distance slabs to granular slabs (0-5: 30, 5-10: 40, 10-15: 50, 15-20: 60, 20-30: 80, 30-40: 100, 40-50: 120, 50-60: 150)
+        new_slabs_json = '[{"min_km":0,"max_km":5,"fee":30},{"min_km":5,"max_km":10,"fee":40},{"min_km":10,"max_km":15,"fee":50},{"min_km":15,"max_km":20,"fee":60},{"min_km":20,"max_km":30,"fee":80},{"min_km":30,"max_km":40,"fee":100},{"min_km":40,"max_km":50,"fee":120},{"min_km":50,"max_km":60,"fee":150}]'
+        try:
+            curr_row = await d1.fetch_one("SELECT id, distance_slabs_json FROM delivery_settings LIMIT 1")
+            if curr_row and curr_row.get("distance_slabs_json"):
+                slabs_str = str(curr_row["distance_slabs_json"])
+                if '"max_km":2' in slabs_str or '"max_km": 2' in slabs_str or '"max_km":35' in slabs_str or '"max_km": 35' in slabs_str:
+                    await d1.execute("UPDATE delivery_settings SET distance_slabs_json = ? WHERE id = ?", new_slabs_json, curr_row["id"])
+            elif curr_row:
+                await d1.execute("UPDATE delivery_settings SET distance_slabs_json = ? WHERE id = ?", new_slabs_json, curr_row["id"])
         except Exception:
             pass
     except Exception as e:

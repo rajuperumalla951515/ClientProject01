@@ -438,7 +438,7 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     in_telangana = (15.8 <= lat <= 19.9) and (77.2 <= lon <= 81.8)
 
     if not resolved_pin:
-        # Check proximity to known locality clusters
+        # Check proximity to known locality clusters (up to 35 km)
         closest = None
         min_d = float("inf")
         for c in KNOWN_LOCALITY_CLUSTERS:
@@ -446,22 +446,19 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             if d < min_d:
                 min_d = d
                 closest = c
-        if closest and min_d <= 12.0:
+        if closest and min_d <= 35.0:
             resolved_pin = closest["pin"]
             resolved_city = resolved_city if (resolved_city and resolved_city != "Telangana") else closest["city"]
             resolved_district = resolved_district or closest.get("district")
             resolved_locality = resolved_locality if (resolved_locality and resolved_locality != "Telangana") else closest["name"]
             resolved_state = resolved_state or closest["state"]
-        elif store_dist <= 2.5:
+        elif store_dist <= 5.0:
             resolved_pin = "507101"
             resolved_city = "Kothagudem"
             resolved_locality = resolved_locality or "Babu Camp"
             resolved_state = "Telangana"
-        elif in_telangana:
-            resolved_pin = "500001"
-            resolved_city = resolved_city or "Telangana"
-            resolved_state = "Telangana"
         else:
+            # Never invent 500001 or any fallback PIN. Mark incomplete so customer enters real PIN.
             is_incomplete = True
 
     if not resolved_city:

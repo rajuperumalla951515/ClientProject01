@@ -6,14 +6,14 @@ import urllib.parse
 from typing import List, Dict, Any, Optional, Tuple
 
 DEFAULT_DISTANCE_SLABS: List[Dict[str, float]] = [
-    {"min_km": 0.0, "max_km": 2.0, "fee": 20.0},
-    {"min_km": 2.0, "max_km": 4.0, "fee": 30.0},
-    {"min_km": 4.0, "max_km": 6.0, "fee": 40.0},
-    {"min_km": 6.0, "max_km": 8.0, "fee": 50.0},
-    {"min_km": 8.0, "max_km": 10.0, "fee": 60.0},
-    {"min_km": 10.0, "max_km": 15.0, "fee": 75.0},
-    {"min_km": 15.0, "max_km": 35.0, "fee": 99.0},
-    {"min_km": 35.0, "max_km": 60.0, "fee": 149.0},
+    {"min_km": 0.0, "max_km": 5.0, "fee": 30.0},
+    {"min_km": 5.0, "max_km": 10.0, "fee": 40.0},
+    {"min_km": 10.0, "max_km": 15.0, "fee": 50.0},
+    {"min_km": 15.0, "max_km": 20.0, "fee": 60.0},
+    {"min_km": 20.0, "max_km": 30.0, "fee": 80.0},
+    {"min_km": 30.0, "max_km": 40.0, "fee": 100.0},
+    {"min_km": 40.0, "max_km": 50.0, "fee": 120.0},
+    {"min_km": 50.0, "max_km": 60.0, "fee": 150.0},
 ]
 
 # Indian road network curvature coefficient (ratio of road distance to great-circle Haversine distance)
