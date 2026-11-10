@@ -10,6 +10,7 @@ from backend.app.routers.addresses import (
     parse_distance_slabs,
     reverse_geocode,
     check_serviceability,
+    search_address,
 )
 from backend.app.schemas import ReverseGeocodeRequest, ServiceabilityCheckRequest
 from backend.app.routers.orders import format_whatsapp_order_message
@@ -247,5 +248,106 @@ def test_serviceability_check_nationwide_courier():
     res_inv = drive_coro(check_serviceability(req_inv, d1=None))
     assert res_inv.is_serviceable is False
     assert "valid" in res_inv.message.lower()
+
+def test_pan_india_search_autocomplete_cities():
+    """Verify Pan-India location search returns results for cities across all states without restricting to Telangana."""
+    test_cities = [
+        "Hyderabad", "Ghatkesar", "Warangal", "Karimnagar",
+        "Vijayawada", "Visakhapatnam", "Bengaluru", "Chennai",
+        "Mumbai", "Delhi", "Pune", "Jaipur", "Kolkata"
+    ]
+    for city in test_cities:
+        # Test query parameter
+        results = search_address(query=city)
+        assert len(results) > 0, f"Expected search results for city: {city}"
+        first = results[0]
+        assert first.formatted_address
+        assert first.latitude is not None
+        assert first.longitude is not None
+        assert first.city
+
+        # Test q parameter (ensuring ?q= parameter works identically)
+        results_q = search_address(q=city)
+        assert len(results_q) > 0, f"Expected search results for ?q={city}"
+        assert results_q[0].formatted_address
+
+def test_pan_india_search_by_pincode():
+    """Verify searching for 6-digit PIN codes across India returns matching address items."""
+    pins = {
+        "501301": "Ghatkesar",
+        "560001": "Bengaluru",
+        "520001": "Vijayawada",
+        "110001": "New Delhi",
+        "400001": "Mumbai",
+        "600001": "Chennai",
+        "700016": "Kolkata",
+    }
+    for pin, expected_city in pins.items():
+        res = search_address(query=pin)
+        assert len(res) > 0, f"Expected search results for PIN: {pin}"
+        match = any(pin in r.postal_code or pin in r.formatted_address for r in res)
+        assert match, f"Expected PIN {pin} in search result addresses"
+
+    # Test arbitrary valid 6-digit Indian PIN synthesis via circle mapping
+    res_arb = search_address(query="560037")
+    assert len(res_arb) > 0
+    assert any("560037" in r.postal_code for r in res_arb)
+
+def test_sixty_km_delivery_rule_local_vs_nationwide():
+    """
+    Verify the 60 km delivery rule:
+    - Distances <= 60 km qualify for Local Express Delivery with configured slabs.
+    - Distances > 60 km automatically hand off to Nationwide Courier (is_serviceable: True) without blocking or asking to contact store.
+    """
+    slabs = [
+        {"min_km": 0.0, "max_km": 2.0, "fee": 20.0},
+        {"min_km": 2.0, "max_km": 4.0, "fee": 30.0},
+        {"min_km": 4.0, "max_km": 6.0, "fee": 40.0},
+        {"min_km": 6.0, "max_km": 8.0, "fee": 50.0},
+        {"min_km": 8.0, "max_km": 10.0, "fee": 60.0},
+        {"min_km": 10.0, "max_km": 15.0, "fee": 75.0},
+        {"min_km": 15.0, "max_km": 35.0, "fee": 99.0},
+        {"min_km": 35.0, "max_km": 60.0, "fee": 149.0},
+    ]
+
+    # Case 1: Within 60 km radius (e.g. 45 km away)
+    fee_45, is_serv_45, msg_45, slab_45 = calculate_distance_based_delivery_fee(
+        distance_km=45.0,
+        slabs=slabs,
+        subtotal=250.0,
+        free_delivery_threshold=499.0,
+        max_delivery_radius_km=60.0,
+        default_fallback_fee=39.0
+    )
+    assert is_serv_45 is True
+    assert fee_45 == 149.0
+    assert slab_45 == "35–60 km"
+
+    # Case 2: 12 km away (within 60 km radius)
+    fee_12, is_serv_12, msg_12, slab_12 = calculate_distance_based_delivery_fee(
+        distance_km=12.0,
+        slabs=slabs,
+        subtotal=250.0,
+        free_delivery_threshold=499.0,
+        max_delivery_radius_km=60.0,
+        default_fallback_fee=39.0
+    )
+    assert is_serv_12 is True
+    assert fee_12 == 75.0
+    assert slab_12 == "10–15 km"
+
+    # Case 3: Customer located > 60 km away (reverse geocoded in Hyderabad or Bengaluru)
+    # Must seamlessly resolve to nationwide courier and remain serviceable
+    blr_req = ReverseGeocodeRequest(latitude=12.9716, longitude=77.5946)
+    blr_res = reverse_geocode(blr_req)
+    assert blr_res.is_serviceable is True
+    assert blr_res.delivery_mode == "nationwide_courier"
+    assert blr_res.delivery_type == "Nationwide Courier Shipping"
+    assert blr_res.courier_partner == "Delhivery"
+    assert blr_res.delivery_fee > 0.0
+    assert "Business Days" in blr_res.estimated_delivery_days
+    assert "Out of Delivery Range" not in blr_res.service_hub
+    assert "Contact Organic" not in blr_res.message
+
 
 

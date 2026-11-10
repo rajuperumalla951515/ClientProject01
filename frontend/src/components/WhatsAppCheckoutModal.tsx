@@ -89,17 +89,18 @@ export const WhatsAppCheckoutModal: React.FC<WhatsAppCheckoutModalProps> = ({
   };
 
   // Calculate pricing
-  const { freeDeliveryThreshold, minOrderAmount } = useStoreSettings();
+  const { freeDeliveryThreshold, minOrderAmount, settings } = useStoreSettings();
+  const localRadiusKm = settings?.delivery_radius_km || 60.0;
   const isDirect = Boolean(directItem);
   const itemsCount = isDirect ? 1 : cart.items.length;
   const subtotal = isDirect
     ? round2(directItem!.variant.price * directItem!.quantity)
     : cart.subtotal;
   
-  // Real-time distance and delivery fee
+  // Real-time distance and delivery fee (Local radius up to 60 km, Nationwide Courier above)
   const distanceKm = selectedDeliveryAddress.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress.matched_slab || locationMatchedSlab;
-  const isCourier = selectedDeliveryAddress.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
+  const isCourier = selectedDeliveryAddress.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > localRadiusKm);
   const effectiveFreeThreshold = isCourier ? 999 : (freeDeliveryThreshold || 499);
   const isFreeDelivery = subtotal > 0 && subtotal >= effectiveFreeThreshold;
   const isServiceable = selectedDeliveryAddress.is_serviceable !== false;

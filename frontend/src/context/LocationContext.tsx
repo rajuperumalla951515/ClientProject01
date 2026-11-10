@@ -178,6 +178,56 @@ function calculateClientRoadDistanceKm(lat1: number, lon1: number, lat2: number,
   return Math.round(R * c * 1.22 * 10) / 10;
 }
 
+function getStoredDeliveryRadiusKm(): number {
+  try {
+    const raw = localStorage.getItem('sri_adithya_cached_settings');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed?.delivery_radius_km) return Number(parsed.delivery_radius_km);
+    }
+  } catch {}
+  return 60.0;
+}
+
+const PAN_INDIA_QUICK_SEARCH = [
+  { name: 'Hyderabad', city: 'Hyderabad', district: 'Hyderabad', state: 'Telangana', pin: '500001', lat: 17.3850, lon: 78.4867 },
+  { name: 'Ghatkesar', city: 'Ghatkesar', district: 'Medchal–Malkajgiri', state: 'Telangana', pin: '501301', lat: 17.4477, lon: 78.6833 },
+  { name: 'Warangal', city: 'Warangal', district: 'Hanamkonda', state: 'Telangana', pin: '506001', lat: 17.9689, lon: 79.5941 },
+  { name: 'Karimnagar', city: 'Karimnagar', district: 'Karimnagar', state: 'Telangana', pin: '505001', lat: 18.4386, lon: 79.1288 },
+  { name: 'Kothagudem', city: 'Kothagudem', district: 'Bhadradri Kothagudem', state: 'Telangana', pin: '507101', lat: 17.5376, lon: 80.6210 },
+  { name: 'Khammam', city: 'Khammam', district: 'Khammam', state: 'Telangana', pin: '507001', lat: 17.2473, lon: 80.1514 },
+  { name: 'Nizamabad', city: 'Nizamabad', district: 'Nizamabad', state: 'Telangana', pin: '503001', lat: 18.6725, lon: 78.0941 },
+  { name: 'Vijayawada', city: 'Vijayawada', district: 'NTR', state: 'Andhra Pradesh', pin: '520001', lat: 16.5062, lon: 80.6480 },
+  { name: 'Visakhapatnam (Vizag)', city: 'Visakhapatnam', district: 'Visakhapatnam', state: 'Andhra Pradesh', pin: '530001', lat: 17.6868, lon: 83.2185 },
+  { name: 'Guntur', city: 'Guntur', district: 'Guntur', state: 'Andhra Pradesh', pin: '522001', lat: 16.3067, lon: 80.4365 },
+  { name: 'Tirupati', city: 'Tirupati', district: 'Tirupati', state: 'Andhra Pradesh', pin: '517501', lat: 13.6288, lon: 79.4192 },
+  { name: 'Bengaluru (Bangalore)', city: 'Bengaluru', district: 'Bengaluru Urban', state: 'Karnataka', pin: '560001', lat: 12.9716, lon: 77.5946 },
+  { name: 'Mysuru (Mysore)', city: 'Mysuru', district: 'Mysuru', state: 'Karnataka', pin: '570001', lat: 12.2958, lon: 76.6394 },
+  { name: 'Chennai', city: 'Chennai', district: 'Chennai', state: 'Tamil Nadu', pin: '600001', lat: 13.0827, lon: 80.2707 },
+  { name: 'Coimbatore', city: 'Coimbatore', district: 'Coimbatore', state: 'Tamil Nadu', pin: '641001', lat: 11.0168, lon: 76.9558 },
+  { name: 'Mumbai', city: 'Mumbai', district: 'Mumbai City', state: 'Maharashtra', pin: '400001', lat: 18.9322, lon: 72.8347 },
+  { name: 'Pune', city: 'Pune', district: 'Pune', state: 'Maharashtra', pin: '411005', lat: 18.5308, lon: 73.8475 },
+  { name: 'Nagpur', city: 'Nagpur', district: 'Nagpur', state: 'Maharashtra', pin: '440001', lat: 21.1458, lon: 79.0882 },
+  { name: 'New Delhi', city: 'New Delhi', district: 'New Delhi', state: 'Delhi', pin: '110001', lat: 28.6315, lon: 77.2167 },
+  { name: 'Gurugram (Gurgaon)', city: 'Gurugram', district: 'Gurugram', state: 'Haryana', pin: '122002', lat: 28.4595, lon: 77.0266 },
+  { name: 'Noida', city: 'Noida', district: 'Gautam Buddha Nagar', state: 'Uttar Pradesh', pin: '201301', lat: 28.5708, lon: 77.3260 },
+  { name: 'Kolkata', city: 'Kolkata', district: 'Kolkata', state: 'West Bengal', pin: '700016', lat: 22.5555, lon: 88.3514 },
+  { name: 'Jaipur', city: 'Jaipur', district: 'Jaipur', state: 'Rajasthan', pin: '302001', lat: 26.9124, lon: 75.7873 },
+  { name: 'Ahmedabad', city: 'Ahmedabad', district: 'Ahmedabad', state: 'Gujarat', pin: '380009', lat: 23.0373, lon: 72.5525 },
+  { name: 'Lucknow', city: 'Lucknow', district: 'Lucknow', state: 'Uttar Pradesh', pin: '226001', lat: 26.8467, lon: 80.9462 },
+  { name: 'Kochi', city: 'Kochi', district: 'Ernakulam', state: 'Kerala', pin: '682001', lat: 9.9312, lon: 76.2673 },
+  { name: 'Indore', city: 'Indore', district: 'Indore', state: 'Madhya Pradesh', pin: '452001', lat: 22.7196, lon: 75.8577 },
+  { name: 'Bhopal', city: 'Bhopal', district: 'Bhopal', state: 'Madhya Pradesh', pin: '462001', lat: 23.2599, lon: 77.4126 },
+  { name: 'Chandigarh', city: 'Chandigarh', district: 'Chandigarh', state: 'Chandigarh', pin: '160017', lat: 30.7333, lon: 76.7794 },
+  { name: 'Patna', city: 'Patna', district: 'Patna', state: 'Bihar', pin: '800001', lat: 25.5941, lon: 85.1376 },
+  { name: 'Bhubaneswar', city: 'Bhubaneswar', district: 'Khordha', state: 'Odisha', pin: '751001', lat: 20.2961, lon: 85.8245 },
+  { name: 'Raipur', city: 'Raipur', district: 'Raipur', state: 'Chhattisgarh', pin: '492001', lat: 21.2514, lon: 81.6296 },
+  { name: 'Guwahati', city: 'Guwahati', district: 'Kamrup', state: 'Assam', pin: '781001', lat: 26.1445, lon: 91.7362 },
+  { name: 'Panaji (Goa)', city: 'Panaji', district: 'North Goa', state: 'Goa', pin: '403001', lat: 15.4909, lon: 73.8278 },
+  { name: 'Dehradun', city: 'Dehradun', district: 'Dehradun', state: 'Uttarakhand', pin: '248001', lat: 30.3165, lon: 78.0322 },
+  { name: 'Srinagar', city: 'Srinagar', district: 'Srinagar', state: 'Jammu and Kashmir', pin: '190001', lat: 34.0837, lon: 74.7973 },
+];
+
 const isTelanganaPin = (pin?: string | null): boolean => {
   if (!pin) return false;
   const p = parseInt(pin.trim(), 10);
@@ -358,7 +408,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       // Calculate distance from Sri Aditya Organics & Oil Mill (17.5376, 80.6210)
       const clientDist = calculateClientRoadDistanceKm(17.5376, 80.6210, lat, lon);
-      const isLocal = clientDist <= 35.0;
+      const deliveryRadiusKm = getStoredDeliveryRadiusKm();
+      const isLocal = clientDist <= deliveryRadiusKm;
       const isServ = true; // Nationwide Pan-India delivery: all Indian locations are serviceable
       const deliveryMode: 'local_express' | 'nationwide_courier' = isLocal ? 'local_express' : 'nationwide_courier';
       const estMinutes = isLocal ? (clientDist <= 2.0 ? 15 : clientDist <= 15.0 ? 30 : 45) : 48 * 60;
@@ -560,7 +611,8 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       let estMinutes = detectedLocation.estimated_delivery_minutes;
       let isServ = detectedLocation.is_serviceable;
       let hub = detectedLocation.service_hub;
-      let delMode = detectedLocation.delivery_mode || (isServ ? (distKm !== null && distKm <= 35 ? 'local_express' : 'nationwide_courier') : 'unserviceable');
+      const deliveryRadiusKm = getStoredDeliveryRadiusKm();
+      let delMode = detectedLocation.delivery_mode || (isServ ? (distKm !== null && distKm <= deliveryRadiusKm ? 'local_express' : 'nationwide_courier') : 'unserviceable');
       let courierPartner = detectedLocation.courier_partner ?? (delMode === 'nationwide_courier' ? 'Delhivery' : null);
       let courierZone: string | null = detectedLocation.courier_zone ?? null;
       let estDays: string | null = detectedLocation.estimated_delivery_days ?? (delMode === 'nationwide_courier' ? '2–4 Business Days' : `${estMinutes} Mins`);
@@ -1008,15 +1060,43 @@ export const LocationProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     [selectedDeliveryAddress]
   );
 
-  // Address Autocomplete Search
+  // Address Autocomplete Search (Live Pan-India Geocoding + Offline Directory)
   const searchAddresses = useCallback(async (query: string): Promise<AddressSearchResult[]> => {
     if (!query || query.trim().length < 2) return [];
+    const qTrimmed = query.trim();
+    const qLower = qTrimmed.toLowerCase();
+
+    // 1. Query live backend search (combines Photon, Nominatim, and comprehensive directory)
     try {
-      return await api.searchAddresses(query);
+      const apiResults = await api.searchAddresses(qTrimmed);
+      if (apiResults && apiResults.length > 0) {
+        return apiResults;
+      }
     } catch (err) {
-      console.warn('Address search failed:', err);
-      return [];
+      console.warn('Backend address search notice, using client directory:', err);
     }
+
+    // 2. Client-side instant directory fallback (0 latency)
+    const clientMatches = PAN_INDIA_QUICK_SEARCH.filter(
+      (c) =>
+        c.name.toLowerCase().includes(qLower) ||
+        c.city.toLowerCase().includes(qLower) ||
+        c.district.toLowerCase().includes(qLower) ||
+        c.state.toLowerCase().includes(qLower) ||
+        c.pin.startsWith(qTrimmed)
+    ).map((c) => ({
+      place_id: `client_${c.pin}_${c.lat}`,
+      formatted_address: `${c.name}, ${c.city}, ${c.state} - ${c.pin}`,
+      locality: c.name,
+      city: c.city,
+      district: c.district,
+      state: c.state,
+      postal_code: c.pin,
+      latitude: c.lat,
+      longitude: c.lon,
+    }));
+
+    return clientMatches.slice(0, 8);
   }, []);
 
   // Select Search Result: Fly map pin to searched location and prompt confirmation

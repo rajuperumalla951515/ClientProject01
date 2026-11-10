@@ -276,3 +276,4 @@ def test_whatsapp_message_pricing_synchronization():
     assert "Total MRP Savings: ₹105.00 (Included in discounted prices)" in msg
     # Must NOT show FREE when fee is 40.00
     assert "FREE" not in msg
+

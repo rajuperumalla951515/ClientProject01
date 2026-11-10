@@ -162,7 +162,8 @@ def format_whatsapp_order_message(
     c_days = order_dict.get("estimated_delivery_days") or (address_dict.get("estimated_delivery_days") if address_dict else None)
     c_weight = order_dict.get("parcel_weight_kg") or (address_dict.get("parcel_weight_kg") if address_dict else None)
 
-    if d_mode == "nationwide_courier" or c_partner or (dist_km is not None and dist_km > 35.0):
+    local_radius = float(order_dict.get("delivery_radius_km") or 60.0)
+    if d_mode == "nationwide_courier" or c_partner or (dist_km is not None and dist_km > local_radius):
         partner_label = c_partner or "Delhivery Express Cargo"
         days_label = c_days or "2–4 Business Days"
         wt_str = f" | Parcel Weight: ~{c_weight:.1f} kg" if c_weight else ""
@@ -395,7 +396,7 @@ async def checkout(
     # 4. Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
     store_lat = 17.5376
     store_lon = 80.6210
-    delivery_radius_km = 35.0
+    delivery_radius_km = 60.0
     slabs_raw = None
     try:
         s_row = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")
@@ -755,7 +756,7 @@ async def create_whatsapp_order(
     # Calculate dynamic delivery fee from store location (Kothagudem Mill: 17.5376, 80.6210)
     store_lat = 17.5376
     store_lon = 80.6210
-    delivery_radius_km = 35.0
+    delivery_radius_km = 60.0
     slabs_raw = None
     try:
         s_row = await d1.fetch_one("SELECT * FROM delivery_settings LIMIT 1")

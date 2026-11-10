@@ -456,7 +456,7 @@ export const api = {
 
   async searchAddresses(query: string): Promise<import('../types').AddressSearchResult[]> {
     const encoded = encodeURIComponent(query.trim());
-    return request(`/addresses/search?q=${encoded}`);
+    return request(`/addresses/search?q=${encoded}&query=${encoded}`);
   },
 
   async checkServiceability(

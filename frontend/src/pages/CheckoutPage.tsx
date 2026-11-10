@@ -11,11 +11,13 @@ import { Address, Order } from '../types';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
+import { useStoreSettings } from '../context/SettingsContext';
 
 export const CheckoutPage: React.FC = () => {
   const navigate = useNavigate();
   const { cart, refreshCart } = useCart();
   const { user } = useAuth();
+  const { settings } = useStoreSettings();
   const {
     setSelectedAddress: setGlobalLocation,
     pincode: currentPincode,
@@ -36,10 +38,11 @@ export const CheckoutPage: React.FC = () => {
   const [orderNotes, setOrderNotes] = useState('');
   const [isWhatsAppModalOpen, setIsWhatsAppModalOpen] = useState(false);
 
-  // Dynamic Distance & Delivery Fee Calculation
+  // Dynamic Distance & Delivery Fee Calculation (Local radius up to 60 km, Nationwide Courier above)
+  const localRadiusKm = settings?.delivery_radius_km || 60.0;
   const distanceKm = selectedDeliveryAddress?.distance_km ?? locationDistanceKm;
   const matchedSlab = selectedDeliveryAddress?.matched_slab || locationMatchedSlab;
-  const isCourier = selectedDeliveryAddress?.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
+  const isCourier = selectedDeliveryAddress?.delivery_mode === 'nationwide_courier' || (distanceKm !== null && distanceKm > localRadiusKm);
   const isServiceable = selectedDeliveryAddress?.is_serviceable !== false;
   const effectiveFreeThreshold = isCourier ? 999 : (cart.free_delivery_threshold || 499);
   const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;

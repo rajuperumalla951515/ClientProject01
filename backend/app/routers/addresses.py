@@ -4,6 +4,7 @@ import urllib.parse
 import json
 import math
 import os
+import re
 import datetime
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from backend.app.config import settings
@@ -44,13 +45,17 @@ except ImportError:
 
 router = APIRouter(prefix="/addresses", tags=["Customer Addresses"])
 
-# Telangana Regional Fulfillment Hubs for Hyperlocal Quick-Commerce & Scheduled Delivery
+# Pan-India Delivery & Logistics Hubs (Local Express for <= 60km, Nationwide Courier across all Indian States)
 KNOWN_LOCALITY_CLUSTERS = [
+    # Telangana Local & Regional Hubs
     {"name": "Kothagudem (Babu Camp / Ganeshbasthi)", "city": "Kothagudem", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507101", "lat": 17.5376, "lon": 80.6210, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 15},
     {"name": "Palwancha", "city": "Palwancha", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507115", "lat": 17.5968, "lon": 80.7061, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 25},
     {"name": "Bhadrachalam", "city": "Bhadrachalam", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507111", "lat": 17.6689, "lon": 80.8936, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 45},
     {"name": "Yellandu", "city": "Yellandu", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507123", "lat": 17.6015, "lon": 80.3340, "hub": "Sri Aditya Organics & Oil Mill", "minutes": 45},
+    {"name": "Manuguru", "city": "Manuguru", "district": "Bhadradri Kothagudem", "state": "Telangana", "pin": "507117", "lat": 17.9863, "lon": 80.7511, "hub": "Sri Aditya Organics Regional Hub", "minutes": 60},
+    {"name": "Sathupally", "city": "Sathupally", "district": "Khammam", "state": "Telangana", "pin": "507303", "lat": 17.2104, "lon": 80.8354, "hub": "Sri Aditya Organics Regional Hub", "minutes": 55},
     {"name": "Khammam Central", "city": "Khammam", "district": "Khammam", "state": "Telangana", "pin": "507001", "lat": 17.2473, "lon": 80.1514, "hub": "Khammam Regional Hub", "minutes": 40},
+    {"name": "Madhira", "city": "Madhira", "district": "Khammam", "state": "Telangana", "pin": "507203", "lat": 16.9208, "lon": 80.3644, "hub": "Khammam Regional Hub", "minutes": 60},
     {"name": "Hyderabad Central (Abids / Koti)", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500001", "lat": 17.3850, "lon": 78.4867, "hub": "Sri Adithya Organics Central Hub", "minutes": 60},
     {"name": "Banjara Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500034", "lat": 17.4156, "lon": 78.4357, "hub": "Hyderabad Central Hub", "minutes": 60},
     {"name": "Jubilee Hills", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500033", "lat": 17.4319, "lon": 78.4073, "hub": "Hyderabad Central Hub", "minutes": 60},
@@ -59,8 +64,149 @@ KNOWN_LOCALITY_CLUSTERS = [
     {"name": "Secunderabad", "city": "Hyderabad", "district": "Hyderabad", "state": "Telangana", "pin": "500003", "lat": 17.4399, "lon": 78.4983, "hub": "Hyderabad North Hub", "minutes": 60},
     {"name": "Kukatpally", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500072", "lat": 17.4875, "lon": 78.4059, "hub": "Hyderabad West Hub", "minutes": 60},
     {"name": "Gachibowli", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500032", "lat": 17.4401, "lon": 78.3489, "hub": "Hyderabad Cyber Hub", "minutes": 60},
+    {"name": "Kondapur", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500084", "lat": 17.4682, "lon": 78.3621, "hub": "Hyderabad Cyber Hub", "minutes": 60},
+    {"name": "Manikonda", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500089", "lat": 17.4042, "lon": 78.3846, "hub": "Hyderabad West Hub", "minutes": 60},
     {"name": "Uppal", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500039", "lat": 17.4018, "lon": 78.5602, "hub": "Hyderabad East Hub", "minutes": 60},
+    {"name": "Dilsukhnagar / LB Nagar", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "500060", "lat": 17.3685, "lon": 78.5316, "hub": "Hyderabad South East Hub", "minutes": 60},
+    {"name": "Shamshabad", "city": "Hyderabad", "district": "Rangareddy", "state": "Telangana", "pin": "501218", "lat": 17.2543, "lon": 78.4311, "hub": "Hyderabad Airport Hub", "minutes": 60},
+    {"name": "Miyapur", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500049", "lat": 17.4968, "lon": 78.3562, "hub": "Hyderabad West Hub", "minutes": 60},
+    {"name": "Kompally", "city": "Hyderabad", "district": "Medchal–Malkajgiri", "state": "Telangana", "pin": "500014", "lat": 17.5385, "lon": 78.4897, "hub": "Hyderabad North Hub", "minutes": 60},
     {"name": "Warangal", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 17.9689, "lon": 79.5941, "hub": "Warangal Regional Hub", "minutes": 60},
+    {"name": "Hanamkonda", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506001", "lat": 18.0104, "lon": 79.5630, "hub": "Warangal Regional Hub", "minutes": 60},
+    {"name": "Kazipet", "city": "Warangal", "district": "Hanamkonda", "state": "Telangana", "pin": "506003", "lat": 17.9792, "lon": 79.5165, "hub": "Warangal Regional Hub", "minutes": 60},
+    {"name": "Karimnagar", "city": "Karimnagar", "district": "Karimnagar", "state": "Telangana", "pin": "505001", "lat": 18.4386, "lon": 79.1288, "hub": "Karimnagar Regional Hub", "minutes": 60},
+    {"name": "Nizamabad", "city": "Nizamabad", "district": "Nizamabad", "state": "Telangana", "pin": "503001", "lat": 18.6725, "lon": 78.0941, "hub": "Nizamabad Regional Hub", "minutes": 60},
+    {"name": "Ramagundam / Godavarikhani", "city": "Ramagundam", "district": "Peddapalli", "state": "Telangana", "pin": "505208", "lat": 18.7557, "lon": 79.5126, "hub": "Godavarikhani Hub", "minutes": 60},
+    {"name": "Mahabubnagar", "city": "Mahabubnagar", "district": "Mahabubnagar", "state": "Telangana", "pin": "509001", "lat": 16.7488, "lon": 77.9863, "hub": "Mahabubnagar Regional Hub", "minutes": 60},
+    {"name": "Nalgonda", "city": "Nalgonda", "district": "Nalgonda", "state": "Telangana", "pin": "508001", "lat": 17.0575, "lon": 79.2684, "hub": "Nalgonda Regional Hub", "minutes": 60},
+    {"name": "Suryapet", "city": "Suryapet", "district": "Suryapet", "state": "Telangana", "pin": "508213", "lat": 17.1439, "lon": 79.6239, "hub": "Suryapet Hub", "minutes": 60},
+    {"name": "Miryalaguda", "city": "Miryalaguda", "district": "Nalgonda", "state": "Telangana", "pin": "508207", "lat": 16.8741, "lon": 79.5638, "hub": "Miryalaguda Hub", "minutes": 60},
+    {"name": "Siddipet", "city": "Siddipet", "district": "Siddipet", "state": "Telangana", "pin": "502103", "lat": 18.1018, "lon": 78.8520, "hub": "Siddipet Hub", "minutes": 60},
+    {"name": "Mancherial", "city": "Mancherial", "district": "Mancherial", "state": "Telangana", "pin": "504208", "lat": 18.8679, "lon": 79.4639, "hub": "Mancherial Hub", "minutes": 60},
+    {"name": "Adilabad", "city": "Adilabad", "district": "Adilabad", "state": "Telangana", "pin": "504001", "lat": 19.6641, "lon": 78.5320, "hub": "Adilabad Regional Hub", "minutes": 60},
+
+    # Andhra Pradesh Hubs & Cities
+    {"name": "Vijayawada Central", "city": "Vijayawada", "district": "NTR", "state": "Andhra Pradesh", "pin": "520001", "lat": 16.5062, "lon": 80.6480, "hub": "Vijayawada Regional Hub", "minutes": 60},
+    {"name": "Governorpet / Benz Circle", "city": "Vijayawada", "district": "NTR", "state": "Andhra Pradesh", "pin": "520002", "lat": 16.5020, "lon": 80.6488, "hub": "Vijayawada Regional Hub", "minutes": 60},
+    {"name": "Visakhapatnam (Vizag Central)", "city": "Visakhapatnam", "district": "Visakhapatnam", "state": "Andhra Pradesh", "pin": "530001", "lat": 17.6868, "lon": 83.2185, "hub": "Visakhapatnam Hub", "minutes": 60},
+    {"name": "Gajuwaka", "city": "Visakhapatnam", "district": "Visakhapatnam", "state": "Andhra Pradesh", "pin": "530026", "lat": 17.6904, "lon": 83.1950, "hub": "Visakhapatnam Hub", "minutes": 60},
+    {"name": "Guntur", "city": "Guntur", "district": "Guntur", "state": "Andhra Pradesh", "pin": "522001", "lat": 16.3067, "lon": 80.4365, "hub": "Guntur Regional Hub", "minutes": 60},
+    {"name": "Nellore", "city": "Nellore", "district": "SPSR Nellore", "state": "Andhra Pradesh", "pin": "524001", "lat": 14.4426, "lon": 79.9865, "hub": "Nellore Hub", "minutes": 60},
+    {"name": "Kurnool", "city": "Kurnool", "district": "Kurnool", "state": "Andhra Pradesh", "pin": "518001", "lat": 15.8281, "lon": 78.0373, "hub": "Kurnool Hub", "minutes": 60},
+    {"name": "Rajahmundry", "city": "Rajahmundry", "district": "East Godavari", "state": "Andhra Pradesh", "pin": "533101", "lat": 17.0005, "lon": 81.8040, "hub": "Godavari Hub", "minutes": 60},
+    {"name": "Kakinada", "city": "Kakinada", "district": "Kakinada", "state": "Andhra Pradesh", "pin": "533001", "lat": 16.9891, "lon": 82.2475, "hub": "Kakinada Hub", "minutes": 60},
+    {"name": "Tirupati", "city": "Tirupati", "district": "Tirupati", "state": "Andhra Pradesh", "pin": "517501", "lat": 13.6288, "lon": 79.4192, "hub": "Tirupati Hub", "minutes": 60},
+    {"name": "Kadapa", "city": "Kadapa", "district": "YSR Kadapa", "state": "Andhra Pradesh", "pin": "516001", "lat": 14.4673, "lon": 78.8242, "hub": "Kadapa Hub", "minutes": 60},
+    {"name": "Anantapur", "city": "Anantapur", "district": "Anantapur", "state": "Andhra Pradesh", "pin": "515001", "lat": 14.6819, "lon": 77.6006, "hub": "Anantapur Hub", "minutes": 60},
+    {"name": "Eluru", "city": "Eluru", "district": "Eluru", "state": "Andhra Pradesh", "pin": "534001", "lat": 16.7107, "lon": 81.0952, "hub": "Eluru Hub", "minutes": 60},
+    {"name": "Ongole", "city": "Ongole", "district": "Prakasam", "state": "Andhra Pradesh", "pin": "523001", "lat": 15.5057, "lon": 80.0499, "hub": "Ongole Hub", "minutes": 60},
+
+    # Karnataka Hubs & Cities
+    {"name": "Bengaluru Central (MG Road / Majestic)", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560001", "lat": 12.9716, "lon": 77.5946, "hub": "Bengaluru Fulfillment Hub", "minutes": 60},
+    {"name": "Indiranagar", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560038", "lat": 12.9784, "lon": 77.6408, "hub": "Bengaluru Fulfillment Hub", "minutes": 60},
+    {"name": "Koramangala", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560034", "lat": 12.9352, "lon": 77.6245, "hub": "Bengaluru Fulfillment Hub", "minutes": 60},
+    {"name": "Whitefield", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560066", "lat": 12.9698, "lon": 77.7500, "hub": "Bengaluru East Hub", "minutes": 60},
+    {"name": "Electronic City", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560100", "lat": 12.8452, "lon": 77.6602, "hub": "Bengaluru South Hub", "minutes": 60},
+    {"name": "HSR Layout", "city": "Bengaluru", "district": "Bengaluru Urban", "state": "Karnataka", "pin": "560102", "lat": 12.9121, "lon": 77.6446, "hub": "Bengaluru South Hub", "minutes": 60},
+    {"name": "Mysuru (Mysore)", "city": "Mysuru", "district": "Mysuru", "state": "Karnataka", "pin": "570001", "lat": 12.2958, "lon": 76.6394, "hub": "Mysuru Hub", "minutes": 60},
+    {"name": "Mangaluru (Mangalore)", "city": "Mangaluru", "district": "Dakshina Kannada", "state": "Karnataka", "pin": "575001", "lat": 12.9141, "lon": 74.8560, "hub": "Mangaluru Coastal Hub", "minutes": 60},
+    {"name": "Hubballi-Dharwad", "city": "Hubballi", "district": "Dharwad", "state": "Karnataka", "pin": "580020", "lat": 15.3647, "lon": 75.1240, "hub": "North Karnataka Hub", "minutes": 60},
+    {"name": "Belagavi (Belgaum)", "city": "Belagavi", "district": "Belagavi", "state": "Karnataka", "pin": "590001", "lat": 15.8497, "lon": 74.4977, "hub": "Belagavi Hub", "minutes": 60},
+    {"name": "Kalaburagi (Gulbarga)", "city": "Kalaburagi", "district": "Kalaburagi", "state": "Karnataka", "pin": "585101", "lat": 17.3297, "lon": 76.8343, "hub": "Kalaburagi Hub", "minutes": 60},
+
+    # Tamil Nadu Hubs & Cities
+    {"name": "Chennai Central", "city": "Chennai", "district": "Chennai", "state": "Tamil Nadu", "pin": "600001", "lat": 13.0827, "lon": 80.2707, "hub": "Chennai Fulfillment Hub", "minutes": 60},
+    {"name": "T. Nagar", "city": "Chennai", "district": "Chennai", "state": "Tamil Nadu", "pin": "600017", "lat": 13.0418, "lon": 80.2341, "hub": "Chennai Central Hub", "minutes": 60},
+    {"name": "Adyar / Velachery", "city": "Chennai", "district": "Chennai", "state": "Tamil Nadu", "pin": "600020", "lat": 13.0012, "lon": 80.2565, "hub": "Chennai South Hub", "minutes": 60},
+    {"name": "Coimbatore", "city": "Coimbatore", "district": "Coimbatore", "state": "Tamil Nadu", "pin": "641001", "lat": 11.0168, "lon": 76.9558, "hub": "Coimbatore Textile Hub", "minutes": 60},
+    {"name": "Madurai", "city": "Madurai", "district": "Madurai", "state": "Tamil Nadu", "pin": "625001", "lat": 9.9252, "lon": 78.1198, "hub": "Madurai Hub", "minutes": 60},
+    {"name": "Tiruchirappalli (Trichy)", "city": "Tiruchirappalli", "district": "Tiruchirappalli", "state": "Tamil Nadu", "pin": "620001", "lat": 10.7905, "lon": 78.7047, "hub": "Trichy Hub", "minutes": 60},
+    {"name": "Salem", "city": "Salem", "district": "Salem", "state": "Tamil Nadu", "pin": "636001", "lat": 11.6643, "lon": 78.1460, "hub": "Salem Hub", "minutes": 60},
+    {"name": "Tiruppur", "city": "Tiruppur", "district": "Tiruppur", "state": "Tamil Nadu", "pin": "641601", "lat": 11.1085, "lon": 77.3411, "hub": "Tiruppur Hub", "minutes": 60},
+
+    # Maharashtra Hubs & Cities
+    {"name": "Mumbai Central (Fort / Nariman Point)", "city": "Mumbai", "district": "Mumbai City", "state": "Maharashtra", "pin": "400001", "lat": 18.9322, "lon": 72.8347, "hub": "Mumbai Central Hub", "minutes": 60},
+    {"name": "Bandra West", "city": "Mumbai", "district": "Mumbai Suburban", "state": "Maharashtra", "pin": "400050", "lat": 19.0596, "lon": 72.8295, "hub": "Mumbai West Hub", "minutes": 60},
+    {"name": "Andheri West", "city": "Mumbai", "district": "Mumbai Suburban", "state": "Maharashtra", "pin": "400053", "lat": 19.1136, "lon": 72.8397, "hub": "Mumbai West Hub", "minutes": 60},
+    {"name": "Navi Mumbai (Vashi)", "city": "Navi Mumbai", "district": "Thane", "state": "Maharashtra", "pin": "400703", "lat": 19.0771, "lon": 72.9986, "hub": "Navi Mumbai Hub", "minutes": 60},
+    {"name": "Thane", "city": "Thane", "district": "Thane", "state": "Maharashtra", "pin": "400601", "lat": 19.2183, "lon": 72.9781, "hub": "Thane Hub", "minutes": 60},
+    {"name": "Pune Central (Shivajinagar)", "city": "Pune", "district": "Pune", "state": "Maharashtra", "pin": "411005", "lat": 18.5308, "lon": 73.8475, "hub": "Pune Fulfillment Hub", "minutes": 60},
+    {"name": "Hinjewadi (IT Park)", "city": "Pune", "district": "Pune", "state": "Maharashtra", "pin": "411057", "lat": 18.5913, "lon": 73.7389, "hub": "Pune West Hub", "minutes": 60},
+    {"name": "Kothrud", "city": "Pune", "district": "Pune", "state": "Maharashtra", "pin": "411038", "lat": 18.5074, "lon": 73.8077, "hub": "Pune West Hub", "minutes": 60},
+    {"name": "Viman Nagar", "city": "Pune", "district": "Pune", "state": "Maharashtra", "pin": "411014", "lat": 18.5679, "lon": 73.9143, "hub": "Pune East Hub", "minutes": 60},
+    {"name": "Nagpur", "city": "Nagpur", "district": "Nagpur", "state": "Maharashtra", "pin": "440001", "lat": 21.1458, "lon": 79.0882, "hub": "Nagpur Hub", "minutes": 60},
+    {"name": "Nashik", "city": "Nashik", "district": "Nashik", "state": "Maharashtra", "pin": "422001", "lat": 19.9975, "lon": 73.7898, "hub": "Nashik Hub", "minutes": 60},
+    {"name": "Chhatrapati Sambhajinagar (Aurangabad)", "city": "Chhatrapati Sambhajinagar", "district": "Chhatrapati Sambhajinagar", "state": "Maharashtra", "pin": "431001", "lat": 19.8762, "lon": 75.3433, "hub": "Marathwada Hub", "minutes": 60},
+
+    # Delhi NCR Hubs & Cities
+    {"name": "New Delhi (Connaught Place)", "city": "New Delhi", "district": "New Delhi", "state": "Delhi", "pin": "110001", "lat": 28.6315, "lon": 77.2167, "hub": "Delhi NCR Fulfillment Hub", "minutes": 60},
+    {"name": "South Extension / Lajpat Nagar", "city": "New Delhi", "district": "South Delhi", "state": "Delhi", "pin": "110049", "lat": 28.5727, "lon": 77.2217, "hub": "South Delhi Hub", "minutes": 60},
+    {"name": "Dwarka", "city": "New Delhi", "district": "South West Delhi", "state": "Delhi", "pin": "110075", "lat": 28.5921, "lon": 77.0460, "hub": "West Delhi Hub", "minutes": 60},
+    {"name": "Rohini", "city": "New Delhi", "district": "North West Delhi", "state": "Delhi", "pin": "110085", "lat": 28.7495, "lon": 77.0565, "hub": "North Delhi Hub", "minutes": 60},
+    {"name": "Gurugram (Cyber City / DLF)", "city": "Gurugram", "district": "Gurugram", "state": "Haryana", "pin": "122002", "lat": 28.4595, "lon": 77.0266, "hub": "Gurugram Cyber Hub", "minutes": 60},
+    {"name": "Noida (Sector 18 / Atta)", "city": "Noida", "district": "Gautam Buddha Nagar", "state": "Uttar Pradesh", "pin": "201301", "lat": 28.5708, "lon": 77.3260, "hub": "Noida Commercial Hub", "minutes": 60},
+    {"name": "Ghaziabad", "city": "Ghaziabad", "district": "Ghaziabad", "state": "Uttar Pradesh", "pin": "201001", "lat": 28.6692, "lon": 77.4538, "hub": "Ghaziabad Hub", "minutes": 60},
+    {"name": "Faridabad", "city": "Faridabad", "district": "Faridabad", "state": "Haryana", "pin": "121001", "lat": 28.4089, "lon": 77.3178, "hub": "Faridabad Hub", "minutes": 60},
+
+    # Gujarat Hubs & Cities
+    {"name": "Ahmedabad (Navrangpura / SG Highway)", "city": "Ahmedabad", "district": "Ahmedabad", "state": "Gujarat", "pin": "380009", "lat": 23.0373, "lon": 72.5525, "hub": "Ahmedabad Central Hub", "minutes": 60},
+    {"name": "Gandhinagar", "city": "Gandhinagar", "district": "Gandhinagar", "state": "Gujarat", "pin": "382010", "lat": 23.2156, "lon": 72.6369, "hub": "Gujarat Capital Hub", "minutes": 60},
+    {"name": "Surat", "city": "Surat", "district": "Surat", "state": "Gujarat", "pin": "395003", "lat": 21.1702, "lon": 72.8311, "hub": "Surat Textile Hub", "minutes": 60},
+    {"name": "Vadodara (Baroda)", "city": "Vadodara", "district": "Vadodara", "state": "Gujarat", "pin": "390001", "lat": 22.3072, "lon": 73.1812, "hub": "Vadodara Hub", "minutes": 60},
+    {"name": "Rajkot", "city": "Rajkot", "district": "Rajkot", "state": "Gujarat", "pin": "360001", "lat": 22.3039, "lon": 70.8022, "hub": "Saurashtra Hub", "minutes": 60},
+
+    # West Bengal Hubs & Cities
+    {"name": "Kolkata (Park Street / BBD Bagh)", "city": "Kolkata", "district": "Kolkata", "state": "West Bengal", "pin": "700016", "lat": 22.5555, "lon": 88.3514, "hub": "Kolkata Fulfillment Hub", "minutes": 60},
+    {"name": "Salt Lake / New Town", "city": "Kolkata", "district": "North 24 Parganas", "state": "West Bengal", "pin": "700091", "lat": 22.5867, "lon": 88.4178, "hub": "Kolkata Cyber Hub", "minutes": 60},
+    {"name": "Howrah", "city": "Howrah", "district": "Howrah", "state": "West Bengal", "pin": "711101", "lat": 22.5958, "lon": 88.2636, "hub": "Howrah Hub", "minutes": 60},
+    {"name": "Siliguri", "city": "Siliguri", "district": "Darjeeling", "state": "West Bengal", "pin": "734001", "lat": 26.7271, "lon": 88.3953, "hub": "North Bengal Hub", "minutes": 60},
+
+    # Rajasthan Hubs & Cities
+    {"name": "Jaipur (C-Scheme / Malviya Nagar)", "city": "Jaipur", "district": "Jaipur", "state": "Rajasthan", "pin": "302001", "lat": 26.9124, "lon": 75.7873, "hub": "Jaipur Fulfillment Hub", "minutes": 60},
+    {"name": "Jodhpur", "city": "Jodhpur", "district": "Jodhpur", "state": "Rajasthan", "pin": "342001", "lat": 26.2389, "lon": 73.0243, "hub": "Marwar Hub", "minutes": 60},
+    {"name": "Udaipur", "city": "Udaipur", "district": "Udaipur", "state": "Rajasthan", "pin": "313001", "lat": 24.5854, "lon": 73.7125, "hub": "Udaipur Hub", "minutes": 60},
+    {"name": "Kota", "city": "Kota", "district": "Kota", "state": "Rajasthan", "pin": "324001", "lat": 25.2138, "lon": 75.8648, "hub": "Kota Hub", "minutes": 60},
+
+    # Uttar Pradesh Hubs & Cities
+    {"name": "Lucknow (Hazratganj / Gomti Nagar)", "city": "Lucknow", "district": "Lucknow", "state": "Uttar Pradesh", "pin": "226001", "lat": 26.8467, "lon": 80.9462, "hub": "Lucknow Fulfillment Hub", "minutes": 60},
+    {"name": "Kanpur", "city": "Kanpur", "district": "Kanpur Nagar", "state": "Uttar Pradesh", "pin": "208001", "lat": 26.4499, "lon": 80.3319, "hub": "Kanpur Hub", "minutes": 60},
+    {"name": "Varanasi (Banaras)", "city": "Varanasi", "district": "Varanasi", "state": "Uttar Pradesh", "pin": "221001", "lat": 25.3176, "lon": 82.9739, "hub": "Varanasi Cultural Hub", "minutes": 60},
+    {"name": "Prayagraj (Allahabad)", "city": "Prayagraj", "district": "Prayagraj", "state": "Uttar Pradesh", "pin": "211001", "lat": 25.4358, "lon": 81.8463, "hub": "Prayagraj Hub", "minutes": 60},
+    {"name": "Agra", "city": "Agra", "district": "Agra", "state": "Uttar Pradesh", "pin": "282001", "lat": 27.1767, "lon": 78.0081, "hub": "Agra Hub", "minutes": 60},
+    {"name": "Meerut", "city": "Meerut", "district": "Meerut", "state": "Uttar Pradesh", "pin": "250001", "lat": 28.9845, "lon": 77.7064, "hub": "Meerut Hub", "minutes": 60},
+
+    # Kerala Hubs & Cities
+    {"name": "Kochi / Ernakulam", "city": "Kochi", "district": "Ernakulam", "state": "Kerala", "pin": "682001", "lat": 9.9312, "lon": 76.2673, "hub": "Kochi Port Hub", "minutes": 60},
+    {"name": "Thiruvananthapuram (Trivandrum)", "city": "Thiruvananthapuram", "district": "Thiruvananthapuram", "state": "Kerala", "pin": "695001", "lat": 8.5241, "lon": 76.9366, "hub": "Kerala Capital Hub", "minutes": 60},
+    {"name": "Kozhikode (Calicut)", "city": "Kozhikode", "district": "Kozhikode", "state": "Kerala", "pin": "673001", "lat": 11.2588, "lon": 75.7804, "hub": "Malabar Hub", "minutes": 60},
+
+    # Madhya Pradesh Hubs & Cities
+    {"name": "Indore (Vijay Nagar)", "city": "Indore", "district": "Indore", "state": "Madhya Pradesh", "pin": "452001", "lat": 22.7196, "lon": 75.8577, "hub": "Indore Commercial Hub", "minutes": 60},
+    {"name": "Bhopal (MP Nagar)", "city": "Bhopal", "district": "Bhopal", "state": "Madhya Pradesh", "pin": "462001", "lat": 23.2599, "lon": 77.4126, "hub": "Bhopal Hub", "minutes": 60},
+    {"name": "Gwalior", "city": "Gwalior", "district": "Gwalior", "state": "Madhya Pradesh", "pin": "474001", "lat": 26.2183, "lon": 78.1828, "hub": "Gwalior Hub", "minutes": 60},
+    {"name": "Jabalpur", "city": "Jabalpur", "district": "Jabalpur", "state": "Madhya Pradesh", "pin": "482001", "lat": 23.1815, "lon": 79.9864, "hub": "Jabalpur Hub", "minutes": 60},
+
+    # Punjab & Haryana & Chandigarh
+    {"name": "Chandigarh Central (Sector 17)", "city": "Chandigarh", "district": "Chandigarh", "state": "Chandigarh", "pin": "160017", "lat": 30.7333, "lon": 76.7794, "hub": "Chandigarh Tricity Hub", "minutes": 60},
+    {"name": "Ludhiana", "city": "Ludhiana", "district": "Ludhiana", "state": "Punjab", "pin": "141001", "lat": 30.9010, "lon": 75.8573, "hub": "Ludhiana Industrial Hub", "minutes": 60},
+    {"name": "Amritsar", "city": "Amritsar", "district": "Amritsar", "state": "Punjab", "pin": "143001", "lat": 31.6340, "lon": 74.8723, "hub": "Amritsar Hub", "minutes": 60},
+
+    # Bihar & Jharkhand
+    {"name": "Patna (Bailey Road)", "city": "Patna", "district": "Patna", "state": "Bihar", "pin": "800001", "lat": 25.5941, "lon": 85.1376, "hub": "Patna Fulfillment Hub", "minutes": 60},
+    {"name": "Ranchi", "city": "Ranchi", "district": "Ranchi", "state": "Jharkhand", "pin": "834001", "lat": 23.3441, "lon": 85.3096, "hub": "Ranchi Hub", "minutes": 60},
+    {"name": "Jamshedpur (Tatanagar)", "city": "Jamshedpur", "district": "East Singhbhum", "state": "Jharkhand", "pin": "831001", "lat": 22.8046, "lon": 86.2029, "hub": "Jamshedpur Hub", "minutes": 60},
+
+    # Odisha & Chhattisgarh
+    {"name": "Bhubaneswar", "city": "Bhubaneswar", "district": "Khordha", "state": "Odisha", "pin": "751001", "lat": 20.2961, "lon": 85.8245, "hub": "Bhubaneswar Smart Hub", "minutes": 60},
+    {"name": "Raipur", "city": "Raipur", "district": "Raipur", "state": "Chhattisgarh", "pin": "492001", "lat": 21.2514, "lon": 81.6296, "hub": "Raipur Central Hub", "minutes": 60},
+
+    # Assam & North East & Goa
+    {"name": "Guwahati (GS Road)", "city": "Guwahati", "district": "Kamrup Metropolitan", "state": "Assam", "pin": "781001", "lat": 26.1445, "lon": 91.7362, "hub": "North East Hub", "minutes": 60},
+    {"name": "Panaji (Panjim)", "city": "Panaji", "district": "North Goa", "state": "Goa", "pin": "403001", "lat": 15.4909, "lon": 73.8278, "hub": "Goa Hub", "minutes": 60},
+    {"name": "Dehradun", "city": "Dehradun", "district": "Dehradun", "state": "Uttarakhand", "pin": "248001", "lat": 30.3165, "lon": 78.0322, "hub": "Uttarakhand Hub", "minutes": 60},
+    {"name": "Shimla", "city": "Shimla", "district": "Shimla", "state": "Himachal Pradesh", "pin": "171001", "lat": 31.1048, "lon": 77.1734, "hub": "Himachal Hub", "minutes": 60},
+    {"name": "Srinagar", "city": "Srinagar", "district": "Srinagar", "state": "Jammu and Kashmir", "pin": "190001", "lat": 34.0837, "lon": 74.7973, "hub": "Kashmir Hub", "minutes": 60},
+    {"name": "Puducherry (Pondicherry)", "city": "Puducherry", "district": "Puducherry", "state": "Puducherry", "pin": "605001", "lat": 11.9416, "lon": 79.8083, "hub": "Puducherry Hub", "minutes": 60},
 ]
 
 # Comprehensive Indian Postal Region Mapping (All 2-digit circles)
@@ -348,8 +494,8 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
         pass
 
     # Hybrid Delivery Resolution:
-    # 1. Local Express Delivery for nearby customers (<= 35 km)
-    local_delivery_radius_km = 35.0
+    # 1. Local Express Delivery for nearby customers (<= 60 km)
+    local_delivery_radius_km = 60.0
     is_local_eligible = road_dist <= local_delivery_radius_km
 
     if is_local_eligible:
@@ -374,14 +520,22 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             est_minutes = 20
         elif road_dist <= 15.0:
             est_minutes = 30
-        else:
+        elif road_dist <= 35.0:
             est_minutes = 45
+        else:
+            est_minutes = 75
 
         serv_hub = "Sri Aditya Organics & Oil Mill (Kothagudem)"
         serv_msg = f"Local Express Delivery Available (~{road_dist:.1f} km from Kothagudem Mill)"
     else:
-        # 2. Nationwide Courier Delivery for all Indian addresses outside local radius
+        # 2. Nationwide Courier Delivery for all Indian addresses outside local 60 km radius
         clean_pin = (resolved_pin or "").strip()
+        if not is_valid_indian_pincode(clean_pin):
+            closest_cluster = min(KNOWN_LOCALITY_CLUSTERS, key=lambda c: calculate_distance(lat, lon, c["lat"], c["lon"])) if KNOWN_LOCALITY_CLUSTERS else None
+            if closest_cluster and calculate_distance(lat, lon, closest_cluster["lat"], closest_cluster["lon"]) <= 60.0:
+                clean_pin = closest_cluster["pin"]
+                resolved_pin = clean_pin
+
         if is_valid_indian_pincode(clean_pin):
             courier_quote = calculate_courier_shipping(
                 dest_pincode=clean_pin,
@@ -400,19 +554,20 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
             calculated_fee = float(courier_quote.get("shipping_fee", 49.0))
             matched_slab = courier_quote.get("zone_name", "Nationwide Courier Zone")
             serv_hub = f"Sri Adithya Organics Central Fulfillment Facility → {resolved_city} ({courier_partner})"
-            serv_msg = courier_quote.get("message", "Nationwide Courier Available")
+            serv_msg = courier_quote.get("message", f"Nationwide Courier Available ({courier_partner} • {estimated_days})")
         else:
-            delivery_mode = "unserviceable"
+            # Beyond 60km without confirmed 6-digit PIN: Serviceable via Nationwide Courier upon PIN confirmation
+            delivery_mode = "nationwide_courier"
             delivery_type = "Nationwide Courier Shipping"
-            is_serviceable = False
-            courier_partner = None
-            estimated_days = None
-            parcel_weight = None
-            est_minutes = 0
-            calculated_fee = 0.0
-            matched_slab = None
-            serv_hub = "Out of Delivery Range"
-            serv_msg = "Please verify your 6-digit Indian PIN code for courier serviceability."
+            is_serviceable = True
+            courier_partner = "Delhivery"
+            estimated_days = "2–4 Business Days"
+            parcel_weight = 1.0
+            est_minutes = 48 * 60
+            calculated_fee = 49.0
+            matched_slab = "Nationwide Courier Standard"
+            serv_hub = f"Sri Adithya Organics Central Fulfillment Facility → {resolved_city} (Delhivery)"
+            serv_msg = "Pan-India delivery available via Courier. Please confirm your 6-digit postal PIN code."
 
     out = ReverseGeocodeOut(
         latitude=lat,
@@ -453,30 +608,110 @@ def reverse_geocode(geo: ReverseGeocodeRequest):
     return out
 
 
-@router.get("/search", response_model=List[AddressSearchResultItem])
-def search_address(query: str = Query(..., min_length=2)):
-    results = []
-    seen_places = set()
-    q_clean = query.strip()
-    encoded = urllib.parse.quote(q_clean)
+SEARCH_ADDRESS_CACHE: Dict[str, List[AddressSearchResultItem]] = {}
 
-    # 1. Photon search (Komoot OSM) — fast and reliable
+
+@router.get("/search", response_model=List[AddressSearchResultItem])
+def search_address(query: Optional[str] = Query(None), q: Optional[str] = Query(None)):
+    raw_query = ""
+    if isinstance(query, str) and query.strip():
+        raw_query = query.strip()
+    elif isinstance(q, str) and q.strip():
+        raw_query = q.strip()
+
+    if not raw_query or len(raw_query) < 2:
+        return []
+
+    q_clean = raw_query
+
+    cache_key = q_clean.lower()
+    if cache_key in SEARCH_ADDRESS_CACHE:
+        return SEARCH_ADDRESS_CACHE[cache_key]
+
+    results: List[AddressSearchResultItem] = []
+    seen_places = set()
+    q_lower = q_clean.lower()
+
+    # 1. Fast match against Pan-India clusters & major Indian cities
+    for c in KNOWN_LOCALITY_CLUSTERS:
+        c_name = c["name"].lower()
+        c_city = c["city"].lower()
+        c_dist = (c.get("district") or "").lower()
+        c_state = c["state"].lower()
+        c_pin = c["pin"]
+
+        is_match = (
+            q_lower == c_pin
+            or q_lower in c_name
+            or q_lower in c_city
+            or q_lower in c_dist
+            or q_lower in c_state
+            or (len(q_clean) >= 3 and (c_name.startswith(q_lower) or c_city.startswith(q_lower) or c_pin.startswith(q_clean)))
+        )
+
+        if is_match:
+            key = (round(c["lat"], 3), round(c["lon"], 3))
+            if key not in seen_places:
+                seen_places.add(key)
+                dist_label = f", {c['district']}" if c.get("district") and c["district"] != c["city"] else ""
+                disp = f"{c['name']}, {c['city']}{dist_label}, {c['state']} - {c['pin']}"
+                results.append(AddressSearchResultItem(
+                    place_id=f"cluster_{c['pin']}_{c['lat']}",
+                    formatted_address=disp,
+                    locality=c["name"],
+                    city=c["city"],
+                    district=c.get("district"),
+                    state=c["state"],
+                    postal_code=c["pin"],
+                    latitude=c["lat"],
+                    longitude=c["lon"]
+                ))
+
+    # 2. Smart Indian PIN code matching
+    clean_digits = re.sub(r"\D", "", q_clean)
+    if len(clean_digits) == 6:
+        if not any(r.postal_code == clean_digits for r in results):
+            circle_prefix = clean_digits[:2]
+            if circle_prefix in PIN_REGION_MAP:
+                reg_city, reg_state = PIN_REGION_MAP[circle_prefix]
+                closest_circle_cluster = next((c for c in KNOWN_LOCALITY_CLUSTERS if c["pin"][:2] == circle_prefix), None)
+                p_lat = closest_circle_cluster["lat"] if closest_circle_cluster else 17.5376
+                p_lon = closest_circle_cluster["lon"] if closest_circle_cluster else 80.6210
+                results.insert(0, AddressSearchResultItem(
+                    place_id=f"pin_{clean_digits}",
+                    formatted_address=f"PIN {clean_digits}, {reg_city}, {reg_state}",
+                    locality=f"Postal Sector {clean_digits}",
+                    city=reg_city,
+                    district=reg_city,
+                    state=reg_state,
+                    postal_code=clean_digits,
+                    latitude=p_lat,
+                    longitude=p_lon
+                ))
+
+    # 3. Live Geocoding via Photon (Komoot OSM)
+    encoded = urllib.parse.quote(q_clean)
     try:
         p_url = f"https://photon.komoot.io/api/?q={encoded}&limit=8"
         req = urllib.request.Request(p_url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0"})
-        with urllib.request.urlopen(req, timeout=3.5) as resp:
+        with urllib.request.urlopen(req, timeout=3.0) as resp:
             if resp.status == 200:
                 p_data = json.loads(resp.read().decode("utf-8"))
                 for feat in p_data.get("features", []):
                     props = feat.get("properties", {})
+                    c_code = props.get("countrycode") or props.get("country")
+                    if c_code and str(c_code).upper() not in ("IN", "INDIA"):
+                        continue
                     coords = feat.get("geometry", {}).get("coordinates", [])
                     if len(coords) >= 2:
                         lon_val, lat_val = float(coords[0]), float(coords[1])
+                        if not (6.0 <= lat_val <= 38.0 and 68.0 <= lon_val <= 98.0):
+                            continue
                         key = (round(lat_val, 3), round(lon_val, 3))
                         if key not in seen_places:
                             seen_places.add(key)
                             name_val = props.get("name") or props.get("street") or q_clean
-                            city_val = props.get("city") or props.get("county") or ""
+                            city_val = props.get("city") or props.get("town") or props.get("county") or ""
                             dist_val = props.get("county") or props.get("district") or ""
                             state_val = props.get("state") or ""
                             pin_val = props.get("postcode") or ""
@@ -498,8 +733,8 @@ def search_address(query: str = Query(..., min_length=2)):
     except Exception:
         pass
 
-    # 2. Nominatim search (Pan-India) if needed
-    if len(results) < 4:
+    # 4. Live Geocoding via Nominatim (Pan-India OpenStreetMap) if needed
+    if len(results) < 5:
         try:
             url = f"https://nominatim.openstreetmap.org/search?q={encoded}&format=json&addressdetails=1&countrycodes=in&limit=8"
             req = urllib.request.Request(url, headers={"User-Agent": "SriAdithyaOrganicsPlatform/2.0 (care@sriadithyaorganics.com)"})
@@ -531,25 +766,11 @@ def search_address(query: str = Query(..., min_length=2)):
         except Exception:
             pass
 
-    # 3. Known locality clusters
-    q_lower = q_clean.lower()
-    for c in KNOWN_LOCALITY_CLUSTERS:
-        if q_lower in c["name"].lower() or q_lower in c["city"].lower() or q_lower == c["pin"]:
-            key = (round(c["lat"], 3), round(c["lon"], 3))
-            if key not in seen_places:
-                seen_places.add(key)
-                results.append(AddressSearchResultItem(
-                    place_id=f"cluster_{c['pin']}",
-                    formatted_address=f"{c['name']}, {c['city']}, {c['state']} - {c['pin']}",
-                    locality=c["name"],
-                    city=c["city"],
-                    district=c.get("district"),
-                    state=c["state"],
-                    postal_code=c["pin"],
-                    latitude=c["lat"],
-                    longitude=c["lon"]
-                ))
-    return results
+    if len(SEARCH_ADDRESS_CACHE) > 500:
+        SEARCH_ADDRESS_CACHE.clear()
+    final_results = results[:12]
+    SEARCH_ADDRESS_CACHE[cache_key] = final_results
+    return final_results
 
 
 @router.post("/check-serviceability", response_model=ServiceabilityCheckOut)
@@ -560,7 +781,7 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
     std_fee = 39.0
     store_lat = 17.5376
     store_lon = 80.6210
-    delivery_radius_km = 35.0
+    delivery_radius_km = 60.0
     max_express_radius_km = 15.0
     store_addr = "Sri Aditya Organics & Oil Mill, Jilla Parishad Complex, Babu Camp Road, Ganeshbasthi, Opp. Babu Camp Ramalayam, Kothagudem, Telangana 507101"
     store_maps = "https://share.google/e1aO3V8FJQ7USIKzU"
@@ -597,7 +818,7 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
             is_serviceable=False,
             status="Address Verification Required",
             postal_code=pin,
-            city="Telangana",
+            city="India",
             locality="Delivery Area",
             estimated_delivery_minutes=0,
             delivery_fee=std_fee,
@@ -646,9 +867,9 @@ async def check_serviceability(req: ServiceabilityCheckRequest, d1: D1Database =
         hub = matching_cluster["hub"]
     else:
         reg = PIN_REGION_MAP.get(pin[:2])
-        city = reg[0] if reg else "Telangana"
+        city = reg[0] if reg else "India"
         locality = f"PIN {pin}"
-        hub = "Sri Aditya Organics Regional Fulfillment Hub"
+        hub = f"Sri Adithya Organics Central Fulfillment Facility → {city}"
 
     subtotal = float(req.cart_subtotal or 0.0)
 

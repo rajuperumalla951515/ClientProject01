@@ -20,7 +20,7 @@ STORE_LOCATION_COLUMNS = {
     "store_latitude": "REAL DEFAULT 17.5376",
     "store_longitude": "REAL DEFAULT 80.6210",
     "store_maps_url": "TEXT DEFAULT 'https://share.google/e1aO3V8FJQ7USIKzU'",
-    "delivery_radius_km": "REAL DEFAULT 35.0",
+    "delivery_radius_km": "REAL DEFAULT 60.0",
     "max_express_radius_km": "REAL DEFAULT 15.0",
     "distance_slabs_json": "TEXT DEFAULT '[{\"min_km\":0,\"max_km\":2,\"fee\":20},{\"min_km\":2,\"max_km\":4,\"fee\":30},{\"min_km\":4,\"max_km\":6,\"fee\":40},{\"min_km\":6,\"max_km\":8,\"fee\":50},{\"min_km\":8,\"max_km\":10,\"fee\":60},{\"min_km\":10,\"max_km\":15,\"fee\":75},{\"min_km\":15,\"max_km\":35,\"fee\":99},{\"min_km\":35,\"max_km\":60,\"fee\":149}]'",
     "courier_enabled": "INTEGER DEFAULT 1",
@@ -54,6 +54,12 @@ async def ensure_store_settings_schema(d1: D1Database):
                 await d1.execute("ALTER TABLE orders ADD COLUMN distance_km REAL DEFAULT NULL")
             except Exception:
                 pass
+
+        # Migrate previous default delivery_radius_km 35.0 to 60.0
+        try:
+            await d1.execute("UPDATE delivery_settings SET delivery_radius_km = 60.0 WHERE delivery_radius_km = 35.0")
+        except Exception:
+            pass
     except Exception as e:
         print(f"[Settings] Migration notice: {e}")
 
@@ -85,7 +91,7 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
             17.5376,
             80.6210,
             "https://share.google/e1aO3V8FJQ7USIKzU",
-            35.0,
+            60.0,
             15.0
         )
         setting = await d1.fetch_one("SELECT * FROM delivery_settings WHERE id = ?", sid)
@@ -104,7 +110,7 @@ async def get_store_settings(d1: D1Database = Depends(get_d1)):
         "store_latitude": 17.5376,
         "store_longitude": 80.6210,
         "store_maps_url": "https://share.google/e1aO3V8FJQ7USIKzU",
-        "delivery_radius_km": 35.0,
+        "delivery_radius_km": 60.0,
         "max_express_radius_km": 15.0,
         "distance_slabs_json": '[{"min_km":0,"max_km":2,"fee":20},{"min_km":2,"max_km":4,"fee":30},{"min_km":4,"max_km":6,"fee":40},{"min_km":6,"max_km":8,"fee":50},{"min_km":8,"max_km":10,"fee":60},{"min_km":10,"max_km":15,"fee":75},{"min_km":15,"max_km":35,"fee":99},{"min_km":35,"max_km":60,"fee":149}]',
         "courier_enabled": 1,

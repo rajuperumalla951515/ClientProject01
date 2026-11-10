@@ -11,16 +11,22 @@ import { Address, AddressSearchResult } from '../types';
 import { validateAndNormalizeIndianPhone } from '../utils/phoneUtils';
 
 const POPULAR_LOCALITIES = [
-  { name: 'Kothagudem (Babu Camp / Ganeshbasthi)', city: 'Kothagudem', pin: '507101' },
+  { name: 'Kothagudem (Babu Camp)', city: 'Kothagudem', pin: '507101' },
   { name: 'Palwancha', city: 'Bhadradri Kothagudem', pin: '507115' },
-  { name: 'Bhadrachalam', city: 'Bhadradri Kothagudem', pin: '507111' },
-  { name: 'Yellandu', city: 'Bhadradri Kothagudem', pin: '507123' },
   { name: 'Khammam Central', city: 'Khammam', pin: '507001' },
-  { name: 'Jubilee Hills', city: 'Hyderabad', pin: '500033' },
+  { name: 'Ghatkesar', city: 'Telangana', pin: '501301' },
+  { name: 'Warangal', city: 'Warangal', pin: '506001' },
+  { name: 'Karimnagar', city: 'Karimnagar', pin: '505001' },
+  { name: 'HITEC City / Madhapur', city: 'Hyderabad', pin: '500081' },
   { name: 'Banjara Hills', city: 'Hyderabad', pin: '500034' },
-  { name: 'Madhapur (HITEC City)', city: 'Hyderabad', pin: '500081' },
-  { name: 'Gachibowli', city: 'Hyderabad', pin: '500032' },
-  { name: 'Warangal / Hanamkonda', city: 'Warangal', pin: '506001' },
+  { name: 'Vijayawada', city: 'Andhra Pradesh', pin: '520001' },
+  { name: 'Visakhapatnam', city: 'Andhra Pradesh', pin: '530001' },
+  { name: 'Bengaluru (Bangalore)', city: 'Karnataka', pin: '560001' },
+  { name: 'Chennai', city: 'Tamil Nadu', pin: '600001' },
+  { name: 'Mumbai', city: 'Maharashtra', pin: '400001' },
+  { name: 'Pune', city: 'Maharashtra', pin: '411005' },
+  { name: 'New Delhi', city: 'Delhi NCR', pin: '110001' },
+  { name: 'Kolkata', city: 'West Bengal', pin: '700016' },
 ];
 
 export const LocationModal: React.FC = () => {
@@ -300,7 +306,7 @@ export const LocationModal: React.FC = () => {
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search apartment, street, or locality in India..."
+                  placeholder="Search any city, area, PIN code or address in India (e.g. Ghatkesar, Bengaluru, 501301)..."
                   className="w-full pl-10 pr-9 py-2.5 rounded-xl border border-stone-200 bg-stone-50/50 hover:bg-white focus:bg-white text-xs sm:text-sm font-medium focus:outline-none focus:border-rootly-forest focus:ring-1 focus:ring-rootly-forest transition-all placeholder:text-stone-400"
                 />
                 {isSearching ? (

@@ -4,6 +4,7 @@ import {
   Building, Compass, CheckCircle2, RefreshCw
 } from 'lucide-react';
 import { useLocation } from '../context/LocationContext';
+import { useStoreSettings } from '../context/SettingsContext';
 import { InteractiveDeliveryMap } from './InteractiveDeliveryMap';
 
 export const DeliveryConfirmationModal: React.FC = () => {
@@ -19,6 +20,7 @@ export const DeliveryConfirmationModal: React.FC = () => {
     dismissConfirmation,
   } = useLocation();
 
+  const { settings } = useStoreSettings();
   const [flatNumber, setFlatNumber] = useState('');
   const [landmark, setLandmark] = useState('');
 
@@ -26,9 +28,10 @@ export const DeliveryConfirmationModal: React.FC = () => {
     return null;
   }
 
+  const localRadiusKm = settings?.delivery_radius_km || 60.0;
   const currentLat = pinCoordinates?.lat ?? detectedLocation.latitude;
   const currentLon = pinCoordinates?.lon ?? detectedLocation.longitude;
-  const isCourier = detectedLocation.delivery_mode === 'nationwide_courier' || (detectedLocation.distance_km !== null && detectedLocation.distance_km !== undefined && detectedLocation.distance_km > 35.0);
+  const isCourier = detectedLocation.delivery_mode === 'nationwide_courier' || (detectedLocation.distance_km !== null && detectedLocation.distance_km !== undefined && detectedLocation.distance_km > localRadiusKm);
   const isExpress = !isCourier && detectedLocation.is_serviceable && detectedLocation.estimated_delivery_minutes > 0 && detectedLocation.estimated_delivery_minutes <= 30;
 
   const handleConfirm = () => {

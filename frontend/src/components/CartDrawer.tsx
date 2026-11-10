@@ -6,16 +6,19 @@ import { WhatsAppCheckoutModal } from './WhatsAppCheckoutModal';
 import { useCart } from '../context/CartContext';
 import { useAuth } from '../context/AuthContext';
 import { useLocation } from '../context/LocationContext';
+import { useStoreSettings } from '../context/SettingsContext';
 
 export const CartDrawer: React.FC = () => {
   const navigate = useNavigate();
   const { cart, isDrawerOpen, closeDrawer, incrementItem, decrementItem, setItemQuantity } = useCart();
   const { user, openLoginModal } = useAuth();
   const { locationLabel, openLocationModal, distanceKm, matchedSlab, deliveryFee: locationDeliveryFee, deliveryMode } = useLocation();
+  const { settings } = useStoreSettings();
   const [isWhatsAppOpen, setIsWhatsAppOpen] = useState(false);
 
-  // Delivery Mode and Free Delivery Threshold evaluation
-  const isCourier = deliveryMode === 'nationwide_courier' || (distanceKm !== null && distanceKm > 35.0);
+  // Delivery Mode and Free Delivery Threshold evaluation (Local radius up to 60 km, Nationwide Courier above)
+  const localRadiusKm = settings?.delivery_radius_km || 60.0;
+  const isCourier = deliveryMode === 'nationwide_courier' || (distanceKm !== null && distanceKm > localRadiusKm);
   const effectiveFreeThreshold = isCourier ? 999 : (cart.free_delivery_threshold || 499);
   const isFreeDelivery = cart.subtotal > 0 && cart.subtotal >= effectiveFreeThreshold;
   const amountNeeded = Math.max(0, Math.round((effectiveFreeThreshold - cart.subtotal) * 100) / 100);

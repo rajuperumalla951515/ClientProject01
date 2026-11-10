@@ -388,7 +388,7 @@ class DeliverySettingOut(BaseModel):
     store_latitude: Optional[float] = 17.5376
     store_longitude: Optional[float] = 80.6210
     store_maps_url: Optional[str] = "https://share.google/e1aO3V8FJQ7USIKzU"
-    delivery_radius_km: Optional[float] = 35.0
+    delivery_radius_km: Optional[float] = 60.0
     max_express_radius_km: Optional[float] = 15.0
     distance_slabs_json: Optional[str] = None
     courier_enabled: Optional[bool] = True
