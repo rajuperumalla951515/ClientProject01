@@ -122,21 +122,6 @@
   }
 }
 
-/* Premium Ken Burns gentle zoom for active hero banner slide */
-@keyframes kenburns-zoom {
-  0% {
-    transform: scale(1);
-  }
-  100% {
-    transform: scale(1.045);
-  }
-}
-
-.animate-ken-burns {
-  animation: kenburns-zoom 5.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-  will-change: transform;
-}
-
 /* Subtle progress bar animation for active carousel indicator */
 @keyframes carousel-progress {
   0% {
@@ -156,10 +141,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .animate-ken-burns {
-    animation: none !important;
-    transform: none !important;
-  }
   .animate-carousel-progress {
     animation: none !important;
     width: 100% !important;
