@@ -7,6 +7,7 @@ import {
 import { api } from '../services/api';
 import { Category, Product } from '../types';
 import { ProductCard, ProductCardSkeleton } from '../components/ProductCard';
+import { MainHeroBannerCarousel } from '../components/MainHeroBannerCarousel';
 import { getShortNavLabel } from '../utils/navigationLabels';
 
 export const HomePage: React.FC = () => {
@@ -48,104 +49,51 @@ export const HomePage: React.FC = () => {
   return (
     <div className="w-full space-y-10 sm:space-y-14 pb-16 overflow-x-hidden">
       
-      {/* 1. HERO SECTION - Expansive Full-Width Experience */}
-      <section className="relative overflow-hidden bg-gradient-to-b from-[#F3EFEA] via-[#FAF8F5] to-white pt-4 pb-8 sm:py-14 border-b border-[#E6E7DD]">
-        <div className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10 xl:gap-14 items-center">
-            
-            {/* Left Content */}
-            <div className="lg:col-span-7 space-y-4 sm:space-y-5 text-center lg:text-left">
-              <div className="inline-flex items-center gap-1.5 sm:gap-2 px-3 py-1 rounded-full bg-[#244B37] text-white text-[11px] sm:text-xs font-semibold shadow-sm max-w-full">
-                <Sparkles className="w-3.5 h-3.5 text-amber-300 shrink-0" />
-                <span className="font-bold">Sri Adithya Organics</span>
-                <span className="w-1 h-1 rounded-full bg-emerald-400 shrink-0" />
-                <span className="text-emerald-100 truncate">Traditional Wood-Pressed & Pure Organics</span>
-              </div>
+      {/* 1. HERO SECTION - Premium Animated Main Banner Carousel & Trust Strip */}
+      <section className="w-full max-w-[1600px] mx-auto px-3.5 sm:px-6 lg:px-8 xl:px-10 pt-3 sm:pt-6 space-y-4 sm:space-y-6">
+        {/* Animated Hero Carousel with Subtle Ken Burns Zoom & One-Slide Transitions */}
+        <MainHeroBannerCarousel />
 
-              <h1 className="font-display font-black text-2xl xs:text-3xl sm:text-5xl lg:text-5xl xl:text-6xl text-stone-900 tracking-tight leading-[1.12]">
-                Pure from Nature, <br />
-                <span className="text-[#244B37] italic font-serif font-normal">Cold-Pressed with Heritage.</span>
-              </h1>
-
-              <p className="text-stone-600 text-xs sm:text-base max-w-2xl mx-auto lg:mx-0 leading-relaxed">
-                Welcome to <strong>Sri Adithya Organics</strong>. Authentic wood-pressed edible oils (Marachekku), farm-fresh chemical-free produce, heirloom millets, unpolished pulses, and pure A2 cow ghee delivered fresh to your doorstep in minutes.
-              </p>
-
-              {/* Quick CTAs */}
-              <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 sm:gap-3.5 pt-1">
-                <Link
-                  to="/products?category=cold-pressed-oils"
-                  className="px-5 sm:px-6 py-3 rounded-2xl bg-[#244B37] hover:bg-[#1a3627] text-white font-black text-xs sm:text-sm shadow-lift hover:shadow-card transition-all flex items-center gap-2 group min-h-[44px]"
-                >
-                  <Droplet className="w-4 h-4 text-amber-300" />
-                  <span>Shop Wood-Pressed Oils</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </Link>
-
-                <Link
-                  to="/products"
-                  className="px-5 sm:px-6 py-3 rounded-2xl bg-white hover:bg-stone-50 text-stone-800 font-bold text-xs sm:text-sm border border-stone-200 shadow-sm transition-all min-h-[44px] flex items-center"
-                >
-                  Explore All Groceries
-                </Link>
-              </div>
-
-              {/* Trust Badges */}
-              <div className="pt-2 grid grid-cols-3 gap-2 sm:gap-3 max-w-lg mx-auto lg:mx-0 text-left">
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
-                    <Zap className="w-3.5 h-3.5 text-amber-500 shrink-0" />
-                    <span>15-30 Mins</span>
-                  </p>
-                  <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Express delivery</p>
-                </div>
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
-                    <Award className="w-3.5 h-3.5 text-[#244B37] shrink-0" />
-                    <span>Marachekku</span>
-                  </p>
-                  <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Wood ghani pressed</p>
-                </div>
-                <div className="p-2 sm:p-2.5 rounded-xl bg-white/90 border border-[#E6E7DD] shadow-soft">
-                  <p className="text-[11px] sm:text-xs font-black text-[#244B37] flex items-center gap-1">
-                    <Leaf className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>100% Pure</span>
-                  </p>
-                  <p className="text-[9px] sm:text-[10px] text-stone-500 font-medium">Zero chemical</p>
-                </div>
-              </div>
+        {/* Organic Trust Pillars Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5 sm:gap-4">
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700 shrink-0">
+              <Zap className="w-4 h-4 sm:w-5 sm:h-5 text-amber-500 fill-amber-500" />
             </div>
-
-            {/* Right Hero Visual Banner */}
-            <div className="lg:col-span-5 relative">
-              <div className="relative mx-auto max-w-md lg:max-w-none rounded-3xl overflow-hidden shadow-2xl border-4 border-white bg-white">
-                <img
-                  src="/products/sri-adithya-wood-pressed-groundnut-oil.jpg"
-                  alt="Sri Adithya Wood-Pressed Cold-Pressed Groundnut Oil"
-                  className="w-full h-80 sm:h-96 object-cover hover:scale-105 transition-transform duration-700"
-                />
-                
-                {/* Overlay Floating Card */}
-                <div className="absolute bottom-3 left-3 right-3 p-3 rounded-2xl bg-white/95 backdrop-blur-md border border-stone-200 shadow-lift flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200/80 flex items-center justify-center text-amber-700">
-                      <Droplet className="w-5 h-5 text-amber-600 fill-amber-500" />
-                    </div>
-                    <div>
-                      <p className="text-xs font-bold text-stone-900">Flagship Wood-Pressed Groundnut Oil</p>
-                      <p className="text-[10px] text-stone-500">100% Traditional Marachekku Extraction</p>
-                    </div>
-                  </div>
-                  <Link
-                    to="/products/wood-pressed-groundnut-oil"
-                    className="p-2 rounded-xl bg-[#244B37] text-white hover:bg-[#1a3627] transition-all"
-                  >
-                    <ChevronRight className="w-4 h-4" />
-                  </Link>
-                </div>
-              </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-black text-[#1B3B22] truncate">15–30 Mins Express</p>
+              <p className="text-[10px] sm:text-[11px] text-stone-500 truncate">Local Mill delivery & Pan-India Courier</p>
             </div>
+          </div>
 
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-[#1B3B22] shrink-0">
+              <Award className="w-4 h-4 sm:w-5 sm:h-5 text-[#1B3B22]" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-black text-[#1B3B22] truncate">Ancestral Marachekku</p>
+              <p className="text-[10px] sm:text-[11px] text-stone-500 truncate">Wood ghani pressed below 40°C</p>
+            </div>
+          </div>
+
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-50 border border-emerald-200/80 flex items-center justify-center text-emerald-700 shrink-0">
+              <Leaf className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-black text-[#1B3B22] truncate">100% Pure & Unrefined</p>
+              <p className="text-[10px] sm:text-[11px] text-stone-500 truncate">Zero hexanes & zero chemicals</p>
+            </div>
+          </div>
+
+          <div className="p-3 sm:p-3.5 rounded-2xl bg-white border border-[#E6E7DD] shadow-soft flex items-center gap-3">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center text-stone-700 shrink-0">
+              <Droplet className="w-4 h-4 sm:w-5 sm:h-5 text-amber-600 fill-amber-500" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs sm:text-sm font-black text-[#1B3B22] truncate">Bottled at Source</p>
+              <p className="text-[10px] sm:text-[11px] text-stone-500 truncate">Fresh batch from Kothagudem Mill</p>
+            </div>
           </div>
         </div>
       </section>
