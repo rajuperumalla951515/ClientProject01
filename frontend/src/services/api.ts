@@ -8,6 +8,9 @@ const getApiBase = (): string => {
   if (envUrl) {
     return `${envUrl.replace(/\/$/, '')}/api`;
   }
+  if ((import.meta as any).env?.DEV) {
+    return '/api';
+  }
   return 'https://sriadithyaorganics.devraj951515.workers.dev/api';
 };
 export const API_BASE = getApiBase();
@@ -56,6 +59,10 @@ export function setAuthToken(token: string | null) {
 
 export function prewarmBackend(): void {
   try {
+    if (API_BASE === '/api') {
+      fetch('/api/health', { method: 'GET' }).catch(() => {});
+      return;
+    }
     const rootUrl = API_BASE.replace(/\/api$/, '');
     fetch(`${rootUrl}/health/live`, { method: 'GET' }).catch(() => {});
   } catch {}
@@ -495,5 +502,25 @@ export const api = {
     const encoded = encodeURIComponent(phone.trim());
     return request(`/auth/phone/status?phone=${encoded}`);
   },
-};
 
+  async askCustomerSupport(
+    question: string,
+    conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  ): Promise<{
+    answer: string;
+    topic: string;
+    verified_data: any;
+    requires_authentication: boolean;
+    provider?: string;
+    model?: string;
+  }> {
+    return request('/ai/support/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        conversation_history: conversationHistory.slice(-6),
+      }),
+    });
+  },
+
+};

@@ -16,6 +16,7 @@ import { InitialLocationBanner } from './components/InitialLocationBanner';
 import { AuthModal } from './components/AuthModal';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { MobileFloatingCartBar } from './components/MobileFloatingCartBar';
+import { CustomerSupportWidget } from './components/CustomerSupportWidget';
 
 import { HomePage } from './pages/HomePage';
 
@@ -114,6 +115,7 @@ function AppLayout() {
       <LocationModal />
       <DeliveryConfirmationModal />
       <AuthModal />
+      <CustomerSupportWidget />
     </div>
   );
 }
@@ -139,4 +141,3 @@ export function App() {
 }
 
 export default App;
-

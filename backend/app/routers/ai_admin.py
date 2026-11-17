@@ -20,6 +20,7 @@ from backend.app.ai.http_client import http_client
 from backend.app.ai.content_studio import content_studio
 from backend.app.ai.promotions import promotion_intelligence
 from backend.app.ai.assistant import bi_assistant
+from backend.app.ai.inventory_agent import inventory_agent
 from backend.app.ai.approvals import action_approvals
 from backend.app.ai_migrations import ensure_ai_tables
 
@@ -121,6 +122,10 @@ class PriceApprovalProposalRequest(BaseModel):
 
 class ApprovalResolveRequest(BaseModel):
     approved: bool
+
+class InventoryChatRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2000)
+    conversation_history: Optional[List[Dict[str, str]]] = None
 
 
 # --- Provider Health & Quotas ---
@@ -469,6 +474,36 @@ async def assistant_chat(
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=str(e))
+
+
+@router.get("/inventory/summary")
+async def inventory_summary(
+    d1: D1Database = Depends(get_d1),
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+):
+    """Returns deterministic, read-only inventory intelligence for the dashboard."""
+    try:
+        return await inventory_agent.get_inventory_snapshot(d1)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Inventory analysis failed: {exc}")
+
+
+@router.post("/inventory/chat")
+async def inventory_chat(
+    payload: InventoryChatRequest,
+    d1: D1Database = Depends(get_d1),
+    current_admin: Dict[str, Any] = Depends(get_current_admin),
+):
+    """Answers admin inventory questions without changing stock."""
+    try:
+        return await inventory_agent.ask(
+            d1=d1,
+            question=payload.question.strip(),
+            admin_id=int(current_admin["id"]),
+            conversation_history=(payload.conversation_history or [])[-6:],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Inventory assistant failed: {exc}")
 
 
 @router.post("/pricing/suggest-offers")

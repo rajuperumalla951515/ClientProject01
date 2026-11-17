@@ -328,6 +328,23 @@ class ApiClient {
     return this.request<InventoryLog[]>(`/admin/inventory/logs?limit=${limit}&offset=${offset}`);
   }
 
+  async getInventoryAISummary(): Promise<any> {
+    return this.request<any>('/ai/inventory/summary');
+  }
+
+  async askInventoryAI(
+    question: string,
+    conversation_history: Array<{ role: 'user' | 'assistant'; content: string }> = []
+  ): Promise<any> {
+    return this.request<any>('/ai/inventory/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        conversation_history: conversation_history.slice(-6),
+      }),
+    });
+  }
+
   // --- Customers ---
   async getCustomers(search?: string): Promise<CustomerMetric[]> {
     const query = search ? `?search=${encodeURIComponent(search)}` : '';
@@ -796,4 +813,3 @@ export const aiApi = {
   executeApproval: (id: string | number, decision: 'approve' | 'reject') =>
     api.resolveAIApproval(Number(id), decision === 'approve')
 };
-
