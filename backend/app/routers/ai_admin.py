@@ -464,7 +464,7 @@ async def assistant_chat(
         return await bi_assistant.ask(
             d1=d1,
             question=payload.question.strip(),
-            conversation_history=payload.conversation_history,
+            conversation_history=(payload.conversation_history or [])[-6:],
             admin_id=current_admin["id"]
         )
     except Exception as e:

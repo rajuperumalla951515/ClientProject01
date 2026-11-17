@@ -66,8 +66,8 @@ const QUICK_PROMPTS = [
     prompt: "Provide a comprehensive breakdown of our entire application details, database state, system architecture, delivery logistics, and AI telemetry."
   },
   {
-    label: "Telugu: అమ్మకాల సలహాలు",
-    prompt: "మన స్టోర్‌లో చెక్క గానుగ నూనెల అమ్మకాలను ఎలా పెంచాలో మంచి సలహాలు ఇవ్వండి."
+    label: "English: Oil Sales Advice",
+    prompt: "Give an evidence-based plan to improve sales of our traditional wood-pressed oils. Clearly separate verified facts from assumptions."
   }
 ];
 
@@ -77,7 +77,7 @@ export const AIAssistantPage: React.FC = () => {
     {
       id: 'welcome',
       sender: 'assistant',
-      text: "Namaste! I am the Sri Adithya Organics AI Business Intelligence Assistant. I am connected directly to your Cloudflare D1 database via verified, parameterized analytics tools. You can ask me about live sales, stock levels, pending orders, product rankings, and revenue comparisons. How can I help you today?",
+      text: "Hello. I am the Sri Adithya Organics AI Business Intelligence Assistant. I answer in English and use verified, parameterized database tools for live store data. I will separate facts from recommendations, explain the evidence briefly, and say when data is unavailable.",
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       provider: 'Cloudflare Workers AI',
       model: '@cf/meta/llama-3.1-8b-instruct'
@@ -201,7 +201,7 @@ export const AIAssistantPage: React.FC = () => {
               </span>
             </div>
             <p className="text-xs text-[#778176]">
-              Real-time analytics powered by Cloudflare Workers AI with parameterized D1 database verification.
+              English-only answers with evidence-based reasoning and parameterized D1 database verification.
             </p>
           </div>
         </div>
@@ -253,7 +253,7 @@ export const AIAssistantPage: React.FC = () => {
                     <div className="whitespace-pre-wrap">{msg.text}</div>
 
                     {/* D1 Tool Execution Badge & Data Viewer */}
-                    {!isUser && msg.tool_executed && (
+                    {!isUser && msg.tool_executed && msg.tool_data && (
                       <div className="mt-3 pt-3 border-t border-[#E6E7DD] space-y-2">
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="flex items-center gap-1.5">
@@ -387,7 +387,7 @@ export const AIAssistantPage: React.FC = () => {
                     handleSendMessage();
                   }
                 }}
-                placeholder="Ask about live sales, top products, low stock, customer retention... (Shift+Enter for newline)"
+                placeholder="Ask in English about live sales, products, low stock, orders, or customer retention... (Shift+Enter for newline)"
                 rows={2}
                 disabled={isLoading}
                 className="w-full px-3 py-2.5 text-xs md:text-sm bg-transparent outline-none resize-none text-[#26352B] placeholder-[#778176]"
